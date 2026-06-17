@@ -1,0 +1,7 @@
+{
+  "name": "daftar-albaqala",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "react-vite"
+}
