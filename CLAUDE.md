@@ -102,12 +102,19 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       DNS: Cloudflare A record `shopbook` → 167.71.34.80 (set grey/DNS-only for certbot; can flip
       to orange/proxied after).
 
-## Status — NEXT (Phase 3: Auth)
-- Register/login endpoints, bcrypt password hashing, JWT issuing + verify middleware.
-- Add MySQL driver + `.env` `JWT_SECRET` (currently empty on server).
+- [x] **Phase 3 DONE — auth live.** mysql2 pool (`src/db.ts`), bcryptjs hashing, JWT (`jsonwebtoken`).
+      Endpoints: `POST /auth/register`, `POST /auth/login` (`src/routes/auth.ts`), `requireAuth`
+      JWT-verify middleware (`src/middleware/auth.ts`, sets `req.userId`), protected `GET /me`.
+      `JWT_SECRET` set on server (`openssl rand -hex 32`). Verified end-to-end on
+      `https://shopbook.shahed.uk`. NOTE: `daftar_user` MySQL password was reset to match
+      `.env` (`DB_PASSWORD`) — it leaked into a chat, so **rotate it** (low priority).
+
+## Status — NEXT (Phase 4: customers + transactions CRUD)
+- All routes behind `requireAuth`; **every query filtered by `req.userId`** (tenant isolation).
+- Customers: create/list/update/soft-delete (last-write-wins by `updated_at`).
+- Transactions: append-only create + list (corrections = reversing entry, never edit/delete).
 
 ## Then — later phases
-- Phase 4: CRUD for customers/transactions + the **user_id isolation middleware**.
 - Phase 5: Sync endpoints + subscription enforcement.
 - Phase 6: Frontend — local SQLite, the UI (login → customer list → customer detail → settings),
   then wire up sync.
