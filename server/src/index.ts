@@ -1,10 +1,14 @@
 import 'dotenv/config';
-import express from 'express';
+import express, { NextFunction, Request, Response } from 'express';
+import authRouter from './routes/auth';
+import { requireAuth, AuthedRequest } from './middleware/auth';
+import { asyncHandler } from './asyncHandler';
+import { pool } from './db';
 
 const app = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3002;
 
-// Parse JSON request bodies (used by later routes).
+// Parse JSON request bodies.
 app.use(express.json());
 
 // Health check — confirms the server is alive and reachable.
@@ -14,6 +18,30 @@ app.get('/health', (_req, res) => {
     service: 'daftar-api',
     time: new Date().toISOString(),
   });
+});
+
+// Auth: POST /auth/register, POST /auth/login.
+app.use('/auth', authRouter);
+
+// Protected test route — returns the user named in the JWT.
+app.get(
+  '/me',
+  requireAuth,
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const [rows] = await pool.query(
+      'SELECT id, email, store_name, plan, subscription_status FROM users WHERE id = ?',
+      [req.userId]
+    );
+    const user = (rows as unknown[])[0];
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    return res.json({ user });
+  })
+);
+
+// Catch-all error handler (async route rejections land here).
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: 'internal server error' });
 });
 
 app.listen(PORT, () => {
