@@ -93,18 +93,20 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
 - [x] Git deploy pipeline working (private repo + server deploy key + clone at
       `/opt/daftar-albaqala`).
 - [x] Backend skeleton written: `server/` with a `GET /health` endpoint.
+- [x] **Phase 2 DONE — backend live on public HTTPS.** `.env` created on server (DB_PASSWORD set);
+      `npm install` done; runs under **pm2** as `daftar-api` (via tsx interpreter — `pm2 start
+      src/index.ts --interpreter ./node_modules/.bin/tsx`; no `tsc` build, the droplet stalled on
+      it), autostarts on boot (`pm2 startup` → systemd `pm2-root.service`, `pm2 save`). nginx
+      reverse proxy at `/etc/nginx/sites-available/shopbook.shahed.uk` → `localhost:3002`;
+      Let's Encrypt SSL via certbot. **Public URL: `https://shopbook.shahed.uk/health`** returns ok.
+      DNS: Cloudflare A record `shopbook` → 167.71.34.80 (set grey/DNS-only for certbot; can flip
+      to orange/proxied after).
 
-## Status — NEXT (finish Phase 2: backend skeleton reachable over HTTPS)
-1. On the server: `cd /opt/daftar-albaqala && git pull`.
-2. `cd server`, create `.env` from `.env.example` and fill `DB_PASSWORD` (daftar_user's password).
-3. `npm install`.
-4. Run `npm run dev` and confirm `curl http://localhost:3002/health` returns `{"status":"ok",...}`.
-5. Add an **nginx reverse proxy** on a subdomain (e.g. `api.shahed.uk`) + **Let's Encrypt SSL**,
-   so `https://api.shahed.uk/health` works from the internet.
-6. Add a **process manager** (pm2 or systemd) so the backend stays running and autostarts.
+## Status — NEXT (Phase 3: Auth)
+- Register/login endpoints, bcrypt password hashing, JWT issuing + verify middleware.
+- Add MySQL driver + `.env` `JWT_SECRET` (currently empty on server).
 
 ## Then — later phases
-- Phase 3: Auth (register/login, bcrypt, JWT).
 - Phase 4: CRUD for customers/transactions + the **user_id isolation middleware**.
 - Phase 5: Sync endpoints + subscription enforcement.
 - Phase 6: Frontend — local SQLite, the UI (login → customer list → customer detail → settings),
