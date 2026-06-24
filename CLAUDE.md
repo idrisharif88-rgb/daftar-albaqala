@@ -114,7 +114,11 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       GET (list, excludes soft-deleted) / POST (create, app-layer phone-uniqueness) / PUT
       (update, last-write-wins by `updated_at`) / DELETE (soft-delete tombstone). Every query
       filtered by `req.userId`. Verified live on `https://shopbook.shahed.uk`.
-- [ ] Transactions: append-only create + list (corrections = reversing entry, never edit/delete).
+- [x] **Transactions DONE.** `src/routes/transactions.ts` mounted at `/transactions` behind
+      `requireAuth`. POST (append-only create: validates type debt/payment, positive amount,
+      and that the customer belongs to this owner & is active) / GET `?customer_id=` (list,
+      newest first). No update/delete — corrections are reversing entries. Filtered by
+      `req.userId`. Verified live on `https://shopbook.shahed.uk`. **Phase 4 complete.**
 
 > ⚠️ **Server RAM is critically tight (1GB, NO swap).** On 2026-06-24 it thrashed to load ~22 /
 > OOM (MySQL+Ghost+2 node apps + an `appstreamcli` update spike), which froze DNS + all requests;
