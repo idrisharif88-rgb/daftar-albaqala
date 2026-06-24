@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express, { NextFunction, Request, Response } from 'express';
 import authRouter from './routes/auth';
+import customersRouter from './routes/customers';
 import { requireAuth, AuthedRequest } from './middleware/auth';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
@@ -22,6 +23,9 @@ app.get('/health', (_req, res) => {
 
 // Auth: POST /auth/register, POST /auth/login.
 app.use('/auth', authRouter);
+
+// Customers CRUD — all behind requireAuth, every query filtered by req.userId.
+app.use('/customers', requireAuth, customersRouter);
 
 // Protected test route — returns the user named in the JWT.
 app.get(
