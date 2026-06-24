@@ -110,9 +110,15 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       `.env` (`DB_PASSWORD`) — it leaked into a chat, so **rotate it** (low priority).
 
 ## Status — NEXT (Phase 4: customers + transactions CRUD)
-- All routes behind `requireAuth`; **every query filtered by `req.userId`** (tenant isolation).
-- Customers: create/list/update/soft-delete (last-write-wins by `updated_at`).
-- Transactions: append-only create + list (corrections = reversing entry, never edit/delete).
+- [x] **Customers DONE.** `src/routes/customers.ts` mounted at `/customers` behind `requireAuth`.
+      GET (list, excludes soft-deleted) / POST (create, app-layer phone-uniqueness) / PUT
+      (update, last-write-wins by `updated_at`) / DELETE (soft-delete tombstone). Every query
+      filtered by `req.userId`. Verified live on `https://shopbook.shahed.uk`.
+- [ ] Transactions: append-only create + list (corrections = reversing entry, never edit/delete).
+
+> ⚠️ **Server RAM is critically tight (1GB, NO swap).** On 2026-06-24 it thrashed to load ~22 /
+> OOM (MySQL+Ghost+2 node apps + an `appstreamcli` update spike), which froze DNS + all requests;
+> a reboot recovered it. **Add a swap file** (e.g. 1–2GB) to prevent recurrence — pending.
 
 ## Then — later phases
 - Phase 5: Sync endpoints + subscription enforcement.
