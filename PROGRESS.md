@@ -46,6 +46,22 @@ It can record a debt or a payment for a customer and list them all. Importantly,
 never be edited or erased** — if there's a mistake, you add a correcting entry instead. This
 keeps the money history honest and trustworthy, like a real accountant's ledger.
 
+**6. The server can now sync with phones — started and working today.**
+*(Done on 2026-06-25, around 12:09 PM Yemen time.)*
+We built the two-way "syncing" pipe between phone and server — the heart of the offline-first
+promise:
+- **Sending up:** a phone that was offline can now upload everything it recorded — new customers,
+  edits, debts, payments — in one go. The server is smart about it: if the same record arrives
+  twice (say the connection hiccupped and it retried), it isn't duplicated. For customers, the
+  newest version wins; for debts/payments, nothing is ever overwritten — they're only ever added.
+- **Pulling down:** a phone can ask "what's changed since I last checked?" and the server hands
+  back only the new stuff — including any deletions — so a second phone, or a fresh reinstall,
+  catches up without re-downloading everything.
+
+Both directions were tested live on the real server today and work correctly. Still to come in
+this step: the **paid-subscription check** (the server will only sync for shops with an active
+subscription) — that's the next thing we build.
+
 ## One bump along the way (now fixed)
 The server briefly froze once — it ran out of memory because several programs were sharing a
 small machine. We added a **"safety buffer"** (called swap) so it won't freeze like that again.
@@ -63,7 +79,7 @@ rule in the whole project, and it's built into every feature.
 [✓] Login & accounts
 [✓] Customers (add / list / edit / remove)
 [✓] Debts & payments
-[ ] Syncing phone <-> server + paid subscription   <- next
+[~] Syncing phone <-> server (done) + paid subscription (next)   <- here now
 [ ] The phone app people actually use               <- after that
 ```
 
