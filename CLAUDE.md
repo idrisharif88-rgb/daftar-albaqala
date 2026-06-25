@@ -125,8 +125,16 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
 > a reboot recovered it. **RESOLVED 2026-06-25: a 2GB swap file was added** to absorb spikes.
 > When debugging "empty response"/hangs here, still check `free -h; uptime` first.
 
+## Status — IN PROGRESS (Phase 5: sync + subscription enforcement)
+- [x] **`POST /sync/push` DONE.** `src/routes/sync.ts` mounted at `/sync` behind `requireAuth`.
+      Body `{ customers:[...], transactions:[...] }`. Customers = upsert by UUID, last-write-wins
+      by `updated_at`; transactions = append-only insert-if-new. Cross-owner UUIDs rejected (not
+      applied). Whole batch in one DB transaction; returns per-table counts. Verified live on
+      `https://shopbook.shahed.uk` (insert then idempotent re-apply).
+- [ ] `GET /sync/pull?since=` — return rows changed since the client's last sync.
+- [ ] Subscription enforcement — middleware refuses sync if `subscription_status` inactive/expired.
+
 ## Then — later phases
-- Phase 5: Sync endpoints + subscription enforcement.
 - Phase 6: Frontend — local SQLite, the UI (login → customer list → customer detail → settings),
   then wire up sync.
 
