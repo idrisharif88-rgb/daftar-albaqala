@@ -131,7 +131,10 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       by `updated_at`; transactions = append-only insert-if-new. Cross-owner UUIDs rejected (not
       applied). Whole batch in one DB transaction; returns per-table counts. Verified live on
       `https://shopbook.shahed.uk` (insert then idempotent re-apply).
-- [ ] `GET /sync/pull?since=` — return rows changed since the client's last sync.
+- [x] **`GET /sync/pull?since=` DONE.** Returns customers (incl. soft-deleted tombstones) with
+      `updated_at >= since` + transactions with `created_at >= since`, plus a `synced_at` the
+      client stores as its next `since`. `>=` (not `>`) so same-second rows aren't dropped; the
+      boundary overlap is harmless (client applies idempotently). Verified live.
 - [ ] Subscription enforcement — middleware refuses sync if `subscription_status` inactive/expired.
 
 ## Then — later phases
