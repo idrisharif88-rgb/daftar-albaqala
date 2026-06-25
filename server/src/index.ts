@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import authRouter from './routes/auth';
 import customersRouter from './routes/customers';
 import transactionsRouter from './routes/transactions';
+import syncRouter from './routes/sync';
 import { requireAuth, AuthedRequest } from './middleware/auth';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
@@ -30,6 +31,10 @@ app.use('/customers', requireAuth, customersRouter);
 
 // Transactions (append-only) — behind requireAuth, every query filtered by req.userId.
 app.use('/transactions', requireAuth, transactionsRouter);
+
+// Sync — phone pushes offline changes up. Behind requireAuth, every record
+// checked against req.userId. POST /sync/push.
+app.use('/sync', requireAuth, syncRouter);
 
 // Protected test route — returns the user named in the JWT.
 app.get(

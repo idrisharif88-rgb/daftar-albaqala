@@ -120,9 +120,10 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       newest first). No update/delete — corrections are reversing entries. Filtered by
       `req.userId`. Verified live on `https://shopbook.shahed.uk`. **Phase 4 complete.**
 
-> ⚠️ **Server RAM is critically tight (1GB, NO swap).** On 2026-06-24 it thrashed to load ~22 /
-> OOM (MySQL+Ghost+2 node apps + an `appstreamcli` update spike), which froze DNS + all requests;
-> a reboot recovered it. **Add a swap file** (e.g. 1–2GB) to prevent recurrence — pending.
+> ⚠️ **Server RAM is tight (1GB).** On 2026-06-24 it thrashed to load ~22 / OOM
+> (MySQL+Ghost+2 node apps + an `appstreamcli` update spike), which froze DNS + all requests;
+> a reboot recovered it. **RESOLVED 2026-06-25: a 2GB swap file was added** to absorb spikes.
+> When debugging "empty response"/hangs here, still check `free -h; uptime` first.
 
 ## Then — later phases
 - Phase 5: Sync endpoints + subscription enforcement.
