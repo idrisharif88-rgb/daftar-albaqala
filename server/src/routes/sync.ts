@@ -139,4 +139,48 @@ router.post(
   })
 );
 
+// GET /sync/pull?since=<ISO timestamp> — return everything that changed on the
+// server since the client's last sync, so a second device / reinstall catches up.
+//   - customers    → rows with updated_at >= since. INCLUDES soft-deleted rows
+//     (tombstones) so deletes propagate; the client reads deleted_at to apply them.
+//   - transactions → rows with created_at >= since (append-only, never change).
+// We use >= (not >) because DATETIME is second-precision: two rows can share a
+// timestamp, so > could drop a same-second row. The small re-pull overlap at the
+// boundary is harmless — the client applies pulled rows idempotently (LWW /
+// insert-if-new), exactly like /sync/push. Missing a row would not be harmless,
+// so we err toward overlap. Omitting `since` pulls everything (since = epoch).
+// `synced_at` is the server clock the client stores as its next `since`.
+router.get(
+  '/pull',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const sinceParam = req.query.since;
+    const since = sinceParam && typeof sinceParam === 'string'
+      ? new Date(sinceParam)
+      : new Date(0);
+    if (Number.isNaN(since.getTime())) {
+      return res.status(400).json({ error: 'since must be a valid ISO timestamp' });
+    }
+
+    const syncedAt = new Date();
+
+    const [customers] = await pool.query(
+      `SELECT id, name, phone, note, created_at, updated_at, deleted_at
+         FROM customers
+        WHERE user_id = ? AND updated_at >= ?
+        ORDER BY updated_at ASC`,
+      [req.userId, since]
+    );
+
+    const [transactions] = await pool.query(
+      `SELECT id, customer_id, type, amount, note, occurred_at, created_at
+         FROM transactions
+        WHERE user_id = ? AND created_at >= ?
+        ORDER BY created_at ASC`,
+      [req.userId, since]
+    );
+
+    return res.json({ customers, transactions, synced_at: syncedAt.toISOString() });
+  })
+);
+
 export default router;
