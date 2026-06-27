@@ -7,3 +7,4 @@ dist/
 # Local dev DB helpers — contain a local password, machine-specific
 db/local-setup.sql
 db/local-load-schema.sh
+db/local-reset.sh

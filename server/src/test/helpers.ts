@@ -20,24 +20,28 @@ export async function cleanDb(): Promise<void> {
   await pool.query('DELETE FROM users');
 }
 
+// Each seeded tenant gets a unique phone (the login identity). A counter keeps
+// them distinct within a run; cleanDb wipes between tests.
+let phoneSeq = 0;
+
 // Insert a tenant (shopkeeper) and return its id. password_hash is a dummy —
 // these tests exercise sync, not login. By default the tenant has an ACTIVE
 // subscription so /sync passes requireSubscription; pass a `sub` override to
 // test the gate (e.g. { status: 'none' } or an expired date).
 export async function seedUser(
-  email: string,
   sub: { status?: 'none' | 'active' | 'expired'; expiresAt?: Date | null } = {}
 ): Promise<string> {
   const id = randomUUID();
+  const phone = `7${String(phoneSeq++).padStart(8, '0')}`;
   const now = mysqlDate(new Date());
   const status = sub.status ?? 'active';
   const expiresAt =
     sub.expiresAt === undefined ? null : sub.expiresAt ? mysqlDate(sub.expiresAt) : null;
   await pool.query(
     `INSERT INTO users
-       (id, email, password_hash, subscription_status, subscription_expires_at, created_at, updated_at)
+       (id, phone, password_hash, subscription_status, subscription_expires_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, email, 'x', status, expiresAt, now, now]
+    [id, phone, 'x', status, expiresAt, now, now]
   );
   return id;
 }

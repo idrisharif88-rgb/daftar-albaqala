@@ -11,7 +11,7 @@
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
   id                       CHAR(36)        NOT NULL,                 -- معرّف UUID
-  email                    VARCHAR(255)    NOT NULL,
+  phone                    VARCHAR(32)     NOT NULL,                 -- رقم الهاتف = معرّف تسجيل الدخول
   password_hash            VARCHAR(255)    NOT NULL,                 -- bcrypt (لا تُخزَّن كلمة السر أبداً)
   store_name               VARCHAR(255)    NULL,
   currency                 VARCHAR(8)      NOT NULL DEFAULT 'YER',   -- ريال يمني
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at               DATETIME        NOT NULL,
 
   PRIMARY KEY (id),
-  UNIQUE KEY uq_users_email (email)
+  UNIQUE KEY uq_users_phone (phone)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------

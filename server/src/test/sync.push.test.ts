@@ -31,8 +31,8 @@ describe('POST /sync/push', () => {
 
   beforeEach(async () => {
     await cleanDb();
-    userA = await seedUser(`a-${randomUUID()}@test`);
-    userB = await seedUser(`b-${randomUUID()}@test`);
+    userA = await seedUser();
+    userB = await seedUser();
     tokenA = tokenFor(userA);
   });
 

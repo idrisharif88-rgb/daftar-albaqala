@@ -46,7 +46,7 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, email, store_name, plan, subscription_status FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status FROM users WHERE id = ?',
       [req.userId]
     );
     const user = (rows as unknown[])[0];

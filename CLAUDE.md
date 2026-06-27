@@ -108,6 +108,11 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       `JWT_SECRET` set on server (`openssl rand -hex 32`). Verified end-to-end on
       `https://shopbook.shahed.uk`. NOTE: `daftar_user` MySQL password was reset to match
       `.env` (`DB_PASSWORD`) — it leaked into a chat, so **rotate it** (low priority).
+      **UPDATE (Phase 6, 2026-06-27): login identity is PHONE, not email** (Yemen is phone-first).
+      `users.email` → `users.phone` (`VARCHAR(32)`, unique `uq_users_phone`); register/login take
+      `phone` (normalized to digits, strips spaces/`-`/leading `+`; must be 6–20 digits). ⚠️ The
+      **production `daftar_db` still has the old `email` column** — needs an `ALTER`/reload on the
+      droplet before deploying this (no real users yet, so low-risk).
 
 ## Status — NEXT (Phase 4: customers + transactions CRUD)
 - [x] **Customers DONE.** `src/routes/customers.ts` mounted at `/customers` behind `requireAuth`.
@@ -165,8 +170,14 @@ Now build the actual app the shopkeeper uses. Offline-first: it must work with n
 sync when one returns (see Architecture — local SQLite INTEGER minor units, UUID PKs).
 - [ ] **Local SQLite** — Capacitor SQLite plugin; mirror schema (customers, transactions) with
       INTEGER money (minor units) + UUID PKs; a sync-cursor store for the last `since`.
-- [ ] **Auth UI** — login/register screens hitting `/auth/*`; store the JWT; handle the 402
-      (subscription inactive) by prompting to subscribe.
+- [x] **Auth UI DONE.** Login/register screen (`src/pages/Login.tsx`, Arabic/RTL, **phone** + password,
+      tel keypad). `src/lib/`: `api.ts` (fetch wrapper + typed `ApiError`, incl. the 402 case),
+      `auth.tsx` (`AuthProvider`/`useAuth`, JWT state), `storage.ts` (token in localStorage — will
+      move to `@capacitor/preferences` with the data layer), `config.ts` (`API_BASE`). `App.tsx`
+      auth-guarded routes (`/login` ↔ `/home`). `index.html` set `lang="ar" dir="rtl"`. Dev: Vite
+      proxies `/api` → `localhost:3002` (no CORS); device builds use `VITE_API_BASE` (full https URL).
+      Tested in desktop + phone Chrome over LAN (`npm run dev -- --host`). TODO: still handle the
+      402 visibly (show a "subscribe" prompt) once sync is wired.
 - [ ] **Customer list** — running balances computed from local transactions.
 - [ ] **Customer detail** — transaction history; add debt / add payment (append-only; a
       correction is a reversing entry, never an edit).

@@ -2,6 +2,8 @@ import { Redirect, Route } from 'react-router-dom';
 import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import Home from './pages/Home';
+import Login from './pages/Login';
+import { AuthProvider, useAuth } from './lib/auth';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -35,18 +37,32 @@ import './theme/variables.css';
 
 setupIonicReact();
 
-const App: React.FC = () => (
-  <IonApp>
+// Routes depend on auth state: signed-in users get the app, everyone else is
+// sent to /login. Kept inside AuthProvider so useAuth() is available.
+const Routes: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  return (
     <IonReactRouter>
       <IonRouterOutlet>
+        <Route exact path="/login">
+          {isAuthenticated ? <Redirect to="/home" /> : <Login />}
+        </Route>
         <Route exact path="/home">
-          <Home />
+          {isAuthenticated ? <Home /> : <Redirect to="/login" />}
         </Route>
         <Route exact path="/">
-          <Redirect to="/home" />
+          <Redirect to={isAuthenticated ? '/home' : '/login'} />
         </Route>
       </IonRouterOutlet>
     </IonReactRouter>
+  );
+};
+
+const App: React.FC = () => (
+  <IonApp>
+    <AuthProvider>
+      <Routes />
+    </AuthProvider>
   </IonApp>
 );
 

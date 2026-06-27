@@ -1,6 +1,5 @@
 import { test, before, beforeEach, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import app from '../app';
 import { pool } from '../db';
@@ -26,7 +25,7 @@ describe('/sync subscription enforcement', () => {
   });
 
   test('active subscription is allowed (pull)', async () => {
-    const user = await seedUser(`a-${randomUUID()}@test`, { status: 'active' });
+    const user = await seedUser({ status: 'active' });
     const res = await request(app)
       .get('/sync/pull')
       .set('Authorization', `Bearer ${tokenFor(user)}`);
@@ -34,7 +33,7 @@ describe('/sync subscription enforcement', () => {
   });
 
   test("status 'none' is refused with 402 (pull)", async () => {
-    const user = await seedUser(`a-${randomUUID()}@test`, { status: 'none' });
+    const user = await seedUser({ status: 'none' });
     const res = await request(app)
       .get('/sync/pull')
       .set('Authorization', `Bearer ${tokenFor(user)}`);
@@ -43,7 +42,7 @@ describe('/sync subscription enforcement', () => {
   });
 
   test("status 'expired' is refused with 402 (push)", async () => {
-    const user = await seedUser(`a-${randomUUID()}@test`, { status: 'expired' });
+    const user = await seedUser({ status: 'expired' });
     const res = await request(app)
       .post('/sync/push')
       .set('Authorization', `Bearer ${tokenFor(user)}`)
@@ -53,10 +52,7 @@ describe('/sync subscription enforcement', () => {
 
   test('active but past expiry date is refused with 402', async () => {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const user = await seedUser(`a-${randomUUID()}@test`, {
-      status: 'active',
-      expiresAt: yesterday,
-    });
+    const user = await seedUser({ status: 'active', expiresAt: yesterday });
     const res = await request(app)
       .get('/sync/pull')
       .set('Authorization', `Bearer ${tokenFor(user)}`);
@@ -65,10 +61,7 @@ describe('/sync subscription enforcement', () => {
 
   test('active with future expiry date is allowed', async () => {
     const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-    const user = await seedUser(`a-${randomUUID()}@test`, {
-      status: 'active',
-      expiresAt: nextYear,
-    });
+    const user = await seedUser({ status: 'active', expiresAt: nextYear });
     const res = await request(app)
       .get('/sync/pull')
       .set('Authorization', `Bearer ${tokenFor(user)}`);
