@@ -135,7 +135,27 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
       `updated_at >= since` + transactions with `created_at >= since`, plus a `synced_at` the
       client stores as its next `since`. `>=` (not `>`) so same-second rows aren't dropped; the
       boundary overlap is harmless (client applies idempotently). Verified live.
-- [ ] Subscription enforcement — middleware refuses sync if `subscription_status` inactive/expired.
+- [x] **Subscription enforcement DONE.** `src/middleware/requireSubscription.ts` gates `/sync`
+      (`requireAuth, requireSubscription, syncRouter` in `app.ts`): refuses with **402** unless
+      `subscription_status='active'` AND not past `subscription_expires_at` (null expiry = no
+      expiry). Cloud sync is the paid feature; the server is the enforcement point. Tests:
+      `src/test/sync.subscription.test.ts` (5 cases). **Phase 5 complete.**
+
+### Automated tests (sync)
+- `server/src/test/` — integration tests for `/sync/push` + `/sync/pull` (19 cases) using
+  Node's built-in test runner + `supertest`, driving the real Express app (`src/app.ts`, split
+  out of `index.ts` so it has no `listen()`). Run with **`npm test`** in `server/`.
+- They hit a **real MySQL** `daftar_test` DB — **never** production `daftar_db` (a guard refuses
+  to run unless `DB_NAME === 'daftar_test'`). Creds come from `server/.env.test` (git-ignored;
+  template `.env.test.example`). Each test wipes + reseeds two tenants, so isolation is real.
+- Coverage: last-write-wins (stale skip / newer overwrite), idempotent re-push, append-only
+  (no dup transactions), tenant isolation (cross-owner UUID rejected on both tables), input
+  validation, pull delta `since` filter, tombstones included, 401/400 paths.
+- **One-time test-DB setup** (owner, on droplet `sudo mysql -u root -p`):
+  `CREATE DATABASE daftar_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` then
+  `GRANT SELECT,INSERT,UPDATE,DELETE ON daftar_test.* TO 'daftar_user'@'localhost';` then load
+  schema as root: `sudo mysql -u root -p daftar_test < server/db/schema.sql`. Then
+  `cp server/.env.test.example server/.env.test` and set `DB_PASSWORD` (= the one in `.env`).
 
 ## Then — later phases
 - Phase 6: Frontend — local SQLite, the UI (login → customer list → customer detail → settings),
