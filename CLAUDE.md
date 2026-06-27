@@ -84,6 +84,27 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
    (`/opt/daftar-albaqala`). The droplet, MySQL, nginx, SSL are managed by the **owner** via the
    DigitalOcean web console.
 
+### Local dev environment — set up on the ThinkPad 2026-06-27 (how to resume)
+The full backend can now be run + tested **locally** (no droplet needed for dev):
+- **Local MySQL** installed. Two DBs: `daftar_db` (manual e2e) + `daftar_test` (`npm test`).
+  App user `daftar_user` / password **`Daftar_Local_1!`** (local only — not the server's secret).
+  Set in `server/.env` and `server/.env.test` (git-ignored).
+- **Git-ignored helper scripts** (local, hold the password): `server/db/local-setup.sql`
+  (create DBs+user), `local-load-schema.sh`, `local-reset.sh` (drop+reload after a schema change,
+  run as `sudo bash …`). MySQL's password policy rejects weak passwords — keep the compliant one.
+- **Run the backend:** `cd server && npm run dev` → `http://localhost:3002`. Tests: `npm test` (24/24).
+- **Run the app:** `npm run dev -- --host` → opens on the LAN. **Test on the real phone** (Note 9,
+  same WiFi) at **`http://192.168.0.43:5173`** (laptop's LAN IP — re-check with `hostname -I`).
+  The app calls `/api/*`, which Vite **proxies** to `localhost:3002` (no CORS); device/prod builds
+  use `VITE_API_BASE` instead (`src/config.ts`).
+- **To unlock sync for a local test user** (sync is gated by subscription): in `daftar_db`,
+  `UPDATE users SET subscription_status='active' WHERE id='…';` (mirrors real server-side activation).
+- **Note:** local phone testing is over plain HTTP, so `crypto.randomUUID` is unavailable → we use a
+  `getRandomValues` fallback (`src/data/uuid.ts`). SQLite in the browser needs `sql.js` pinned to
+  **1.11.0** (matches jeep-sqlite's glue) — don't bump it without re-verifying on the phone.
+- **`cursorrules`** (repo root): owner's reverse-learning guide — drop short **English** `🧩 Server
+  concept:` callouts when code touches a server/infra/security concept.
+
 ## Status — DONE
 - [x] Frontend scaffolded (default Ionic starter; no app code yet).
 - [x] DB schema designed + committed (`server/db/schema.sql`).
@@ -196,7 +217,11 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
 - [ ] **Wire up sync** — push local changes + pull deltas (`/sync/push`, `/sync/pull?since=`),
       automatic on app open / network return + the manual button; apply LWW / insert-if-new.
 
-> Build in vertical slices; the app default starter is still in `src/` (no app code yet).
+> Build in vertical slices. Phase 6 is **2 of 6** done (Local SQLite ✓, Auth UI ✓).
+> ▶ **RESUME HERE (next session):** the **Customer list** screen — replace the placeholder
+> `src/pages/Home.tsx` with a list of customers + running balances read from the data layer
+> (`listCustomers()` + `getBalance()`), and an "add customer" flow (`createCustomer()`). The
+> repositories already exist and are phone-verified; this slice is pure UI on top of them.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a
