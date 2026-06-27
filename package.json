@@ -4,6 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "copy-sql-wasm": "mkdir -p public/assets && cp node_modules/sql.js/dist/sql-wasm.wasm public/assets/sql-wasm.wasm",
+    "predev": "npm run copy-sql-wasm",
+    "prebuild": "npm run copy-sql-wasm",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
@@ -12,6 +15,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "^8.1.0",
     "@capacitor/app": "8.1.0",
     "@capacitor/core": "8.4.0",
     "@capacitor/haptics": "8.0.2",
@@ -22,10 +26,12 @@
     "@types/react-router": "^5.1.20",
     "@types/react-router-dom": "^5.3.3",
     "ionicons": "^7.4.0",
+    "jeep-sqlite": "^2.8.0",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-router": "^5.3.4",
-    "react-router-dom": "^5.3.4"
+    "react-router-dom": "^5.3.4",
+    "sql.js": "1.11.0"
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.0",

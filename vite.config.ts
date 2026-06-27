@@ -10,6 +10,12 @@ export default defineConfig({
     react(),
     legacy()
   ],
+  // jeep-sqlite is a Stencil component that lazy-loads its own chunks; Vite's
+  // dep pre-bundler mangles them ("file does not exist in deps directory").
+  // Excluding it lets the browser load it straight from node_modules.
+  optimizeDeps: {
+    exclude: ['jeep-sqlite'],
+  },
   // Dev-only proxy: the app calls relative '/api/*' and Vite forwards to the
   // local backend, so there's no CORS in development. On device builds the app
   // uses VITE_API_BASE (a full https URL) instead — see src/config.ts.

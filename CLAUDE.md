@@ -168,8 +168,19 @@ server, and does not deploy directly to it (push to GitHub; the droplet pulls).
 The whole backend (auth, customers, transactions, sync, subscription gate) is live and tested.
 Now build the actual app the shopkeeper uses. Offline-first: it must work with no network and
 sync when one returns (see Architecture — local SQLite INTEGER minor units, UUID PKs).
-- [ ] **Local SQLite** — Capacitor SQLite plugin; mirror schema (customers, transactions) with
-      INTEGER money (minor units) + UUID PKs; a sync-cursor store for the last `since`.
+- [x] **Local SQLite DONE.** `@capacitor-community/sqlite` (v8.1). Data layer in `src/data/`:
+      `schema.ts` (customers + transactions mirror, money INTEGER minor units, ISO-text timestamps,
+      per-row `synced` dirty-flag; `app_meta` k/v for the sync cursor), `db.ts` (init + web/native
+      handling + `persist()`), `money.ts` (`toMinor`/`fromMinor`/`formatMinor`), `customers.ts`
+      (CRUD + soft-delete + app-layer phone-uniqueness), `transactions.ts` (append-only add, list,
+      running balance), `uuid.ts` (UUID v4 — `crypto.randomUUID` is undefined over plain-HTTP LAN,
+      so falls back to `getRandomValues`). Verified end-to-end on a real phone (debt−payment balance).
+      **Web-platform gotchas solved (so the browser dev loop keeps working):** render must not block
+      on DB init; `optimizeDeps.exclude: ['jeep-sqlite']` (Vite mangles its Stencil chunks);
+      **pin `sql.js` to 1.11.0** to match jeep-sqlite's bundled glue (a mismatched wasm hangs
+      `open()` silently); `public/assets/sql-wasm.wasm` is copied from node_modules by the
+      `copy-sql-wasm` predev/prebuild script (git-ignored). On a real Android build, native SQLite
+      is used and none of the jeep/wasm path runs.
 - [x] **Auth UI DONE.** Login/register screen (`src/pages/Login.tsx`, Arabic/RTL, **phone** + password,
       tel keypad). `src/lib/`: `api.ts` (fetch wrapper + typed `ApiError`, incl. the 402 case),
       `auth.tsx` (`AuthProvider`/`useAuth`, JWT state), `storage.ts` (token in localStorage — will
@@ -186,6 +197,19 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       automatic on app open / network return + the manual button; apply LWW / insert-if-new.
 
 > Build in vertical slices; the app default starter is still in `src/` (no app code yet).
+
+## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
+**Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a
+number can make an account — via **WhatsApp OTP, NOT SMS** (WhatsApp penetration in Yemen is far
+higher; carrier SMS deliverability via global gateways is poor/pricey). **Deferred** until the
+core app works — the subscription gate already neutralizes fake accounts (server refuses sync
+until the owner manually activates, so an unverified account is inert).
+- Pre-req: **prove WhatsApp OTP actually delivers to a real Yemeni number** before building, and
+  pick a provider — WhatsApp Business API needs a verified Meta business + an approved
+  *authentication* message template (via Meta Cloud API directly, or Twilio/360dialog).
+- Shape (small): `users.phone_verified` flag + a `verification_codes` table (phone, code_hash,
+  expires_at, attempts); `POST /auth/request-otp` + `POST /auth/verify-otp`; **rate-limit** the
+  request endpoint hard (OTP endpoints get abused to burn credit / spam numbers).
 
 ## Conventions & constraints
 - Work **only** in this repo. Do **NOT** touch the owner's other project `quran-fives-react`.

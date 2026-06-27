@@ -11,6 +11,9 @@
 # production
 /dist
 
+# generated: copied from node_modules by `npm run copy-sql-wasm` (predev/prebuild)
+/public/assets/sql-wasm.wasm
+
 # misc
 .DS_Store
 .env.local
