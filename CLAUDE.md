@@ -210,18 +210,27 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       proxies `/api` → `localhost:3002` (no CORS); device builds use `VITE_API_BASE` (full https URL).
       Tested in desktop + phone Chrome over LAN (`npm run dev -- --host`). TODO: still handle the
       402 visibly (show a "subscribe" prompt) once sync is wired.
-- [ ] **Customer list** — running balances computed from local transactions.
+- [x] **Customer list DONE.** `src/pages/Home.tsx` now lists active customers
+      (`listCustomers()`) with running balances (`getBalance()`, minor units →
+      `formatMinor`), colored by direction (positive=owes shop/red "عليه",
+      negative=shop owes/green "له", zero="مسدد"). Searchbar filters by name/phone.
+      "Add customer" FAB opens an `IonModal` form (name/phone/note) → `createCustomer()`
+      (app-layer phone-uniqueness errors surfaced in Arabic). Reloads on
+      `useIonViewWillEnter` so balances refresh after the detail screen. Rows are
+      not yet tappable — `routerLink` to `/customers/:id` lands with the detail slice.
 - [ ] **Customer detail** — transaction history; add debt / add payment (append-only; a
       correction is a reversing entry, never an edit).
 - [ ] **Settings** — store name, currency (`YER`), language (`ar`), manual sync button.
 - [ ] **Wire up sync** — push local changes + pull deltas (`/sync/push`, `/sync/pull?since=`),
       automatic on app open / network return + the manual button; apply LWW / insert-if-new.
 
-> Build in vertical slices. Phase 6 is **2 of 6** done (Local SQLite ✓, Auth UI ✓).
-> ▶ **RESUME HERE (next session):** the **Customer list** screen — replace the placeholder
-> `src/pages/Home.tsx` with a list of customers + running balances read from the data layer
-> (`listCustomers()` + `getBalance()`), and an "add customer" flow (`createCustomer()`). The
-> repositories already exist and are phone-verified; this slice is pure UI on top of them.
+> Build in vertical slices. Phase 6 is **3 of 6** done (Local SQLite ✓, Auth UI ✓, Customer list ✓).
+> ▶ **RESUME HERE (next session):** the **Customer detail** screen — a new `src/pages/CustomerDetail.tsx`
+> at route `/customers/:id` showing the customer's transaction history (`listTransactions()`) with
+> add-debt / add-payment actions (`addTransaction()`, append-only — a correction is a reversing
+> entry, never an edit). Then make the Home list rows tappable again (restore the `button` +
+> `routerLink={/customers/${id}}` removed in the list slice) and add the route in `App.tsx`.
+> The repositories already exist and are phone-verified; this slice is UI + one new route.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a
