@@ -253,10 +253,39 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
 
 > **Phase 6 COMPLETE** (Local SQLite ✓, Auth UI ✓, Customer list ✓, Customer detail ✓, Settings ✓,
 > Sync ✓; + a customer-notifications feature). The shopkeeper app now works fully offline and syncs.
-> ▶ **NEXT:** first **Capacitor Android build (APK)** — also the prerequisite for the auto-SMS
-> notifications (`npm i cordova-sms-plugin` + `SEND_SMS` permission). Then Phase 7 (WhatsApp OTP).
-> To test sync locally, the local user's `subscription_status` must be `active` in `daftar_db`
-> (see the local-dev note above) or sync returns 402.
+
+## Status — DONE (first Android APK, verified on a real device against the droplet) ✅ (2026-06-29)
+- [x] **Android platform added** (`@capacitor/android`, `android/` committed; build artifacts
+      git-ignored). Build via Android Studio (`npx cap open android` → Build APK) — **Android Studio
+      here is a snap**, so cap can't find it by default: launch `/snap/bin/android-studio <proj>/android`
+      or set `CAPACITOR_ANDROID_STUDIO_PATH=/snap/bin/android-studio`. (CLI alt: `cd android &&
+      ANDROID_HOME=$HOME/Android/Sdk ./gradlew assembleDebug`; local JDK is 25 — may need 17/21 for CLI.)
+- [x] **Auto-SMS prerequisites done:** `cordova-sms-plugin` installed; `SEND_SMS` permission in
+      `android/app/src/main/AndroidManifest.xml`. (Plugin requests the runtime permission on first send.)
+- [x] **Device build points at the droplet:** `.env.production` sets `VITE_API_BASE=https://shopbook.shahed.uk`
+      (the APK has no Vite proxy). **Dev** now also targets the droplet — `vite.config.ts` proxy
+      `target` was switched from `localhost:3002` to `https://shopbook.shahed.uk` (revert to localhost
+      to use the local backend again).
+- [x] **CORS fix — CapacitorHttp enabled** (`capacitor.config.ts`): the native WebView calls the
+      droplet cross-origin; the server has **no CORS middleware**, so without this register/login/sync
+      fail. CapacitorHttp routes fetch/XHR through native HTTP, bypassing CORS. (If you ever drop
+      CapacitorHttp, add `cors()` on the server instead.)
+- [x] **Verified on the real phone → real server:** registered + logged in on the device, added
+      customers + debts/payments, and **/sync pushed them to the droplet `daftar_db`** (amounts stored
+      correctly as DECIMAL major units). WhatsApp + SMS confirmed sending. **Droplet `daftar_db` was
+      reloaded fresh** from `server/db/schema.sql` (now phone-based, old `email` column gone).
+
+> ⚠️ **KNOWN BUG — local data is NOT per-user (fix next session).** The on-phone SQLite is
+> single-tenant (no `user_id` columns), and login doesn't clear it — so signing in as a **new** user
+> still shows the **previous** grocer's customers. (Server isolation by `user_id` is fine; this is
+> client-only.) **Planned fix:** an `ensureLocalOwner(user)` guard (new `src/data/owner.ts`) that
+> records the owning `user_id` in `app_meta` and, on a user switch, wipes local `customers` /
+> `transactions` / `app_meta` (then sync re-pulls the new user's data + seeds store name from the
+> account). Call it in `auth.tsx` login + register, **awaited before `setAuthed(true)`** so AutoSync
+> pulls into a clean store. Caveat: a switch discards unsynced local rows (fine for one-grocer-per-phone).
+> ▶ **RESUME HERE:** implement that fix. Then Phase 7 (WhatsApp OTP).
+> To test sync, the user's `subscription_status` must be `active` in the droplet `daftar_db`
+> (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a
