@@ -16,14 +16,17 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['jeep-sqlite'],
   },
-  // Dev-only proxy: the app calls relative '/api/*' and Vite forwards to the
-  // local backend, so there's no CORS in development. On device builds the app
-  // uses VITE_API_BASE (a full https URL) instead — see src/config.ts.
+  // Dev-only proxy: the app calls relative '/api/*' and Vite forwards it on, so
+  // there's no CORS in development. On device builds the app uses VITE_API_BASE
+  // (a full https URL) instead — see src/config.ts.
+  //   target = the DROPLET (real server) — sync now reaches shopbook.shahed.uk.
+  //   To go back to the local backend, set target to 'http://localhost:3002'.
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3002',
+        target: 'https://shopbook.shahed.uk',
         changeOrigin: true,
+        secure: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },

@@ -5,6 +5,7 @@ import {
   IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { getSettings, saveSettings, type Settings as AppSettings } from '../data/settings';
+import { runSync } from '../data/sync';
 
 // Settings — store name, currency, language. The store name is used in the
 // customer notifications (SMS/WhatsApp). The manual sync button lands with the
@@ -12,6 +13,7 @@ import { getSettings, saveSettings, type Settings as AppSettings } from '../data
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [presentToast] = useIonToast();
 
   useIonViewWillEnter(() => {
@@ -29,6 +31,22 @@ const Settings: React.FC = () => {
       await presentToast({ message: 'تم الحفظ', duration: 1500, color: 'success' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      const r = await runSync();
+      const toast = {
+        ok: { message: 'تمت المزامنة', color: 'success' },
+        offline: { message: 'لا يوجد اتصال بالإنترنت', color: 'medium' },
+        subscription: { message: 'المزامنة تتطلب اشتراكاً فعّالاً', color: 'warning' },
+        error: { message: 'تعذّرت المزامنة، حاول لاحقاً', color: 'danger' },
+      }[r.status];
+      await presentToast({ ...toast, duration: 2000 });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -89,6 +107,16 @@ const Settings: React.FC = () => {
 
             <IonButton expand="block" onClick={save} disabled={saving} className="ion-margin-top">
               {saving ? <IonSpinner name="crescent" /> : 'حفظ'}
+            </IonButton>
+
+            <IonButton
+              expand="block"
+              fill="outline"
+              onClick={sync}
+              disabled={syncing}
+              className="ion-margin-top"
+            >
+              {syncing ? <IonSpinner name="crescent" /> : 'مزامنة الآن'}
             </IonButton>
           </>
         )}

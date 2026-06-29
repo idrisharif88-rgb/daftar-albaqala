@@ -61,6 +61,39 @@ export async function listTransactions(customerId: string): Promise<Transaction[
   return (res.values ?? []) as Transaction[];
 }
 
+// ---- Sync helpers (used by data/sync.ts; they don't persist() — the sync run
+// flushes once at the end) ----
+
+// Transactions created locally but not yet pushed (synced = 0).
+export async function getDirtyTransactions(): Promise<Transaction[]> {
+  const db = await getDB();
+  const res = await db.query(`SELECT ${COLS} FROM transactions WHERE synced = 0`);
+  return (res.values ?? []) as Transaction[];
+}
+
+export async function markTransactionsSynced(ids: string[]): Promise<void> {
+  const db = await getDB();
+  for (const id of ids) {
+    await db.run(`UPDATE transactions SET synced = 1 WHERE id = ?`, [id]);
+  }
+}
+
+// Insert a server transaction if we don't have its UUID yet (append-only — never
+// updated). `amount` is minor units (converted from the wire by the caller).
+export async function applyServerTransaction(row: {
+  id: string; customer_id: string; type: TxnType; amount: number;
+  note: string | null; occurred_at: string; created_at: string;
+}): Promise<void> {
+  const db = await getDB();
+  const res = await db.query(`SELECT id FROM transactions WHERE id = ?`, [row.id]);
+  if ((res.values ?? []).length > 0) return;
+  await db.run(
+    `INSERT INTO transactions (id, customer_id, type, amount, note, occurred_at, created_at, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+    [row.id, row.customer_id, row.type, row.amount, row.note ?? null, row.occurred_at, row.created_at]
+  );
+}
+
 // Running balance in minor units: sum(debt) − sum(payment). Positive = the
 // customer owes the shop; negative = the shop owes the customer (overpaid).
 export async function getBalance(customerId: string): Promise<number> {

@@ -66,3 +66,46 @@ export function login(phone: string, password: string): Promise<AuthResult> {
     body: JSON.stringify({ phone, password }),
   });
 }
+
+// ---- Sync ----
+// Wire shapes mirror the server (server/src/routes/sync.ts). NOTE: transaction
+// `amount` travels as MAJOR units (e.g. 500.00) to match the server's DECIMAL —
+// the local store keeps INTEGER minor units, so the sync layer converts.
+
+export interface PushCustomer {
+  id: string; name: string; phone: string; note: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
+export interface PushTransaction {
+  id: string; customer_id: string; type: string; amount: number;
+  note: string | null; occurred_at: string; created_at: string;
+}
+export interface PushResult {
+  customers: { inserted: number; updated: number; skipped: number; rejected: number };
+  transactions: { inserted: number; skipped: number; rejected: number };
+}
+export interface PullCustomer {
+  id: string; name: string; phone: string; note: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
+export interface PullTransaction {
+  id: string; customer_id: string; type: string; amount: string | number;
+  note: string | null; occurred_at: string; created_at: string;
+}
+export interface PullResult {
+  customers: PullCustomer[];
+  transactions: PullTransaction[];
+  synced_at: string;
+}
+
+export function syncPush(body: {
+  customers: PushCustomer[];
+  transactions: PushTransaction[];
+}): Promise<PushResult> {
+  return request<PushResult>('/sync/push', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function syncPull(since?: string | null): Promise<PullResult> {
+  const q = since ? `?since=${encodeURIComponent(since)}` : '';
+  return request<PullResult>(`/sync/pull${q}`);
+}

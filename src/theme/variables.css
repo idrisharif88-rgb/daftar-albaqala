@@ -1,6 +1,23 @@
 /* For information on how to create your own theme, please refer to:
 http://ionicframework.com/docs/theming/ */
 
+/* Aref Ruqaa (Arabic) — bundled locally (public/fonts) so it works fully offline
+   on the device. Only the Arabic subset is shipped (all we render in it). */
+@font-face {
+  font-family: 'Aref Ruqaa';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/aref-ruqaa-arabic-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Aref Ruqaa';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/aref-ruqaa-arabic-700.woff2') format('woff2');
+}
+
 /* Confirm-cancel alert buttons (CustomerDetail): green = back/send, red = cancel. */
 .alert-button.alert-btn-send {
   color: var(--ion-color-success, #2dd36f);
@@ -17,3 +34,24 @@ http://ionicframework.com/docs/theming/ */
   color: #808000;
   font-weight: 600;
 }
+
+/* Manual "تحديث" (sync) button on Home — big round olive-green button. */
+.sync-round-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 28px auto;
+  width: 2cm;
+  height: 2cm;
+  border-radius: 50%;
+  border: none;
+  background: #6b8e23; /* olive green */
+  color: #fff;
+  font-family: 'Aref Ruqaa', serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.sync-round-btn:active { transform: scale(0.96); }
+.sync-round-btn:disabled { opacity: 0.6; }

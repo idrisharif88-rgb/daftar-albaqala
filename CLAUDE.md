@@ -239,14 +239,24 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       / «إلغاء»; cancel — including the **back button / backdrop** — routes through a confirm alert.
       ⚠️ Auto-SMS needs, before the APK build: `npm i cordova-sms-plugin` + `SEND_SMS` permission in
       `AndroidManifest.xml`. Web shows the dialog only (SMS is a no-op there).
-- [ ] **Wire up sync** — push local changes + pull deltas (`/sync/push`, `/sync/pull?since=`),
-      automatic on app open / network return + the manual button; apply LWW / insert-if-new.
+- [x] **Sync DONE.** `src/data/sync.ts` (`runSync()`): pushes dirty rows (`synced = 0`) via
+      `/sync/push`, marks them clean, then pulls deltas via `/sync/pull?since=<cursor>` and applies
+      them (customers LWW by `updated_at`, transactions insert-if-new), advancing the cursor stored
+      in `app_meta` (`sync_since`). Idempotent + single-flight (concurrent calls share one run);
+      never throws — returns `{status: ok|offline|subscription|error}`. **Money crosses the wire in
+      MAJOR units** (server DECIMAL) but is stored locally in INTEGER minor units → `fromMinor` on
+      push, `toMinor` on pull. Repo sync helpers added to `customers.ts` / `transactions.ts`
+      (`getDirty*`, `mark*Synced`, `applyServer*`). Wire shapes/typed calls in `lib/api.ts`
+      (`syncPush`/`syncPull`). **Manual button** «مزامنة الآن» on Settings (toasts the status, incl.
+      the **402** subscription case). **Auto-sync** via `<AutoSync>` in `App.tsx`: runs on app open
+      (when authenticated) and on the `online` event. **Phase 6 complete.**
 
-> Build in vertical slices. Phase 6 is **5 of 6** done (Local SQLite ✓, Auth UI ✓, Customer list ✓,
-> Customer detail ✓, Settings ✓; + a customer-notifications feature). 
-> ▶ **RESUME HERE (next session):** the last slice — **wire up sync** (`/sync/push` +
-> `/sync/pull?since=`, automatic on app open / network return + a manual button on the Settings
-> screen; apply LWW / insert-if-new; surface the 402 "subscribe" case).
+> **Phase 6 COMPLETE** (Local SQLite ✓, Auth UI ✓, Customer list ✓, Customer detail ✓, Settings ✓,
+> Sync ✓; + a customer-notifications feature). The shopkeeper app now works fully offline and syncs.
+> ▶ **NEXT:** first **Capacitor Android build (APK)** — also the prerequisite for the auto-SMS
+> notifications (`npm i cordova-sms-plugin` + `SEND_SMS` permission). Then Phase 7 (WhatsApp OTP).
+> To test sync locally, the local user's `subscription_status` must be `active` in `daftar_db`
+> (see the local-dev note above) or sync returns 402.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a

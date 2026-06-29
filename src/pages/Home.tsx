@@ -2,13 +2,14 @@ import { useCallback, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonList, IonItem, IonLabel, IonText, IonSpinner, IonFab, IonFabButton, IonIcon,
-  IonModal, IonInput, IonNote, IonSearchbar, useIonViewWillEnter,
+  IonModal, IonInput, IonNote, IonSearchbar, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { add, settingsOutline } from 'ionicons/icons';
 import { useAuth } from '../lib/auth';
 import { listCustomers, createCustomer, type Customer } from '../data/customers';
 import { getBalance } from '../data/transactions';
 import { formatMinor } from '../data/money';
+import { runSync } from '../data/sync';
 
 const CURRENCY = 'YER';
 
@@ -34,6 +35,8 @@ const Home: React.FC = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [presentToast] = useIonToast();
 
   const load = useCallback(async () => {
     const customers = await listCustomers();
@@ -47,6 +50,24 @@ const Home: React.FC = () => {
   // Reload every time the page becomes active (e.g. returning from a detail
   // screen after recording a transaction) so balances stay fresh.
   useIonViewWillEnter(() => { void load(); });
+
+  // Manual sync, then refresh the list (a pull may add customers / change balances).
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      const r = await runSync();
+      const toast = {
+        ok: { message: 'تمت المزامنة', color: 'success' },
+        offline: { message: 'لا يوجد اتصال بالإنترنت', color: 'medium' },
+        subscription: { message: 'المزامنة تتطلب اشتراكاً فعّالاً', color: 'warning' },
+        error: { message: 'تعذّرت المزامنة، حاول لاحقاً', color: 'danger' },
+      }[r.status];
+      await load();
+      await presentToast({ ...toast, duration: 2000 });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const resetForm = () => {
     setName(''); setPhone(''); setNote(''); setError(null);
@@ -128,6 +149,13 @@ const Home: React.FC = () => {
               </IonItem>
             ))}
           </IonList>
+        )}
+
+        {/* Manual sync — a big round olive button below the list. */}
+        {!loading && (
+          <button type="button" className="sync-round-btn" onClick={sync} disabled={syncing}>
+            {syncing ? <IonSpinner name="crescent" /> : 'تحديث'}
+          </button>
         )}
 
         <IonFab slot="fixed" vertical="bottom" horizontal="start">

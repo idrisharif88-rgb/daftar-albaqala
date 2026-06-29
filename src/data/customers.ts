@@ -100,3 +100,45 @@ export async function softDeleteCustomer(id: string): Promise<void> {
   );
   await persist();
 }
+
+// ---- Sync helpers (used by data/sync.ts; they don't persist() — the sync run
+// flushes once at the end) ----
+
+// Rows changed locally but not yet pushed (synced = 0), incl. tombstones.
+export async function getDirtyCustomers(): Promise<Customer[]> {
+  const db = await getDB();
+  const res = await db.query(`SELECT ${COLS} FROM customers WHERE synced = 0`);
+  return (res.values ?? []) as Customer[];
+}
+
+// Mark pushed rows clean. Guarded by updated_at so a row edited again *during*
+// the push isn't wrongly marked synced (it stays dirty for the next run).
+export async function markCustomersSynced(rows: { id: string; updated_at: string }[]): Promise<void> {
+  const db = await getDB();
+  for (const r of rows) {
+    await db.run(`UPDATE customers SET synced = 1 WHERE id = ? AND updated_at = ?`, [r.id, r.updated_at]);
+  }
+}
+
+// Apply a customer pulled from the server: insert if new, else last-write-wins
+// by updated_at (a strictly-newer server row overwrites; otherwise keep local).
+// Applied rows match the server, so they land synced = 1.
+export async function applyServerCustomer(row: {
+  id: string; name: string; phone: string; note: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}): Promise<void> {
+  const db = await getDB();
+  const existing = await getCustomer(row.id);
+  if (!existing) {
+    await db.run(
+      `INSERT INTO customers (id, name, phone, note, created_at, updated_at, deleted_at, synced)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      [row.id, row.name, row.phone, row.note ?? null, row.created_at, row.updated_at, row.deleted_at ?? null]
+    );
+  } else if (new Date(row.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
+    await db.run(
+      `UPDATE customers SET name = ?, phone = ?, note = ?, updated_at = ?, deleted_at = ?, synced = 1 WHERE id = ?`,
+      [row.name, row.phone, row.note ?? null, row.updated_at, row.deleted_at ?? null, row.id]
+    );
+  }
+}
