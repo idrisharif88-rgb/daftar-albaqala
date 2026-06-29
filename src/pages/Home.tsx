@@ -111,10 +111,10 @@ const Home: React.FC = () => {
           </IonText>
         ) : (
           // Tapping a row opens the customer detail (transactions + add
-          // debt/payment) — wired in the next Phase 6 slice.
+          // debt/payment).
           <IonList>
             {visible.map(({ customer, balance }) => (
-              <IonItem key={customer.id}>
+              <IonItem key={customer.id} button routerLink={`/customers/${customer.id}`}>
                 <IonLabel>
                   <h2>{customer.name}</h2>
                   <p>{customer.phone}</p>
