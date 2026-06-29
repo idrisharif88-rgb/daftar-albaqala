@@ -3,13 +3,16 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
-  IonInput, IonNote, IonGrid, IonRow, IonCol, useIonViewWillEnter,
+  IonInput, IonNote, IonGrid, IonRow, IonCol, useIonViewWillEnter, useIonAlert,
+  useIonActionSheet,
 } from '@ionic/react';
 import { getCustomer, type Customer } from '../data/customers';
 import {
   listTransactions, getBalance, addTransaction, type Transaction, type TxnType,
 } from '../data/transactions';
 import { formatMinor, toMinor } from '../data/money';
+import { getSettings } from '../data/settings';
+import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
 
 const CURRENCY = 'YER';
 
@@ -30,6 +33,8 @@ const CustomerDetail: React.FC = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [presentAlert] = useIonAlert();
+  const [presentSheet] = useIonActionSheet();
 
   const load = useCallback(async () => {
     const [c, list, bal] = await Promise.all([
@@ -62,19 +67,81 @@ const CustomerDetail: React.FC = () => {
     }
     setSaving(true);
     try {
+      const amountMinor = toMinor(major);
       await addTransaction({
         customerId,
         type: formType,
-        amount: toMinor(major),
+        amount: amountMinor,
         note: note.trim() || null,
       });
       await load();
       await modal.current?.dismiss();
+      await notifyCustomer(formType, amountMinor, note.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
       setSaving(false);
     }
+  };
+
+  // After recording a debt/payment, tell the customer (from the shopkeeper's own
+  // phone). Auto-sends SMS — the main notice (amount + balance) and, if present,
+  // the grocer's note as its own separate SMS (Android only; no-op on web). Then
+  // offers the same messages via WhatsApp. Failures never block the save.
+  const notifyCustomer = async (type: TxnType, amountMinor: number, noteText: string) => {
+    const c = await getCustomer(customerId);
+    if (!c) return;
+    const [settings, newBalance] = await Promise.all([
+      getSettings(),
+      getBalance(customerId),
+    ]);
+    const message = buildMessage({
+      storeName: settings.storeName,
+      type,
+      amount: amountMinor,
+      balance: newBalance,
+      currency: settings.currency,
+      note: noteText, // folded into the one message on its own line
+    });
+    void sendSms(c.phone, message); // auto: one combined SMS (balance + note)
+    presentSendSheet(c.phone, message);
+  };
+
+  // WhatsApp send sheet — one olive "send" button + "cancel". The chosen action
+  // runs from onDidDismiss (after the sheet has fully closed) so the cancel
+  // confirmation can present without racing the dismiss animation.
+  const presentSendSheet = (phone: string, message: string) => {
+    let choice: 'send' | 'cancel' | null = null;
+    presentSheet({
+      header: 'إرسال إشعار عبر واتساب',
+      buttons: [
+        { text: 'إرسال عبر واتساب', cssClass: 'as-olive', handler: () => { choice = 'send'; } },
+        { text: 'إلغاء', cssClass: 'as-olive', handler: () => { choice = 'cancel'; } },
+      ],
+      onDidDismiss: () => {
+        // Anything other than an explicit "send" — the إلغاء button, the back
+        // button, or a backdrop tap — is treated as a cancel and confirmed.
+        if (choice === 'send') openWhatsApp(phone, message);
+        else confirmCancel(phone, message);
+      },
+    });
+  };
+
+  // Make sure cancelling the WhatsApp notice was intentional. "تراجع" reopens the
+  // send sheet (deferred so this alert has finished dismissing first).
+  const confirmCancel = (phone: string, message: string) => {
+    presentAlert({
+      header: 'تأكيد الإلغاء',
+      message: 'هل أنت متأكد أنك لا تريد إرسال الإشعار عبر واتساب؟',
+      buttons: [
+        {
+          text: 'تراجع',
+          cssClass: 'alert-btn-send',
+          handler: () => setTimeout(() => presentSendSheet(phone, message), 350),
+        },
+        { text: 'نعم، إلغاء', role: 'cancel', cssClass: 'alert-btn-cancel' },
+      ],
+    });
   };
 
   const balanceColor = balance > 0 ? 'danger' : balance < 0 ? 'success' : 'medium';

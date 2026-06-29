@@ -4,7 +4,7 @@ import {
   IonList, IonItem, IonLabel, IonText, IonSpinner, IonFab, IonFabButton, IonIcon,
   IonModal, IonInput, IonNote, IonSearchbar, useIonViewWillEnter,
 } from '@ionic/react';
-import { add } from 'ionicons/icons';
+import { add, settingsOutline } from 'ionicons/icons';
 import { useAuth } from '../lib/auth';
 import { listCustomers, createCustomer, type Customer } from '../data/customers';
 import { getBalance } from '../data/transactions';
@@ -81,6 +81,11 @@ const Home: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonTitle>{user?.store_name || 'دفتر البقالة'}</IonTitle>
+          <IonButtons slot="start">
+            <IonButton routerLink="/settings">
+              <IonIcon slot="icon-only" icon={settingsOutline} />
+            </IonButton>
+          </IonButtons>
           <IonButtons slot="end">
             <IonButton onClick={logout}>خروج</IonButton>
           </IonButtons>

@@ -1,2 +1,19 @@
 /* For information on how to create your own theme, please refer to:
 http://ionicframework.com/docs/theming/ */
+
+/* Confirm-cancel alert buttons (CustomerDetail): green = back/send, red = cancel. */
+.alert-button.alert-btn-send {
+  color: var(--ion-color-success, #2dd36f);
+  font-weight: 600;
+}
+.alert-button.alert-btn-cancel {
+  color: var(--ion-color-danger, #eb445a);
+  font-weight: 600;
+}
+
+/* WhatsApp send sheet: olive, vertically stacked (action-sheet buttons already
+   stack one under another). */
+.action-sheet-button.as-olive {
+  color: #808000;
+  font-weight: 600;
+}

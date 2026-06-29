@@ -225,16 +225,28 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       buttons → modal (`addTransaction()`, amount entered in major units → `toMinor()`,
       append-only — a correction is a reversing entry, never an edit). Reloads on
       `useIonViewWillEnter`. Home rows are now tappable (`button` + `routerLink` restored).
-- [ ] **Settings** — store name, currency (`YER`), language (`ar`), manual sync button.
+- [x] **Settings DONE** (manual sync button deferred to the sync slice). `src/pages/Settings.tsx`
+      at `/settings` (gear icon in Home header) — store name, currency, language, saved locally in
+      `app_meta` via `src/data/settings.ts` (`getSettings`/`saveSettings`). Store name feeds the
+      customer notifications below.
+- [x] **Customer notifications DONE.** When a debt/payment is recorded, the customer is notified
+      **from the grocer's own phone/number**. `src/lib/notify.ts`: `buildMessage` (Arabic: store +
+      debt/payment amount + new balance, with the grocer's note folded in on its own line
+      `ملاحظة من <store>: …`), `toIntlDigits` (prepends Yemen CC `967`), `sendSms` (auto, no tap —
+      **Android-only** via cordova-sms-plugin `window.sms`, no-op on web), `openWhatsApp` (wa.me
+      deep link, pre-fills text — WhatsApp can't auto-send, grocer taps send). In `CustomerDetail`
+      after save: one combined SMS auto-sends, then an olive action sheet offers «إرسال عبر واتساب»
+      / «إلغاء»; cancel — including the **back button / backdrop** — routes through a confirm alert.
+      ⚠️ Auto-SMS needs, before the APK build: `npm i cordova-sms-plugin` + `SEND_SMS` permission in
+      `AndroidManifest.xml`. Web shows the dialog only (SMS is a no-op there).
 - [ ] **Wire up sync** — push local changes + pull deltas (`/sync/push`, `/sync/pull?since=`),
       automatic on app open / network return + the manual button; apply LWW / insert-if-new.
 
-> Build in vertical slices. Phase 6 is **4 of 6** done (Local SQLite ✓, Auth UI ✓, Customer list ✓,
-> Customer detail ✓).
-> ▶ **RESUME HERE (next session):** the **Settings** screen — store name, currency (`YER`),
-> language (`ar`), and a manual sync button (the button is wired in the final sync slice). Then the
-> last slice: **wire up sync** (`/sync/push` + `/sync/pull?since=`, automatic on app open / network
-> return + the manual button; apply LWW / insert-if-new; surface the 402 "subscribe" case).
+> Build in vertical slices. Phase 6 is **5 of 6** done (Local SQLite ✓, Auth UI ✓, Customer list ✓,
+> Customer detail ✓, Settings ✓; + a customer-notifications feature). 
+> ▶ **RESUME HERE (next session):** the last slice — **wire up sync** (`/sync/push` +
+> `/sync/pull?since=`, automatic on app open / network return + a manual button on the Settings
+> screen; apply LWW / insert-if-new; surface the 402 "subscribe" case).
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a

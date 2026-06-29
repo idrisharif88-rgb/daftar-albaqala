@@ -14,11 +14,12 @@ export function fromMinor(minor: number): number {
   return minor / MINOR_PER_MAJOR;
 }
 
-// Format minor units for display, e.g. 500000 -> "5,000.00". Currency symbol is
-// added by the UI (default YER) so this stays presentation-light.
+// Format minor units for display, e.g. 500000 -> "5,000" and 500050 -> "5,000.5".
+// Whole amounts drop the ".00" (cleaner for round prices); a fraction is kept.
+// Currency symbol is added by the UI (default YER) so this stays presentation-light.
 export function formatMinor(minor: number): string {
   return fromMinor(minor).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
 }

@@ -3,6 +3,7 @@ import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import Home from './pages/Home';
 import CustomerDetail from './pages/CustomerDetail';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './lib/auth';
 
@@ -53,6 +54,9 @@ const Routes: React.FC = () => {
         </Route>
         <Route exact path="/customers/:id">
           {isAuthenticated ? <CustomerDetail /> : <Redirect to="/login" />}
+        </Route>
+        <Route exact path="/settings">
+          {isAuthenticated ? <Settings /> : <Redirect to="/login" />}
         </Route>
         <Route exact path="/">
           <Redirect to={isAuthenticated ? '/home' : '/login'} />
