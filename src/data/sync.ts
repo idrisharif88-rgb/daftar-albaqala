@@ -7,6 +7,7 @@ import {
   getDirtyTransactions, markTransactionsSynced, applyServerTransaction, type TxnType,
 } from './transactions';
 import { syncPush, syncPull, ApiError } from '../lib/api';
+import { setAccountActive } from './account';
 
 // Sync engine — reconciles the local SQLite store with the cloud (server's
 // daftar_db) over /sync/push + /sync/pull. Offline-first: this is best-effort
@@ -93,6 +94,7 @@ async function doSync(): Promise<SyncOutcome> {
       });
     }
     await setCursor(pull.synced_at);
+    await setAccountActive(true); // a successful sync means the owner activated us
     await persist();
 
     return {
@@ -103,7 +105,10 @@ async function doSync(): Promise<SyncOutcome> {
   } catch (err) {
     await persist().catch(() => {}); // keep whatever did land
     if (err instanceof ApiError) {
-      if (err.status === 402) return { status: 'subscription' };
+      if (err.status === 402) {
+        await setAccountActive(false); // server says not activated
+        return { status: 'subscription' };
+      }
       if (err.status === 0) return { status: 'offline' };
     }
     console.warn('sync failed', err);

@@ -12,6 +12,7 @@ import {
 } from '../data/transactions';
 import { formatMinor, toMinor } from '../data/money';
 import { getSettings } from '../data/settings';
+import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
 
 const CURRENCY = 'YER';
@@ -50,7 +51,15 @@ const CustomerDetail: React.FC = () => {
 
   useIonViewWillEnter(() => { void load(); });
 
-  const openForm = (type: TxnType) => {
+  const openForm = async (type: TxnType) => {
+    if (!(await isAccountActive())) {
+      presentAlert({
+        header: 'حساب غير مفعّل',
+        message: INACTIVE_MESSAGE,
+        buttons: ['حسناً'],
+      });
+      return;
+    }
     setFormType(type);
     setAmount('');
     setNote('');

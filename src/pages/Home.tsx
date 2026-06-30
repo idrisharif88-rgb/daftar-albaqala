@@ -10,6 +10,7 @@ import { listCustomers, createCustomer, type Customer } from '../data/customers'
 import { getBalance } from '../data/transactions';
 import { formatMinor } from '../data/money';
 import { runSync } from '../data/sync';
+import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 
 const CURRENCY = 'YER';
 
@@ -159,7 +160,14 @@ const Home: React.FC = () => {
         )}
 
         <IonFab slot="fixed" vertical="bottom" horizontal="start">
-          <IonFabButton onClick={() => { resetForm(); void modal.current?.present(); }}>
+          <IonFabButton onClick={async () => {
+            if (!(await isAccountActive())) {
+              await presentToast({ message: INACTIVE_MESSAGE, color: 'warning', duration: 2500 });
+              return;
+            }
+            resetForm();
+            void modal.current?.present();
+          }}>
             <IonIcon icon={add} />
           </IonFabButton>
         </IonFab>
