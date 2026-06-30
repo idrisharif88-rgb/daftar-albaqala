@@ -3,9 +3,10 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
-  IonInput, IonNote, IonGrid, IonRow, IonCol, useIonViewWillEnter, useIonAlert,
-  useIonActionSheet,
+  IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, useIonViewWillEnter,
+  useIonAlert, useIonActionSheet,
 } from '@ionic/react';
+import { documentTextOutline } from 'ionicons/icons';
 import { getCustomer, type Customer } from '../data/customers';
 import {
   listTransactions, getBalance, addTransaction, type Transaction, type TxnType,
@@ -14,6 +15,7 @@ import { formatMinor, toMinor } from '../data/money';
 import { getSettings } from '../data/settings';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
+import { exportCustomerStatement } from '../lib/pdf';
 
 const CURRENCY = 'YER';
 
@@ -153,6 +155,45 @@ const CustomerDetail: React.FC = () => {
     });
   };
 
+  // Export a PDF statement for this customer. Ask which period first, filter
+  // the history by occurred_at, then render + share (see lib/pdf.ts).
+  const askExport = () => {
+    presentSheet({
+      header: 'تصدير كشف حساب PDF',
+      buttons: [
+        { text: 'اليوم', handler: () => { void doExport('day'); } },
+        { text: 'هذا الشهر', handler: () => { void doExport('month'); } },
+        { text: 'كل الحركات', handler: () => { void doExport('full'); } },
+        { text: 'إلغاء', role: 'cancel' },
+      ],
+    });
+  };
+
+  const doExport = async (period: 'day' | 'month' | 'full') => {
+    if (!customer) return;
+    const now = new Date();
+    const inPeriod = (iso: string) => {
+      if (period === 'full') return true;
+      const d = new Date(iso);
+      if (period === 'day') return d.toDateString() === now.toDateString();
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    };
+    const filtered = txns.filter((t) => inPeriod(t.occurred_at));
+    const settings = await getSettings();
+    const periodLabel = period === 'day' ? 'اليوم' : period === 'month' ? 'هذا الشهر' : 'كل الحركات';
+    try {
+      await exportCustomerStatement({
+        customer,
+        transactions: filtered,
+        storeName: settings.storeName,
+        currency: settings.currency,
+        periodLabel,
+      });
+    } catch {
+      presentAlert({ header: 'خطأ', message: 'تعذّر إنشاء ملف PDF', buttons: ['حسناً'] });
+    }
+  };
+
   const balanceColor = balance > 0 ? 'danger' : balance < 0 ? 'success' : 'medium';
   const balanceLabel = balance > 0 ? 'عليه' : balance < 0 ? 'له' : 'مسدد';
 
@@ -164,6 +205,11 @@ const CustomerDetail: React.FC = () => {
             <IonBackButton defaultHref="/home" text="رجوع" />
           </IonButtons>
           <IonTitle>{customer?.name ?? 'العميل'}</IonTitle>
+          <IonButtons slot="end">
+            <IonButton onClick={askExport} disabled={!customer}>
+              <IonIcon slot="icon-only" icon={documentTextOutline} />
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
 
