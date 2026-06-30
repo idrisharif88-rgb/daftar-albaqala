@@ -40,4 +40,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Auto-send customer notification SMS from the grocer's phone -->
     <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- Pick a customer's number from the phone's saved contacts -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 </manifest>

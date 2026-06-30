@@ -4,13 +4,14 @@ import {
   IonList, IonItem, IonLabel, IonText, IonSpinner, IonFab, IonFabButton, IonIcon,
   IonModal, IonInput, IonNote, IonSearchbar, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
-import { add, settingsOutline } from 'ionicons/icons';
+import { add, settingsOutline, personCircleOutline } from 'ionicons/icons';
 import { useAuth } from '../lib/auth';
 import { listCustomers, createCustomer, type Customer } from '../data/customers';
 import { getBalance } from '../data/transactions';
 import { formatMinor } from '../data/money';
 import { runSync } from '../data/sync';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
+import { pickContact } from '../lib/contacts';
 
 const CURRENCY = 'YER';
 
@@ -72,6 +73,18 @@ const Home: React.FC = () => {
 
   const resetForm = () => {
     setName(''); setPhone(''); setNote(''); setError(null);
+  };
+
+  // Fill name + phone from a saved contact (native picker; no-op on web).
+  const chooseContact = async () => {
+    try {
+      const picked = await pickContact();
+      if (!picked) return;
+      if (picked.name) setName(picked.name);
+      if (picked.phone) setPhone(picked.phone);
+    } catch {
+      await presentToast({ message: 'تعذّر فتح جهات الاتصال', color: 'medium', duration: 2000 });
+    }
   };
 
   const save = async () => {
@@ -190,6 +203,15 @@ const Home: React.FC = () => {
                 placeholder="اسم العميل"
               />
             </IonItem>
+            <IonButton
+              expand="block"
+              fill="outline"
+              onClick={chooseContact}
+              className="ion-margin-top"
+            >
+              <IonIcon slot="start" icon={personCircleOutline} />
+              اختيار من جهات الاتصال
+            </IonButton>
             <IonItem>
               <IonLabel position="stacked">رقم الهاتف</IonLabel>
               <IonInput
