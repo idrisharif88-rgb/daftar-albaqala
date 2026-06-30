@@ -4,7 +4,7 @@ import {
   IonList, IonItem, IonLabel, IonText, IonSpinner, IonFab, IonFabButton, IonIcon,
   IonModal, IonInput, IonNote, IonSearchbar, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
-import { add, settingsOutline, personCircleOutline } from 'ionicons/icons';
+import { add, settingsOutline, personCircleOutline, checkmarkCircle } from 'ionicons/icons';
 import { useAuth } from '../lib/auth';
 import { listCustomers, createCustomer, type Customer } from '../data/customers';
 import { getBalance } from '../data/transactions';
@@ -59,7 +59,7 @@ const Home: React.FC = () => {
     try {
       const r = await runSync();
       const toast = {
-        ok: { message: 'تمت المزامنة', color: 'success' },
+        ok: { message: 'تمت المزامنة', cssClass: 'toast-sync-ok', icon: checkmarkCircle },
         offline: { message: 'لا يوجد اتصال بالإنترنت', color: 'medium' },
         subscription: { message: 'المزامنة تتطلب اشتراكاً فعّالاً', color: 'warning' },
         error: { message: 'تعذّرت المزامنة، حاول لاحقاً', color: 'danger' },

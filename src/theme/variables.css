@@ -35,6 +35,14 @@ http://ionicframework.com/docs/theming/ */
   font-weight: 600;
 }
 
+/* Sync-success toast — dark green with a checkmark, bolder text. */
+.toast-sync-ok {
+  --background: #1b5e20;
+  --color: #ffffff;
+  --button-color: #ffffff;
+  font-weight: 700;
+}
+
 /* Manual "تحديث" (sync) button on Home — big round olive-green button. */
 .sync-round-btn {
   display: flex;
