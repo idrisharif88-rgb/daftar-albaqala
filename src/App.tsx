@@ -1,9 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Redirect, Route } from 'react-router-dom';
 import {
-  IonApp, IonRouterOutlet, setupIonicReact, useIonRouter,
+  IonApp, IonRouterOutlet, setupIonicReact, useIonRouter, useIonToast,
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
+import { App as CapacitorApp } from '@capacitor/app';
 import Home from './pages/Home';
 import CustomerDetail from './pages/CustomerDetail';
 import Settings from './pages/Settings';
@@ -65,9 +66,11 @@ const AutoSync: React.FC = () => {
 // IonReactRouter so useIonRouter() has the router context.
 const HardwareBack: React.FC = () => {
   const router = useIonRouter();
+  const [presentToast] = useIonToast();
+  const lastBack = useRef(0);
   useEffect(() => {
     const onBack = (ev: Event) => {
-      (ev as CustomEvent).detail.register(10, (processNext: () => void) => {
+      (ev as CustomEvent).detail.register(10, (_processNext: () => void) => {
         // If an overlay (currency/language popover, a modal, an alert...) is on
         // screen, dismiss IT and stop — otherwise the page navigates back while
         // the overlay stays orphaned on top. We find the topmost visible overlay
@@ -81,8 +84,15 @@ const HardwareBack: React.FC = () => {
           (o) => o.offsetWidth > 0 && o.offsetHeight > 0 && typeof o.dismiss === 'function'
         );
         if (open) { void open.dismiss?.(); return; }
-        if (router.canGoBack()) router.goBack();
-        else processNext();
+        if (router.canGoBack()) { router.goBack(); return; }
+        // At the root (home / login): exit only on a second back press within 2s.
+        const now = Date.now();
+        if (now - lastBack.current < 2000) {
+          void CapacitorApp.exitApp();
+        } else {
+          lastBack.current = now;
+          void presentToast({ message: 'اضغط مرة أخرى للخروج', duration: 1500, color: 'dark' });
+        }
       });
     };
     document.addEventListener('ionBackButton', onBack);
