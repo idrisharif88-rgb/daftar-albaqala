@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import * as api from './api';
 import { getToken, setToken, clearToken } from './storage';
+import { ensureLocalOwner } from '../data/owner';
 
 // App-wide auth state. Holds the current session (JWT + user) and exposes
 // login / register / logout. The token is persisted via storage.ts so a
@@ -32,6 +33,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const res = await api.login(phone, password);
     setToken(res.token);
     setUser(res.user);
+    // Wipe any previous grocer's local data on a user switch BEFORE we flip to
+    // authenticated, so AutoSync pulls the new user into a clean store.
+    await ensureLocalOwner(res.user.id, res.user.store_name);
     setAuthed(true);
   }, []);
 
@@ -40,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.register(phone, password, storeName);
       setToken(res.token);
       setUser(res.user);
+      await ensureLocalOwner(res.user.id, res.user.store_name);
       setAuthed(true);
     },
     []
