@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Redirect, Route } from 'react-router-dom';
-import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
+import {
+  IonApp, IonRouterOutlet, setupIonicReact, useIonRouter,
+} from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import Home from './pages/Home';
 import CustomerDetail from './pages/CustomerDetail';
@@ -56,12 +58,46 @@ const AutoSync: React.FC = () => {
   return null;
 };
 
+// Android hardware back button: close any open overlay first (Ionic's default,
+// priority 100), otherwise navigate to the previous screen. When there's no
+// page to go back to (the home root) we defer to the lower-priority handlers
+// (App exit) — the double-tap-to-exit refinement lands next. Must live inside
+// IonReactRouter so useIonRouter() has the router context.
+const HardwareBack: React.FC = () => {
+  const router = useIonRouter();
+  useEffect(() => {
+    const onBack = (ev: Event) => {
+      (ev as CustomEvent).detail.register(10, (processNext: () => void) => {
+        // If an overlay (currency/language popover, a modal, an alert...) is on
+        // screen, dismiss IT and stop — otherwise the page navigates back while
+        // the overlay stays orphaned on top. We find the topmost visible overlay
+        // by checking it's actually rendered (not just present in the DOM).
+        const overlays = Array.from(
+          document.querySelectorAll<HTMLElement & { dismiss?: () => Promise<unknown> }>(
+            'ion-modal, ion-popover, ion-action-sheet, ion-alert, ion-picker'
+          )
+        );
+        const open = overlays.reverse().find(
+          (o) => o.offsetWidth > 0 && o.offsetHeight > 0 && typeof o.dismiss === 'function'
+        );
+        if (open) { void open.dismiss?.(); return; }
+        if (router.canGoBack()) router.goBack();
+        else processNext();
+      });
+    };
+    document.addEventListener('ionBackButton', onBack);
+    return () => document.removeEventListener('ionBackButton', onBack);
+  }, [router]);
+  return null;
+};
+
 // Routes depend on auth state: signed-in users get the app, everyone else is
 // sent to /login. Kept inside AuthProvider so useAuth() is available.
 const Routes: React.FC = () => {
   const { isAuthenticated } = useAuth();
   return (
     <IonReactRouter>
+      <HardwareBack />
       <IonRouterOutlet>
         <Route exact path="/login">
           {isAuthenticated ? <Redirect to="/home" /> : <Login />}
