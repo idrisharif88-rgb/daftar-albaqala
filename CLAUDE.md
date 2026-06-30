@@ -275,16 +275,39 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       correctly as DECIMAL major units). WhatsApp + SMS confirmed sending. **Droplet `daftar_db` was
       reloaded fresh** from `server/db/schema.sql` (now phone-based, old `email` column gone).
 
-> ⚠️ **KNOWN BUG — local data is NOT per-user (fix next session).** The on-phone SQLite is
-> single-tenant (no `user_id` columns), and login doesn't clear it — so signing in as a **new** user
-> still shows the **previous** grocer's customers. (Server isolation by `user_id` is fine; this is
-> client-only.) **Planned fix:** an `ensureLocalOwner(user)` guard (new `src/data/owner.ts`) that
-> records the owning `user_id` in `app_meta` and, on a user switch, wipes local `customers` /
-> `transactions` / `app_meta` (then sync re-pulls the new user's data + seeds store name from the
-> account). Call it in `auth.tsx` login + register, **awaited before `setAuthed(true)`** so AutoSync
-> pulls into a clean store. Caveat: a switch discards unsynced local rows (fine for one-grocer-per-phone).
-> ▶ **RESUME HERE:** implement that fix. Then Phase 7 (WhatsApp OTP).
-> To test sync, the user's `subscription_status` must be `active` in the droplet `daftar_db`
+## Status — DONE (Phase 6.5: device-feedback round, all verified on the real phone) ✅ (2026-06-30)
+Seven fixes/features from owner testing, each built + device-tested one at a time:
+- [x] **Per-user local data (the old KNOWN BUG, FIXED).** `src/data/owner.ts` `ensureLocalOwner(userId,
+      storeName)` records the owning `user_id` in `app_meta`; on a user switch it wipes local
+      `customers` / `transactions` / `app_meta` so a new account never shows the previous grocer's
+      data, then re-seeds store name. Called in `auth.tsx` login + register, **awaited before
+      `setAuthed(true)`** so AutoSync pulls into a clean store. (Caveat: a switch discards unsynced
+      local rows — fine for one-grocer-per-phone.)
+- [x] **Block data entry until activated.** `src/data/account.ts` mirrors the server's subscription
+      gate into a local flag (`account_active` in `app_meta`): a successful sync ⇒ active, a **402**
+      ⇒ blocked; **default = blocked**. Add-customer FAB + add-debt/payment refuse with the Arabic
+      prompt «حسابك غير مفعّل. تواصل مع المالك لتفعيل حسابك.» until activation. Owner activates on the
+      droplet (`UPDATE daftar_db.users SET subscription_status='active' WHERE …;`) then a sync unblocks.
+- [x] **Android hardware back, all screens + overlays.** `HardwareBack` handler in `App.tsx`
+      (`useIonRouter`, `ionBackButton` priority 10): dismisses the topmost **visible** overlay (select
+      popover / modal / alert) first — found by real rendered size, not DOM presence, which fixed a
+      popover left orphaned after navigating — else navigates back.
+- [x] **Double-tap back to exit at the root.** At home/login, first back toasts «اضغط مرة أخرى
+      للخروج»; a second press within 2s calls `CapacitorApp.exitApp()` (`@capacitor/app`).
+- [x] **Pick phone from contacts.** `@capacitor-community/contacts` (7.2.0; built for Cap 7 but
+      syncs/works on Cap 8) + `READ_CONTACTS`. `src/lib/contacts.ts` opens the native picker (Android
+      only; web no-op) → fills name + first phone in the add-customer modal («اختيار من جهات الاتصال»).
+- [x] **Sync-success toast polished.** «تمت المزامنة» now a checkmark icon on a dark-green
+      `.toast-sync-ok` (Home + Settings).
+- [x] **Per-customer PDF statement.** `src/lib/pdf.ts`: export button on `CustomerDetail` → action
+      sheet (اليوم / هذا الشهر / كل الحركات) → builds an Arabic/RTL HTML statement, snapshots it with
+      **html2canvas** and embeds the image in a multi-page A4 **jsPDF** (sidesteps jsPDF's broken
+      Arabic shaping — image-based, not selectable text). Native writes to `Directory.Cache` + system
+      **Share** sheet; web downloads. Deps: `jspdf`, `html2canvas`, `@capacitor/filesystem`,
+      `@capacitor/share`.
+
+> ▶ **RESUME HERE:** Phase 7 (WhatsApp OTP). To test sync, the user's `subscription_status` must be
+> `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
