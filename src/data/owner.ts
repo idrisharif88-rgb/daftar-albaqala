@@ -26,8 +26,14 @@ export async function ensureLocalOwner(
 
   if (current !== null) {
     // A different user is signing in — drop the previous grocer's local store.
+    // NOTE: the native (Android) plugin splits a batch on ";\n", and Android's
+    // execSQL runs only the FIRST statement of a single-line ";"-joined string.
+    // So each DELETE MUST be on its own line, or only `transactions` gets wiped
+    // (balances reset to zero) while `customers` leak across accounts.
     await db.execute(
-      `DELETE FROM transactions; DELETE FROM customers; DELETE FROM app_meta;`,
+      `DELETE FROM transactions;
+DELETE FROM customers;
+DELETE FROM app_meta;`,
     );
   }
 
