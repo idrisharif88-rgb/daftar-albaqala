@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_status      ENUM('none','active','expired') NOT NULL DEFAULT 'none',
   subscription_expires_at  DATETIME        NULL,
 
+  -- طلب التفعيل: يرسله صاحب المحل من التطبيق ليطلب من المالك تفعيل حسابه
+  activation_requested_at  DATETIME        NULL,                     -- آخر وقت طلب فيه التفعيل
+  activation_message       VARCHAR(255)    NULL,                     -- ملاحظة اختيارية (مثل طريقة الدفع)
+
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
 

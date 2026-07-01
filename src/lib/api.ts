@@ -67,6 +67,17 @@ export function login(phone: string, password: string): Promise<AuthResult> {
   });
 }
 
+// ---- Account ----
+
+// Ask the owner to activate this account. Behind auth only (works while the
+// account is still inactive). `message` is an optional short note.
+export function requestActivation(message?: string): Promise<{ ok: boolean; requested_at: string }> {
+  return request('/account/request-activation', {
+    method: 'POST',
+    body: JSON.stringify({ message: message ?? null }),
+  });
+}
+
 // ---- Sync ----
 // Wire shapes mirror the server (server/src/routes/sync.ts). NOTE: transaction
 // `amount` travels as MAJOR units (e.g. 500.00) to match the server's DECIMAL —
