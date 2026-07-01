@@ -306,6 +306,50 @@ Seven fixes/features from owner testing, each built + device-tested one at a tim
       **Share** sheet; web downloads. Deps: `jspdf`, `html2canvas`, `@capacitor/filesystem`,
       `@capacitor/share`.
 
+## Status — DONE (Phase 6.6: device-feedback round 2, all verified on the real phone) ✅ (2026-07-01)
+Five owner-reported items, each built + device-tested against the droplet:
+- [x] **Cross-account data leak FIXED.** `ensureLocalOwner` (`src/data/owner.ts`) wiped the previous
+      grocer's store with a **single-line `;`-joined** `DELETE` batch. The Android SQLite plugin
+      splits a batch on `";\n"`, so the whole line was one statement and `execSQL` ran only the FIRST
+      — transactions were deleted (balances → 0) but **customers survived**, leaking account A's
+      customers into account B. Fix: each `DELETE` on its own line. (Worked in the browser because
+      web sql.js runs multi-statement strings — a web-vs-native divergence.)
+- [x] **Contacts picker FIXED + relabelled.** The `@capacitor-community/contacts` permission alias
+      `"contacts"` bundles **READ + WRITE**, and `getPermissionState` grants only when BOTH are
+      declared. The manifest had only `READ_CONTACTS`, so the alias was permanently denied and
+      `pickContact` bailed before opening. Fix: added **`WRITE_CONTACTS`** (unused, but required by
+      the alias). Button label shortened «اختيار من جهات الاتصال» → «جهات الاتصال».
+- [x] **In-app activation requests.** New `POST /account/request-activation` (`server/src/routes/account.ts`),
+      mounted behind `requireAuth` **but NOT `requireSubscription`** (an inactive account is the one
+      that must reach it). Stamps new `users.activation_requested_at` + `activation_message` columns.
+      Client: `requestActivation()` in `lib/api.ts`; a «طلب التفعيل» button on Settings (optional-note
+      alert) shown only while inactive. Tests: `server/src/test/account.test.ts` (5 cases; suite 29/29).
+      **Migration required** (DDL — `daftar_user` is DML-only, run as root on the droplet):
+      `ALTER TABLE daftar_db.users ADD COLUMN activation_requested_at DATETIME NULL, ADD COLUMN activation_message VARCHAR(255) NULL;`
+      Owner lists pending: `SELECT phone, store_name, activation_requested_at, activation_message FROM
+      users WHERE subscription_status<>'active' AND activation_requested_at IS NOT NULL;` **(migration applied on droplet ✓)**
+- [x] **PDF statement → WhatsApp.** Export now hands the PDF to WhatsApp **with the file attached**;
+      the grocer picks which customer to send to. (WhatsApp's public API can't pre-select a chat AND
+      attach a file — the `api.whatsapp.com/send?phone=` link is text-only — so we guarantee the
+      attachment; owner chose this over the flaky `jid` trick.) `src/lib/pdf.ts` calls
+      **cordova-plugin-x-socialsharing** `shareViaWhatsApp` with a `df:…;base64` PDF, falling back to
+      the system share sheet if WhatsApp isn't installed. Added a **`<queries>`** entry for
+      `com.whatsapp`(`.w4b`) so the `ACTION_SEND` intent resolves on Android 11+. ⚠️ The plugin's
+      **FileProvider + `sharing_paths.xml`** live in the **regenerated (git-ignored)
+      `capacitor-cordova-android-plugins` module** — so **`npx cap sync android` MUST run before every
+      APK build** or the share crashes / the fix is absent. (Don't re-declare that provider in the app
+      manifest — duplicate authority breaks the merge.)
+- [x] "activation gate block" item — owner confirmed already working; no change.
+
+> **Network note (login latency):** the phone APK login takes ~3–4s and that's ACCEPTED (not a bug).
+> Cause: RTT to the droplet is ~376ms and each login opens a **cold** TLS connection (~3–4 round
+> trips). Chrome feels instant only because it **reuses** a warm connection. Server is fine (TLS 1.3
+> + HTTP/2, load ~0). A separate **"minutes / can't connect"** failure the owner once saw is a
+> DIFFERENT mode — either the **1GB droplet briefly overloading** (check `free -h; uptime`) or a
+> **network blip** (login/sync have **no request timeout**, so a flaky link hangs instead of failing
+> fast). Possible future polish: add a ~15s fetch timeout so it errors cleanly. Cloudflare-proxy
+> (orange-cloud) to cut RTT was attempted but never took effect.
+
 > ▶ **RESUME HERE:** Phase 7 (WhatsApp OTP). To test sync, the user's `subscription_status` must be
 > `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
