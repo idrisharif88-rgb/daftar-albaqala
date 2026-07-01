@@ -33,7 +33,18 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- NOTE: the FileProvider for cordova-plugin-x-socialsharing
+             (…sharing.provider) is declared by the regenerated
+             capacitor-cordova-android-plugins module's manifest, so it is NOT
+             repeated here (a duplicate authority would break the manifest merge). -->
     </application>
+
+    <!-- Android 11+ package visibility: needed so the PDF-to-WhatsApp share
+         (ACTION_SEND with setPackage("com.whatsapp")) can resolve WhatsApp. -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
 
     <!-- Permissions -->
 

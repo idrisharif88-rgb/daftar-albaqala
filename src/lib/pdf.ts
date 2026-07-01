@@ -13,8 +13,30 @@ import type { Transaction } from '../data/transactions';
 // shapes Arabic correctly), and embed that image in the PDF. The file is
 // image-based (not selectable text) but renders perfectly.
 //
-// On native (Android) the PDF is written to the cache and handed to the system
-// share sheet; on web it just downloads.
+// On native (Android) the PDF is sent to WhatsApp with the file attached — the
+// grocer then picks which customer to send it to (WhatsApp's public API can't
+// auto-open a specific chat AND attach a file; see the WhatsApp share note in
+// exportCustomerStatement). If WhatsApp isn't installed we fall back to the
+// system share sheet. On web it just downloads.
+
+// cordova-plugin-x-socialsharing exposes itself on window.plugins.socialsharing.
+declare global {
+  interface Window {
+    plugins?: {
+      socialsharing?: {
+        // fileOrFileArray accepts a local path, an http(s) URL, or a
+        // "df:<name>;data:<mime>;base64,<data>" string (used here for the PDF).
+        shareViaWhatsApp: (
+          message: string | null,
+          fileOrFileArray: string | string[] | null,
+          url: string | null,
+          onSuccess?: () => void,
+          onError?: (err: string) => void,
+        ) => void;
+      };
+    };
+  }
+}
 
 export interface StatementOptions {
   customer: Customer;
@@ -119,8 +141,33 @@ export async function exportCustomerStatement(o: StatementOptions): Promise<void
       return;
     }
 
-    // Native: write to cache, then share.
     const base64 = pdf.output('datauristring').split(',')[1];
+
+    // Native: hand the PDF to WhatsApp with the file attached. WhatsApp opens on
+    // its "send to" screen so the grocer taps the target customer — WhatsApp's
+    // public API can't both pre-select a chat AND attach a file, so the file is
+    // what we guarantee. An ASCII filename keeps the plugin's sanitizer happy.
+    const caption = `كشف حساب ${o.customer.name} — ${o.storeName || 'دفتر البقالة'}`;
+    const sos = window.plugins?.socialsharing;
+    if (sos?.shareViaWhatsApp) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          sos.shareViaWhatsApp(
+            caption,
+            `df:statement.pdf;data:application/pdf;base64,${base64}`,
+            null,
+            () => resolve(),
+            (err) => reject(new Error(err || 'whatsapp share failed')),
+          );
+        });
+        return;
+      } catch {
+        // WhatsApp missing / user backed out — fall through to the system sheet
+        // so the statement can still be shared some other way.
+      }
+    }
+
+    // Fallback: write to cache and open the system share sheet.
     const written = await Filesystem.writeFile({
       path: filename,
       data: base64,
