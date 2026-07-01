@@ -210,7 +210,7 @@ const Home: React.FC = () => {
               className="ion-margin-top"
             >
               <IonIcon slot="start" icon={personCircleOutline} />
-              اختيار من جهات الاتصال
+              جهات الاتصال
             </IonButton>
             <IonItem>
               <IonLabel position="stacked">رقم الهاتف</IonLabel>

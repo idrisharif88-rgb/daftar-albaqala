@@ -40,6 +40,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Auto-send customer notification SMS from the grocer's phone -->
     <uses-permission android:name="android.permission.SEND_SMS" />
-    <!-- Pick a customer's number from the phone's saved contacts -->
+    <!-- Pick a customer's number from the phone's saved contacts. The contacts
+         plugin's "contacts" permission alias bundles READ + WRITE, and the alias
+         is only GRANTED when BOTH are declared — so WRITE_CONTACTS is required
+         for the picker to open even though we never write contacts. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
 </manifest>
