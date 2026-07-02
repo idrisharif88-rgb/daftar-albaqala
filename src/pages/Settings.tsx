@@ -2,14 +2,18 @@ import { useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonInput, IonSelect, IonSelectOption,
-  IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast, useIonAlert,
+  IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { checkmarkCircle } from 'ionicons/icons';
 import { getSettings, saveSettings, type Settings as AppSettings } from '../data/settings';
 import { runSync } from '../data/sync';
 import { isAccountActive } from '../data/account';
-import { requestActivation } from '../lib/api';
-import { ApiError } from '../lib/api';
+import { openWhatsApp } from '../lib/notify';
+
+// The owner's WhatsApp number — activation requests open a chat here. The owner
+// verifies the account by matching this sender's WhatsApp number to the phone
+// the grocer registered with, then activates on the server.
+const OWNER_WHATSAPP = '779412972';
 
 // Settings — store name, currency, language. The store name is used in the
 // customer notifications (SMS/WhatsApp). The manual sync button lands with the
@@ -19,51 +23,22 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
-  const [requesting, setRequesting] = useState(false);
   const [presentToast] = useIonToast();
-  const [presentAlert] = useIonAlert();
 
   useIonViewWillEnter(() => {
     void getSettings().then(setSettings);
     void isAccountActive().then(setActive);
   });
 
-  // Send the activation request to the server, with the grocer's optional note.
-  const sendActivationRequest = async (message?: string) => {
-    setRequesting(true);
-    try {
-      await requestActivation(message);
-      await presentToast({
-        message: 'تم إرسال طلب التفعيل. سيقوم المالك بتفعيل حسابك قريباً.',
-        color: 'success', duration: 2500,
-      });
-    } catch (err) {
-      const offline = err instanceof ApiError && err.status === 0;
-      await presentToast({
-        message: offline
-          ? 'لا يوجد اتصال بالإنترنت. حاول عند توفّر الاتصال.'
-          : 'تعذّر إرسال الطلب، حاول لاحقاً.',
-        color: offline ? 'medium' : 'danger', duration: 2500,
-      });
-    } finally {
-      setRequesting(false);
-    }
-  };
-
-  // Prompt for an optional note first, then send.
+  // Open a WhatsApp chat to the owner with a pre-filled activation request. The
+  // owner sees the sender's WhatsApp number (proving the grocer owns it) and
+  // activates the account on the server. No server call — this is a direct chat.
   const requestActivationFlow = () => {
-    void presentAlert({
-      header: 'طلب تفعيل الحساب',
-      message: 'أرسل طلباً للمالك لتفعيل حسابك. يمكنك إضافة ملاحظة (اختياري).',
-      inputs: [{ name: 'note', type: 'textarea', placeholder: 'ملاحظة اختيارية (مثل طريقة الدفع)' }],
-      buttons: [
-        { text: 'إلغاء', role: 'cancel' },
-        {
-          text: 'إرسال',
-          handler: (data) => { void sendActivationRequest(data?.note?.trim() || undefined); },
-        },
-      ],
-    });
+    const store = settings?.storeName?.trim();
+    const msg =
+      `مرحباً، أرجو تفعيل حسابي في تطبيق دفتر البقالة.` +
+      (store ? `\nاسم المتجر: ${store}` : '');
+    openWhatsApp(OWNER_WHATSAPP, msg);
   };
 
   const update = (patch: Partial<AppSettings>) =>
@@ -174,10 +149,9 @@ const Settings: React.FC = () => {
                   expand="block"
                   color="warning"
                   onClick={requestActivationFlow}
-                  disabled={requesting}
                   className="ion-margin-top"
                 >
-                  {requesting ? <IonSpinner name="crescent" /> : 'طلب التفعيل'}
+                  طلب التفعيل
                 </IonButton>
               </div>
             )}
