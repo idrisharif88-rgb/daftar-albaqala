@@ -57,6 +57,10 @@ const Login: React.FC = () => {
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding">
+        <div className="login-brand">
+          <div className="login-brand__name">دفتر البقالة</div>
+          <div className="login-brand__tag">سجّل ديون ودفعات عملائك بسهولة</div>
+        </div>
         <IonSegment
           value={mode}
           onIonChange={(e) => { setMode(e.detail.value as Mode); setError(null); }}

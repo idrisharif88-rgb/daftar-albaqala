@@ -233,14 +233,15 @@ const CustomerDetail: React.FC = () => {
         ) : (
           <>
             {/* Balance summary */}
-            <IonText color={balanceColor}>
-              <div className="ion-text-center ion-padding">
-                <div style={{ fontSize: '1.6em' }}>
+            <div className="balance-card">
+              <div className="balance-card__label">الرصيد الحالي</div>
+              <IonText color={balanceColor}>
+                <div className="balance-card__amount">
                   <strong>{formatMinor(Math.abs(balance))} {CURRENCY}</strong>
                 </div>
-                <div>{balanceLabel}</div>
-              </div>
-            </IonText>
+                <div className="balance-card__dir">{balanceLabel}</div>
+              </IonText>
+            </div>
 
             {/* Add debt / add payment */}
             <IonGrid>

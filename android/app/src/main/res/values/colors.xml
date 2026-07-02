@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand dark green (matches the web theme's --ion-color-primary #1b5e20). -->
+    <color name="colorPrimary">#1B5E20</color>
+    <color name="colorPrimaryDark">#124016</color>
+    <color name="colorAccent">#1B5E20</color>
+</resources>

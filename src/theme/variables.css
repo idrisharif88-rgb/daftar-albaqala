@@ -1,49 +1,150 @@
-/* For information on how to create your own theme, please refer to:
-http://ionicframework.com/docs/theming/ */
+/* daftar-albaqala theme — professional dark-green + white, Tajawal font.
+   For Ionic theming reference: http://ionicframework.com/docs/theming/ */
 
-/* Aref Ruqaa (Arabic) — bundled locally (public/fonts) so it works fully offline
-   on the device. Only the Arabic subset is shipped (all we render in it). */
+/* ---- Font: Tajawal (Arabic + Latin subsets), bundled locally in public/fonts
+   so the app renders in it fully offline on the device. ---- */
 @font-face {
-  font-family: 'Aref Ruqaa';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/aref-ruqaa-arabic-400.woff2') format('woff2');
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/tajawal-arabic-400.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
 }
 @font-face {
-  font-family: 'Aref Ruqaa';
-  font-style: normal;
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/tajawal-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/tajawal-arabic-500.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/tajawal-latin-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/tajawal-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/tajawal-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+
+/* ---- Palette: dark-green brand on white. ---- */
+:root {
+  /* Tajawal app-wide (Ionic reads this var on every component). */
+  --ion-font-family: 'Tajawal', 'Helvetica Neue', sans-serif;
+
+  /* Brand primary = forest green (#1b5e20). */
+  --ion-color-primary: #1b5e20;
+  --ion-color-primary-rgb: 27, 94, 32;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #185319;
+  --ion-color-primary-tint: #326e36;
+
+  /* Clean white surfaces + dark text. */
+  --ion-background-color: #ffffff;
+  --ion-background-color-rgb: 255, 255, 255;
+  --ion-text-color: #1a1f1a;
+  --ion-text-color-rgb: 26, 31, 26;
+
+  /* A soft green tint for card/summary backgrounds. */
+  --app-green-soft: #e8f1e9;
+}
+
+/* Force the light palette even if the device is in dark mode — the brand is
+   green-on-white, and a half-applied dark mode would look broken. */
+:root, .ion-palette-dark, body { color-scheme: light; }
+
+/* ---- Headers: dark-green bar, white title + buttons, across the app. ---- */
+ion-header ion-toolbar {
+  --background: var(--ion-color-primary);
+  --color: #ffffff;
+  --border-color: transparent;
+}
+ion-header ion-toolbar ion-title { font-weight: 700; }
+ion-header ion-toolbar ion-button,
+ion-header ion-toolbar ion-back-button,
+ion-header ion-toolbar ion-icon { --color: #ffffff; color: #ffffff; }
+
+/* The Home search sits in a second toolbar — keep the input light on the green
+   bar for contrast/legibility. */
+ion-header ion-toolbar ion-searchbar {
+  --background: #ffffff;
+  --color: #1a1f1a;
+  --icon-color: #6b7a6b;
+  --placeholder-color: #6b7a6b;
+  border-radius: 10px;
+  padding: 6px 8px;
+}
+
+/* Slightly rounder, calmer cards/list items for a professional feel. */
+ion-list { background: transparent; }
+ion-item { --background: #ffffff; }
+
+/* Balance summary card (CustomerDetail) — soft green panel. */
+.balance-card {
+  margin: 16px;
+  padding: 20px 16px;
+  border-radius: 16px;
+  background: var(--app-green-soft);
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(27, 94, 32, 0.08);
+}
+.balance-card__label { color: #6b7a6b; font-size: 0.9rem; margin-bottom: 6px; }
+.balance-card__amount { font-size: 2rem; font-weight: 700; line-height: 1.2; }
+.balance-card__dir { font-size: 1rem; margin-top: 2px; }
+
+/* Login brand block — centered app name + tagline above the form. */
+.login-brand { text-align: center; margin: 24px 0 20px; }
+.login-brand__name {
+  font-size: 2rem;
   font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/aref-ruqaa-arabic-700.woff2') format('woff2');
+  color: var(--ion-color-primary);
 }
+.login-brand__tag { color: #6b7a6b; font-size: 0.95rem; margin-top: 4px; }
+
+/* Keep the auth + settings forms comfortable on wide screens. */
+.login-brand, form { max-width: 480px; margin-inline: auto; }
+
+/* ---- Custom accents, re-aligned to the brand green. ---- */
 
 /* Confirm-cancel alert buttons (CustomerDetail): green = back/send, red = cancel. */
 .alert-button.alert-btn-send {
-  color: var(--ion-color-success, #2dd36f);
-  font-weight: 600;
+  color: var(--ion-color-primary);
+  font-weight: 700;
 }
 .alert-button.alert-btn-cancel {
   color: var(--ion-color-danger, #eb445a);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-/* WhatsApp send sheet: olive, vertically stacked (action-sheet buttons already
-   stack one under another). */
+/* WhatsApp send sheet: brand green, vertically stacked. */
 .action-sheet-button.as-olive {
-  color: #808000;
+  color: var(--ion-color-primary);
   font-weight: 600;
 }
 
 /* Sync-success toast — dark green with a checkmark, bolder text. */
 .toast-sync-ok {
-  --background: #1b5e20;
+  --background: var(--ion-color-primary);
   --color: #ffffff;
   --button-color: #ffffff;
   font-weight: 700;
 }
 
-/* Manual "تحديث" (sync) button on Home — big round olive-green button. */
+/* Manual "تحديث" (sync) button on Home — big round brand-green button. */
 .sync-round-btn {
   display: flex;
   align-items: center;
@@ -53,12 +154,12 @@ http://ionicframework.com/docs/theming/ */
   height: 2cm;
   border-radius: 50%;
   border: none;
-  background: #6b8e23; /* olive green */
+  background: var(--ion-color-primary);
   color: #fff;
-  font-family: 'Aref Ruqaa', serif;
+  font-family: var(--ion-font-family);
   font-weight: 700;
   font-size: 1.1rem;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(27, 94, 32, 0.35);
   cursor: pointer;
 }
 .sync-round-btn:active { transform: scale(0.96); }
