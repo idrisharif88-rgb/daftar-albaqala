@@ -113,6 +113,7 @@ const CustomerDetail: React.FC = () => {
       getSettings(),
       getBalance(customerId),
     ]);
+    if (!settings.notifyCustomers) return; // notifications turned off in Settings
     const message = buildMessage({
       storeName: settings.storeName,
       type,

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonInput, IonSelect, IonSelectOption,
-  IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
+  IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { checkmarkCircle } from 'ionicons/icons';
 import { getSettings, saveSettings, type Settings as AppSettings } from '../data/settings';
@@ -43,6 +43,15 @@ const Settings: React.FC = () => {
 
   const update = (patch: Partial<AppSettings>) =>
     setSettings((s) => (s ? { ...s, ...patch } : s));
+
+  // The notifications toggle persists immediately (a toggle that only takes
+  // effect after pressing "حفظ" would be confusing).
+  const toggleNotify = async (enabled: boolean) => {
+    if (!settings) return;
+    const next = { ...settings, notifyCustomers: enabled };
+    setSettings(next);
+    await saveSettings(next);
+  };
 
   const save = async () => {
     if (!settings) return;
@@ -120,10 +129,21 @@ const Settings: React.FC = () => {
                   <IonSelectOption value="ar">العربية</IonSelectOption>
                 </IonSelect>
               </IonItem>
+              <IonItem>
+                <IonToggle
+                  checked={settings.notifyCustomers}
+                  onIonChange={(e) => void toggleNotify(e.detail.checked)}
+                >
+                  إشعار العملاء (SMS وواتساب)
+                </IonToggle>
+              </IonItem>
             </IonList>
 
             <IonNote color="medium" className="ion-padding-start">
-              <IonText>اسم المتجر يظهر في الرسائل المرسلة للعملاء.</IonText>
+              <IonText>
+                اسم المتجر يظهر في الرسائل المرسلة للعملاء. عند إيقاف الإشعارات لن
+                يتم إرسال أي رسالة عند تسجيل دين أو دفعة.
+              </IonText>
             </IonNote>
 
             <IonButton expand="block" onClick={save} disabled={saving} className="ion-margin-top">
