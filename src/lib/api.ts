@@ -18,6 +18,11 @@ export class ApiError extends Error {
 
 type Json = Record<string, unknown>;
 
+// Fail a request after this long instead of hanging forever on a flaky link.
+// Yemeni connections drop silently; without this the login/sync spinner spins
+// indefinitely and the app looks frozen.
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -28,9 +33,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+    // Race the request against a timeout. We use a race (not just an
+    // AbortController) because CapacitorHttp on native doesn't reliably honor
+    // the abort signal — the race guarantees the UI unblocks after the timeout
+    // regardless. A stray background request is harmless (calls are idempotent).
+    res = await Promise.race([
+      fetch(`${API_BASE}${path}`, { ...options, headers }),
+      new Promise<Response>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), REQUEST_TIMEOUT_MS)
+      ),
+    ]);
   } catch {
-    // Network down / server unreachable — offline-first, so this is expected.
+    // Network down / server unreachable / timed out — offline-first, expected.
     throw new ApiError(0, 'تعذّر الاتصال بالخادم', null);
   }
 

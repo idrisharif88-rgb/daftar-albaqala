@@ -11,6 +11,7 @@ import { getBalance } from '../data/transactions';
 import { formatMinor } from '../data/money';
 import { runSync } from '../data/sync';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
+import { getSettings } from '../data/settings';
 import { pickContact } from '../lib/contacts';
 
 const CURRENCY = 'YER';
@@ -25,10 +26,13 @@ interface Row {
 // the local data layer (offline-first) and offers an "add customer" flow. The
 // transaction history / add debt+payment screen is the next Phase 6 slice.
 const Home: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // Store name for the header — read from persisted settings (app_meta), not the
+  // in-memory auth user, which is null after an app restart.
+  const [storeName, setStoreName] = useState('');
 
   // add-customer modal state
   const modal = useRef<HTMLIonModalElement>(null);
@@ -37,15 +41,17 @@ const Home: React.FC = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false); // synchronous double-tap guard (see CustomerDetail)
   const [syncing, setSyncing] = useState(false);
   const [presentToast] = useIonToast();
 
   const load = useCallback(async () => {
-    const customers = await listCustomers();
+    const [customers, settings] = await Promise.all([listCustomers(), getSettings()]);
     const withBalances = await Promise.all(
       customers.map(async (c) => ({ customer: c, balance: await getBalance(c.id) }))
     );
     setRows(withBalances);
+    setStoreName(settings.storeName?.trim() ?? '');
     setLoading(false);
   }, []);
 
@@ -91,6 +97,8 @@ const Home: React.FC = () => {
     setError(null);
     if (!name.trim()) { setError('الاسم مطلوب'); return; }
     if (!phone.trim()) { setError('رقم الهاتف مطلوب'); return; }
+    if (savingRef.current) return; // a save is already in flight — ignore the re-tap
+    savingRef.current = true;
     setSaving(true);
     try {
       await createCustomer({ name, phone, note: note.trim() || null });
@@ -101,6 +109,7 @@ const Home: React.FC = () => {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
@@ -115,7 +124,7 @@ const Home: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>{user?.store_name || 'دفتر البقالة'}</IonTitle>
+          <IonTitle>{storeName || 'دفتر البقالة'}</IonTitle>
           <IonButtons slot="start">
             <IonButton routerLink="/settings">
               <IonIcon slot="icon-only" icon={settingsOutline} />

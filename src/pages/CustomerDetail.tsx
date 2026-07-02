@@ -36,6 +36,10 @@ const CustomerDetail: React.FC = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Synchronous in-flight guard — `saving` state updates a tick late, so a fast
+  // double-tap could slip a second (duplicate) transaction through before the
+  // button re-renders disabled. The ref blocks the second call immediately.
+  const savingRef = useRef(false);
   const [presentAlert] = useIonAlert();
   const [presentSheet] = useIonActionSheet();
 
@@ -76,6 +80,8 @@ const CustomerDetail: React.FC = () => {
       setError('أدخل مبلغاً صحيحاً أكبر من صفر');
       return;
     }
+    if (savingRef.current) return; // a save is already in flight — ignore the re-tap
+    savingRef.current = true;
     setSaving(true);
     try {
       const amountMinor = toMinor(major);
@@ -92,6 +98,7 @@ const CustomerDetail: React.FC = () => {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
