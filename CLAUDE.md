@@ -406,12 +406,34 @@ Owner-requested round (2026-07-29). Built, typechecks clean, **not yet device-te
 > Droplet: `sudo mysql -u root -p daftar_db < server/db/migrations/001_currency_role_sync_clock.sql`.
 > Phones migrate themselves on next launch via `migrations.ts`.
 
-> ✅ **Server tests pass 34/34** (2026-07-29) against a migrated local `daftar_test`.
->
-> ▶ **RESUME HERE:** deploy Phase 8 to the droplet — apply
-> `server/db/migrations/001_currency_role_sync_clock.sql` to `daftar_db` as root, then
-> `cd /opt/daftar-albaqala && git pull && pm2 restart daftar-api`. Then `npx cap sync android`
-> (mandatory — see Phase 6.6) + build the APK and device-test Phase 8, then Phase 7 (WhatsApp OTP).
+> ✅ **Phase 8 COMPLETE + device-verified (2026-07-29).** Server tests 34/34; migration 001 applied
+> to the droplet `daftar_db`; deployed (`git pull` + `pm2 restart daftar-api`). All 8 device tests
+> passed on the real phone: existing data survived the local migration (`PRAGMA user_version`),
+> rates persist, a SAR debt stays SAR next to a YER one with a labelled approximate total, roles +
+> filter tabs work, sync landed `role`/`currency` on the server unconverted, Excel gives real
+> numeric cells with a separate currency column, PDF → WhatsApp shares with the file attached, and
+> the SMS/WhatsApp message spells out both currencies with the rate used.
+
+### Phase 8 — two known gaps (owner deferred: "not now but consider")
+- **A contact's role can't be changed after creation.** `updateCustomer` already accepts `role`
+  (`src/data/customers.ts`) but nothing calls it — Home offers the picker only on the *add* form.
+  Every contact created before Phase 8 is stuck as `customer`. Fix: an edit screen (pencil on
+  CustomerDetail) for name/phone/note/role. Interim workaround is server-side SQL — and it MUST
+  bump `updated_at=UTC_TIMESTAMP()` in the same statement, or the phone pulls the row and discards
+  it as stale under last-write-wins.
+- **`buildMessage` ignores the role** (`src/lib/notify.ts`) — it always says «تم تسجيل دين» /
+  «تم تسجيل دفعة». For a supplier that inverts the meaning: goods taken on credit are stored as
+  `payment`, so the creditor gets texted "a payment was recorded". Fix: use `directionLabel(role,
+  type)` from `src/data/roles.ts`. The balance line is already correct (written from the contact's
+  point of view).
+
+> **Who actually uses this (2026-07-29):** the grocer it was built for never adopted it. The owner
+> now uses it **inverted** — to track what *he* owes his own grocer, Khawlah, and his wife —
+> recording goods-on-credit as `payment` so the balance runs in his favour. So the counterparty is
+> usually a **creditor**, not a customer; the `supplier` role models this correctly. Don't assume a
+> grocer→customer direction in new wording. This is why the `buildMessage` gap above matters.
+
+> ▶ **RESUME HERE:** Phase 7 (WhatsApp OTP), or the two Phase 8 gaps above if the owner asks.
 > To test sync, the user's
 > `subscription_status` must be `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
