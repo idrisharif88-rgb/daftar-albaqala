@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
-  IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, useIonViewWillEnter,
+  IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, IonLoading, useIonViewWillEnter,
   useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import { documentTextOutline } from 'ionicons/icons';
@@ -36,6 +36,9 @@ const CustomerDetail: React.FC = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // A long history takes a few seconds to render into the PDF; without this the
+  // screen just sits there and reads as a freeze.
+  const [exporting, setExporting] = useState(false);
   // Synchronous in-flight guard — `saving` state updates a tick late, so a fast
   // double-tap could slip a second (duplicate) transaction through before the
   // button re-renders disabled. The ref blocks the second call immediately.
@@ -189,6 +192,7 @@ const CustomerDetail: React.FC = () => {
     const filtered = txns.filter((t) => inPeriod(t.occurred_at));
     const settings = await getSettings();
     const periodLabel = period === 'day' ? 'اليوم' : period === 'month' ? 'هذا الشهر' : 'كل الحركات';
+    setExporting(true);
     try {
       await exportCustomerStatement({
         customer,
@@ -199,6 +203,8 @@ const CustomerDetail: React.FC = () => {
       });
     } catch {
       presentAlert({ header: 'خطأ', message: 'تعذّر إنشاء ملف PDF', buttons: ['حسناً'] });
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -330,6 +336,8 @@ const CustomerDetail: React.FC = () => {
             </IonButton>
           </IonContent>
         </IonModal>
+
+        <IonLoading isOpen={exporting} message="جارٍ إنشاء الكشف..." />
       </IonContent>
     </IonPage>
   );
