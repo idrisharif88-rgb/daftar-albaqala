@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
+import { DEFAULT_CURRENCY, VALID_CURRENCIES } from '../domain';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ const router = Router();
 // Transactions are APPEND-ONLY: no update, no delete. A correction is a new
 // reversing entry, never an edit of the original.
 
-const TXN_COLS = 'id, customer_id, type, amount, note, occurred_at, created_at';
+const TXN_COLS = 'id, customer_id, type, amount, currency, note, occurred_at, created_at';
 
 // GET /transactions?customer_id=... — list transactions for one of this owner's
 // customers, newest occurrence first. customer_id is required.
@@ -39,7 +40,7 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req: AuthedRequest, res) => {
-    const { id, customer_id, type, amount, note, occurred_at } = req.body ?? {};
+    const { id, customer_id, type, amount, currency, note, occurred_at } = req.body ?? {};
 
     if (!customer_id) {
       return res.status(400).json({ error: 'customer_id is required' });
@@ -51,6 +52,15 @@ router.post(
     const amt = Number(amount);
     if (!Number.isFinite(amt) || amt <= 0) {
       return res.status(400).json({ error: 'amount must be a positive number' });
+    }
+    // What was owed — riyals, hard currency, or grams of gold. The native
+    // currency IS the debt of record, so an unrecognised code is refused rather
+    // than defaulted: quietly filing a gold debt as riyals would corrupt it.
+    const cur = currency === undefined || currency === null
+      ? DEFAULT_CURRENCY
+      : String(currency);
+    if (!VALID_CURRENCIES.has(cur)) {
+      return res.status(400).json({ error: 'currency must be one of YER, SAR, USD, GOLD' });
     }
 
     // Verify the customer belongs to this owner and is active. This both enforces
@@ -72,9 +82,9 @@ router.post(
 
     await pool.query(
       `INSERT INTO transactions
-         (id, user_id, customer_id, type, amount, note, occurred_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [txnId, req.userId, customer_id, type, amt.toFixed(2), note ?? null, occurredAt, now]
+         (id, user_id, customer_id, type, amount, currency, note, occurred_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [txnId, req.userId, customer_id, type, amt.toFixed(2), cur, note ?? null, occurredAt, now]
     );
 
     const [rows] = await pool.query(

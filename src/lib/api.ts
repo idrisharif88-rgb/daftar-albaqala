@@ -87,29 +87,48 @@ export function login(phone: string, password: string): Promise<AuthResult> {
 // the local store keeps INTEGER minor units, so the sync layer converts.
 
 export interface PushCustomer {
-  id: string; name: string; phone: string; note: string | null;
+  id: string; name: string; phone: string; note: string | null; role: string;
   created_at: string; updated_at: string; deleted_at: string | null;
 }
 export interface PushTransaction {
-  id: string; customer_id: string; type: string; amount: number;
+  id: string; customer_id: string; type: string; amount: number; currency: string;
   note: string | null; occurred_at: string; created_at: string;
 }
-export interface PushResult {
-  customers: { inserted: number; updated: number; skipped: number; rejected: number };
-  transactions: { inserted: number; skipped: number; rejected: number };
+
+// Why the server would not store a row. 'missing_customer' is the only one
+// worth retrying — see server/src/routes/sync.ts.
+export type RejectReason = 'invalid' | 'missing_customer' | 'foreign_owner';
+export interface Rejection {
+  id: string;
+  reason: RejectReason;
 }
+/** Per-row acknowledgement. Only ids in `accepted` are durably stored, and only
+ *  those may be marked clean locally — anything else is still ours to keep. */
+export interface TableAck {
+  accepted: string[];
+  rejected: Rejection[];
+}
+export interface PushResult {
+  customers: TableAck;
+  transactions: TableAck;
+}
+
 export interface PullCustomer {
-  id: string; name: string; phone: string; note: string | null;
+  id: string; name: string; phone: string; note: string | null; role: string | null;
   created_at: string; updated_at: string; deleted_at: string | null;
 }
 export interface PullTransaction {
   id: string; customer_id: string; type: string; amount: string | number;
+  currency: string | null;
   note: string | null; occurred_at: string; created_at: string;
 }
 export interface PullResult {
   customers: PullCustomer[];
   transactions: PullTransaction[];
+  /** Opaque cursor to send as `since` next time. Do not parse it. */
   synced_at: string;
+  /** More pages are waiting — call again with the new cursor. */
+  has_more?: boolean;
 }
 
 export function syncPush(body: {
@@ -119,7 +138,10 @@ export function syncPush(body: {
   return request<PushResult>('/sync/push', { method: 'POST', body: JSON.stringify(body) });
 }
 
-export function syncPull(since?: string | null): Promise<PullResult> {
-  const q = since ? `?since=${encodeURIComponent(since)}` : '';
-  return request<PullResult>(`/sync/pull${q}`);
+export function syncPull(since?: string | null, limit?: number): Promise<PullResult> {
+  const params = new URLSearchParams();
+  if (since) params.set('since', since);
+  if (limit) params.set('limit', String(limit));
+  const q = params.toString();
+  return request<PullResult>(`/sync/pull${q ? `?${q}` : ''}`);
 }

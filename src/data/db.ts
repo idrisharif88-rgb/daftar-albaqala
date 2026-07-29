@@ -5,6 +5,7 @@ import {
   SQLiteDBConnection,
 } from '@capacitor-community/sqlite';
 import { SCHEMA } from './schema';
+import { runMigrations } from './migrations';
 
 // Single shared connection to the on-phone database. The repositories
 // (customers.ts, transactions.ts) call getDB() and never touch the plugin
@@ -41,7 +42,12 @@ export async function initDB(): Promise<SQLiteDBConnection> {
       : await sqlite.createConnection(DB_NAME, false, 'no-encryption', 1, false);
 
     await conn.open();
+    // SCHEMA is the baseline (v0) shape and only creates what's missing; every
+    // change since then is a numbered migration. Both run on every start: a
+    // fresh install gets the baseline then all migrations, an existing phone
+    // skips the baseline (IF NOT EXISTS) and applies only what it's missing.
     await conn.execute(SCHEMA);
+    await runMigrations(conn);
     db = conn;
     return conn;
   })();

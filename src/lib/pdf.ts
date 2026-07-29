@@ -6,6 +6,11 @@ import html2canvas from 'html2canvas';
 import { formatMinor } from '../data/money';
 import type { Customer } from '../data/customers';
 import type { Transaction } from '../data/transactions';
+import {
+  BASE_CURRENCY, CURRENCIES, currencyDef, formatAmount, totalInBase,
+  type CurrencyBalance, type Rates,
+} from '../data/currencies';
+import { directionLabel, ownerBalanceLabel } from '../data/roles';
 
 // Per-customer PDF statement. Arabic in PDF is the hard part: jsPDF can't shape
 // Arabic letters (joining/RTL), so instead we render a styled HTML report into
@@ -48,7 +53,8 @@ export interface StatementOptions {
   customer: Customer;
   transactions: Transaction[]; // already filtered to the chosen period
   storeName: string;
-  currency: string;
+  /** Today's YER rates, for the reference conversions in the totals block. */
+  rates: Rates;
   periodLabel: string;
 }
 
@@ -58,7 +64,9 @@ const PAGE_W = 760;
 const PAGE_H = Math.round((PAGE_W * 297) / 210); // 1075
 const ROWS_PER_PAGE = 16;
 // Rows the totals block displaces on the last page; past this it gets its own.
-const ROWS_LEAVING_ROOM_FOR_TOTALS = 13;
+// The totals block is now a per-currency table, so it needs more room than the
+// old three-line summary did.
+const ROWS_LEAVING_ROOM_FOR_TOTALS = 10;
 // scale 1.5 is legible on paper and on screen; scale 2 doubled canvas memory
 // for no visible gain.
 const CANVAS_SCALE = 1.5;
@@ -84,35 +92,73 @@ function shortNote(note: string | null | undefined): string {
   return n.length > 44 ? `${n.slice(0, 43)}…` : n;
 }
 
-function rowsHtml(txns: Transaction[], currency: string): string {
+function rowsHtml(txns: Transaction[], role: string): string {
   return txns
     .map((t) => `
       <tr>
         <td style="${td}">${esc(new Date(t.occurred_at).toLocaleString('ar'))}</td>
         <td style="${td}color:${t.type === 'debt' ? '#c0392b' : '#1b5e20'};font-weight:700;">
-          ${t.type === 'debt' ? 'دين' : 'دفعة'}
+          ${esc(directionLabel(role, t.type))}
         </td>
-        <td style="${td}">${formatMinor(t.amount)} ${esc(currency)}</td>
-        <td style="${td}max-width:220px;">${esc(shortNote(t.note))}</td>
+        <td style="${td}">${esc(formatAmount(t.amount, t.currency))}</td>
+        <td style="${td}max-width:200px;">${esc(shortNote(t.note))}</td>
       </tr>`)
     .join('');
 }
 
+// Totals are PER CURRENCY — riyals, dollars and grams of gold are separate
+// debts and adding them together would be meaningless. The riyal estimate at
+// the bottom is a convenience, labelled as today's rates.
 function totalsHtml(o: StatementOptions): string {
-  let debt = 0;
-  let pay = 0;
+  const perCurrency = new Map<string, { debt: number; pay: number }>();
   for (const t of o.transactions) {
-    if (t.type === 'debt') debt += t.amount;
-    else pay += t.amount;
+    const entry = perCurrency.get(t.currency) ?? { debt: 0, pay: 0 };
+    if (t.type === 'debt') entry.debt += t.amount;
+    else entry.pay += t.amount;
+    perCurrency.set(t.currency, entry);
   }
-  const balance = debt - pay;
-  const balanceWord = balance > 0 ? '(عليه)' : balance < 0 ? '(له)' : '(مسدد)';
+
+  const balances: CurrencyBalance[] = [];
+  const rows: string[] = [];
+  for (const c of CURRENCIES) {
+    const entry = perCurrency.get(c.code);
+    if (!entry) continue;
+    const balance = entry.debt - entry.pay;
+    balances.push({ currency: c.code, minor: balance });
+    rows.push(`
+      <tr>
+        <td style="${td}">${esc(c.longAr)}</td>
+        <td style="${td}color:#c0392b;">${esc(formatAmount(entry.debt, c.code))}</td>
+        <td style="${td}color:#1b5e20;">${esc(formatAmount(entry.pay, c.code))}</td>
+        <td style="${td}"><b>${esc(formatAmount(Math.abs(balance), c.code))} ${esc(ownerBalanceLabel(balance))}</b></td>
+      </tr>`);
+  }
+
+  if (rows.length === 0) return '';
+
+  const { minor: totalMinor, complete } = totalInBase(balances, o.rates);
+  const baseShort = currencyDef(BASE_CURRENCY).shortAr;
+  const grand = balances.length > 1 && complete
+    ? `<div style="text-align:center;margin-top:10px;font-size:14px;">
+         الإجمالي التقريبي: <b>${formatMinor(Math.abs(totalMinor))} ${esc(baseShort)}
+         ${esc(ownerBalanceLabel(totalMinor))}</b>
+         <span style="color:#777;">(بأسعار اليوم)</span>
+       </div>`
+    : '';
+
   return `
-    <table style="width:100%;font-size:15px;margin-top:18px;">
-      <tr><td>إجمالي الديون:</td><td style="color:#c0392b;">${formatMinor(debt)} ${esc(o.currency)}</td></tr>
-      <tr><td>إجمالي الدفعات:</td><td style="color:#1b5e20;">${formatMinor(pay)} ${esc(o.currency)}</td></tr>
-      <tr><td><b>الرصيد:</b></td><td><b>${formatMinor(Math.abs(balance))} ${esc(o.currency)} ${balanceWord}</b></td></tr>
-    </table>`;
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:16px;">
+      <thead>
+        <tr style="background:#f3f3f3;">
+          <th style="${td}">العملة</th>
+          <th style="${td}">إجمالي الديون</th>
+          <th style="${td}">إجمالي الدفعات</th>
+          <th style="${td}">الرصيد</th>
+        </tr>
+      </thead>
+      <tbody>${rows.join('')}</tbody>
+    </table>
+    ${grand}`;
 }
 
 function buildPageHtml(
@@ -124,7 +170,7 @@ function buildPageHtml(
   issuedAt: string,
 ): string {
   const body = txns.length
-    ? rowsHtml(txns, o.currency)
+    ? rowsHtml(txns, o.customer.role)
     : `<tr><td colspan="4" style="${td}">لا توجد حركات في هذه الفترة</td></tr>`;
 
   return `

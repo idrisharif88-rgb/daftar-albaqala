@@ -1,5 +1,10 @@
 import { Capacitor } from '@capacitor/core';
 import { formatMinor } from '../data/money';
+import {
+  BASE_CURRENCY, currencyDef, describeAmount, totalInBase,
+  type CurrencyBalance, type CurrencyCode, type Rates,
+} from '../data/currencies';
+import { contactBalanceLabel } from '../data/roles';
 import type { TxnType } from '../data/transactions';
 
 // Customer notifications: when the shopkeeper records a debt/payment we tell the
@@ -23,29 +28,54 @@ export function toIntlDigits(phone: string): string {
 }
 
 // The Arabic message: store name + what happened (debt/payment + amount) + the
-// customer's new running balance and its direction. The grocer's note, if any,
+// contact's new running balance and its direction. The grocer's note, if any,
 // is appended on its own line as "ملاحظة من <store>: <note>".
+//
+// A debt in SAR, USD or gold is spelled out BOTH ways — «100 ر.س (≈ 14,000
+// ريال سعر الصرف 140)» — because the two sides of the deal think in different
+// units. The customer needs to see the figure they'll be judged by AND the
+// rate it was worked out at, or the conversion looks arbitrary when the rate
+// moves next week. The native amount stays the debt of record.
 export function buildMessage(opts: {
   storeName: string;
   type: TxnType;
   amount: number; // minor units
-  balance: number; // minor units (signed; + = customer owes the shop)
-  currency: string;
+  currency: CurrencyCode; // what the entry was recorded in
+  balances: CurrencyBalance[]; // running balance per currency (+ = they owe us)
+  rates: Rates;
   note?: string;
 }): string {
-  const { storeName, type, amount, balance, currency, note } = opts;
+  const { storeName, type, amount, currency, balances, rates, note } = opts;
   const store = storeName.trim();
   const action = type === 'debt' ? 'تسجيل دين' : 'تسجيل دفعة';
-  const amountStr = `${formatMinor(amount)} ${currency}`;
-  const balStr = `${formatMinor(Math.abs(balance))} ${currency}`;
-  const balLine =
-    balance > 0
-      ? `رصيدك الآن: ${balStr} (عليك)`
-      : balance < 0
-        ? `رصيدك الآن: ${balStr} (لك)`
-        : 'رصيدك الآن: مسدد';
+  const amountStr = describeAmount(amount, currency, rates);
+
+  let balanceBlock: string;
+  if (balances.length === 0) {
+    balanceBlock = 'رصيدك الآن: مسدد';
+  } else if (balances.length === 1) {
+    const b = balances[0];
+    balanceBlock =
+      `رصيدك الآن: ${describeAmount(Math.abs(b.minor), b.currency, rates)} (${contactBalanceLabel(b.minor)})`;
+  } else {
+    // Several currencies never merge into one figure, so they're listed — with
+    // a combined riyal estimate underneath, clearly labelled as today's rates.
+    const lines = balances.map(
+      (b) => `  • ${describeAmount(Math.abs(b.minor), b.currency, rates)} (${contactBalanceLabel(b.minor)})`
+    );
+    const { minor: totalMinor, complete } = totalInBase(balances, rates);
+    if (complete) {
+      const baseShort = currencyDef(BASE_CURRENCY).shortAr;
+      lines.push(
+        `  الإجمالي التقريبي: ${formatMinor(Math.abs(totalMinor))} ${baseShort} ` +
+        `(${contactBalanceLabel(totalMinor)}) بأسعار اليوم`
+      );
+    }
+    balanceBlock = `رصيدك الآن:\n${lines.join('\n')}`;
+  }
+
   const head = store ? `${store}\n` : '';
-  let msg = `${head}تم ${action} بمبلغ ${amountStr}\n${balLine}`;
+  let msg = `${head}تم ${action} بمبلغ ${amountStr}\n${balanceBlock}`;
   if (note && note.trim()) {
     msg += `\nملاحظة من ${store || 'البقالة'}: ${note.trim()}`;
   }

@@ -106,6 +106,15 @@ ion-item { --background: #ffffff; }
 .balance-card__amount { font-size: 2rem; font-weight: 700; line-height: 1.2; }
 .balance-card__dir { font-size: 1rem; margin-top: 2px; }
 
+/* Settings section heading — separates the rates block from the general
+   settings above it. */
+.settings-section {
+  margin: 24px 4px 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ion-color-primary);
+}
+
 /* Login brand block — centered app name + tagline above the form. */
 .login-brand { text-align: center; margin: 24px 0 20px; }
 .login-brand__name {

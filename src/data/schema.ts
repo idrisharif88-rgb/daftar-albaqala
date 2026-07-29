@@ -6,6 +6,11 @@
 //
 // UUID text PKs everywhere (records are born offline). Transactions are
 // append-only (no deleted_at); customers are editable + soft-deleted.
+//
+// This is the BASELINE shape only. It is CREATE TABLE IF NOT EXISTS, so it can
+// create a database but never change one — do NOT add columns here expecting
+// them to reach a phone that already has data. Every change after the baseline
+// belongs in migrations.ts, which runs right after this on every start.
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS customers (

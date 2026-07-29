@@ -14,7 +14,19 @@ import { pool } from './db';
 const app = express();
 
 // Parse JSON request bodies.
-app.use(express.json());
+//
+// The default limit is 100 KB, which a sync push can exceed easily: a phone
+// that has been offline for a fortnight uploads its whole backlog in one body,
+// and past roughly 400 rows every sync attempt died with a 413 that the app
+// reported as a generic failure. The client now chunks its push (see
+// src/data/sync.ts), so this ceiling is headroom rather than the mechanism —
+// but it has to be above the chunk size, not below it.
+//
+// 🧩 Server concept: body limits are a denial-of-service control, not a
+// formality. Removing the cap entirely would let one authenticated request ask
+// the 1GB droplet to buffer an arbitrarily large body in memory. The number
+// should be the largest legitimate request, and no larger.
+app.use(express.json({ limit: '2mb' }));
 
 // Health check — confirms the server is alive and reachable.
 app.get('/health', (_req, res) => {

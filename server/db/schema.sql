@@ -40,15 +40,21 @@ CREATE TABLE IF NOT EXISTS customers (
   name        VARCHAR(255)    NOT NULL,
   phone       VARCHAR(32)     NOT NULL,                -- مطلوب
   note        TEXT            NULL,
+  role        VARCHAR(16)     NOT NULL DEFAULT 'customer', -- عميل / مورد / شريك
 
   created_at  DATETIME        NOT NULL,
-  updated_at  DATETIME        NOT NULL,                -- مفتاح المزامنة الدلتا + آخر-كتابة-تفوز
+  updated_at  DATETIME        NOT NULL,                -- آخر-كتابة-تفوز (بساعة الجهاز)
   deleted_at  DATETIME        NULL,                    -- حذف ناعم (tombstone)
+
+  -- ساعة السيرفر: متى كتب السيرفر هذا الصف فعلياً. هذا هو مفتاح المزامنة الدلتا،
+  -- وليس updated_at — لأن updated_at تأتي من ساعة الهاتف وقد تكون خاطئة.
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
 
   PRIMARY KEY (id),
   CONSTRAINT fk_cust_user FOREIGN KEY (user_id) REFERENCES users(id),
   KEY idx_cust_user (user_id),                         -- لتسريع كل استعلام مفلتر بـ user_id
-  KEY idx_cust_sync (user_id, updated_at)              -- لجلب "ما تغيّر بعد آخر مزامنة"
+  KEY idx_cust_sync (user_id, server_updated_at)       -- لجلب "ما تغيّر بعد آخر مزامنة"
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------
@@ -62,13 +68,17 @@ CREATE TABLE IF NOT EXISTS transactions (
   customer_id  CHAR(36)        NOT NULL,
   type         ENUM('debt','payment') NOT NULL,        -- دَين / تسديد
   amount       DECIMAL(12,2)   NOT NULL,               -- دقّة نقدية بلا أخطاء فاصلة
+  currency     VARCHAR(8)      NOT NULL DEFAULT 'YER', -- YER / SAR / USD / GOLD (جرام)
   note         TEXT            NULL,
   occurred_at  DATETIME        NOT NULL,               -- وقت حدوث المعاملة فعلياً (يحدده المستخدم)
-  created_at   DATETIME        NOT NULL,               -- وقت الإدراج (مفتاح المزامنة)
+  created_at   DATETIME        NOT NULL,               -- وقت الإنشاء على الهاتف
+
+  -- ساعة السيرفر (مفتاح المزامنة الدلتا). المعاملات غير قابلة للتعديل، فتُختم مرة واحدة.
+  server_updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   PRIMARY KEY (id),
   CONSTRAINT fk_txn_user FOREIGN KEY (user_id)     REFERENCES users(id),
   CONSTRAINT fk_txn_cust FOREIGN KEY (customer_id) REFERENCES customers(id),
   KEY idx_txn_user_cust (user_id, customer_id),        -- معاملات عميل معيّن
-  KEY idx_txn_sync (user_id, created_at)               -- جلب الجديد منذ آخر مزامنة
+  KEY idx_txn_sync (user_id, server_updated_at)        -- جلب الجديد منذ آخر مزامنة
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

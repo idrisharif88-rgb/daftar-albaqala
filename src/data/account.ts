@@ -1,4 +1,4 @@
-import { getDB, persist } from './db';
+import { getMeta, setMeta } from './meta';
 
 // Whether the owner has activated this account on the server. The server is the
 // real enforcement point: /sync returns 402 until subscription_status='active'.
@@ -9,19 +9,11 @@ import { getDB, persist } from './db';
 const ACTIVE_KEY = 'account_active';
 
 export async function isAccountActive(): Promise<boolean> {
-  const db = await getDB();
-  const res = await db.query(`SELECT value FROM app_meta WHERE key = ?`, [ACTIVE_KEY]);
-  return ((res.values ?? [])[0]?.value as string) === '1';
+  return (await getMeta(ACTIVE_KEY)) === '1';
 }
 
 export async function setAccountActive(active: boolean): Promise<void> {
-  const db = await getDB();
-  await db.run(
-    `INSERT INTO app_meta (key, value) VALUES (?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    [ACTIVE_KEY, active ? '1' : '0'],
-  );
-  await persist();
+  await setMeta(ACTIVE_KEY, active ? '1' : '0');
 }
 
 // Arabic message shown when a blocked account tries to add data.

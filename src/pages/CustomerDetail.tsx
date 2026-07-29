@@ -3,36 +3,47 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
-  IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, IonLoading, useIonViewWillEnter,
+  IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, IonLoading,
+  IonSelect, IonSelectOption, useIonViewWillEnter,
   useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import { documentTextOutline } from 'ionicons/icons';
 import { getCustomer, type Customer } from '../data/customers';
 import {
-  listTransactions, getBalance, addTransaction, type Transaction, type TxnType,
+  listTransactions, getBalances, addTransaction, type Transaction, type TxnType,
 } from '../data/transactions';
-import { formatMinor, toMinor } from '../data/money';
+import { toMinor } from '../data/money';
 import { getSettings } from '../data/settings';
+import { getRates } from '../data/rates';
+import {
+  BASE_CURRENCY, CURRENCIES, currencyDef, describeAmount, describeConversion,
+  formatAmount, DEFAULT_RATES, type CurrencyBalance, type CurrencyCode, type Rates,
+} from '../data/currencies';
+import { directionLabel, roleDef } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
-import { exportCustomerStatement } from '../lib/pdf';
+import BalanceSummary from '../components/BalanceSummary';
 
-const CURRENCY = 'YER';
-
-// Customer detail — transaction history + add debt/payment. Append-only
-// (CLAUDE.md): a transaction is never edited or deleted; a correction is a
-// reversing entry (record a payment to cancel a debt, or vice-versa).
+// Contact detail — transaction history + record an entry in either direction.
+// Append-only (CLAUDE.md): a transaction is never edited or deleted; a
+// correction is a reversing entry.
+//
+// Every entry carries its own CURRENCY, and the currency is part of the debt —
+// so the amount field and the history rows both name it explicitly rather than
+// assuming riyals.
 const CustomerDetail: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [txns, setTxns] = useState<Transaction[]>([]);
-  const [balance, setBalance] = useState(0);
+  const [balances, setBalances] = useState<CurrencyBalance[]>([]);
+  const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [loading, setLoading] = useState(true);
 
   // add-transaction modal state. `formType` decides debt vs payment.
   const modal = useRef<HTMLIonModalElement>(null);
   const [formType, setFormType] = useState<TxnType>('debt');
   const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState<CurrencyCode>(BASE_CURRENCY);
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -47,14 +58,16 @@ const CustomerDetail: React.FC = () => {
   const [presentSheet] = useIonActionSheet();
 
   const load = useCallback(async () => {
-    const [c, list, bal] = await Promise.all([
+    const [c, list, bals, currentRates] = await Promise.all([
       getCustomer(customerId),
       listTransactions(customerId),
-      getBalance(customerId),
+      getBalances(customerId),
+      getRates(),
     ]);
     setCustomer(c);
     setTxns(list);
-    setBalance(bal);
+    setBalances(bals);
+    setRates(currentRates);
     setLoading(false);
   }, [customerId]);
 
@@ -71,6 +84,7 @@ const CustomerDetail: React.FC = () => {
     }
     setFormType(type);
     setAmount('');
+    setCurrency(BASE_CURRENCY);
     setNote('');
     setError(null);
     void modal.current?.present();
@@ -88,15 +102,17 @@ const CustomerDetail: React.FC = () => {
     setSaving(true);
     try {
       const amountMinor = toMinor(major);
+      const entryCurrency = currency;
       await addTransaction({
         customerId,
         type: formType,
         amount: amountMinor,
+        currency: entryCurrency,
         note: note.trim() || null,
       });
       await load();
       await modal.current?.dismiss();
-      await notifyCustomer(formType, amountMinor, note.trim());
+      await notifyCustomer(formType, amountMinor, entryCurrency, note.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
@@ -109,20 +125,24 @@ const CustomerDetail: React.FC = () => {
   // phone). Auto-sends SMS — the main notice (amount + balance) and, if present,
   // the grocer's note as its own separate SMS (Android only; no-op on web). Then
   // offers the same messages via WhatsApp. Failures never block the save.
-  const notifyCustomer = async (type: TxnType, amountMinor: number, noteText: string) => {
+  const notifyCustomer = async (
+    type: TxnType, amountMinor: number, entryCurrency: CurrencyCode, noteText: string,
+  ) => {
     const c = await getCustomer(customerId);
     if (!c) return;
-    const [settings, newBalance] = await Promise.all([
+    const [settings, newBalances, currentRates] = await Promise.all([
       getSettings(),
-      getBalance(customerId),
+      getBalances(customerId),
+      getRates(),
     ]);
     if (!settings.notifyCustomers) return; // notifications turned off in Settings
     const message = buildMessage({
       storeName: settings.storeName,
       type,
       amount: amountMinor,
-      balance: newBalance,
-      currency: settings.currency,
+      currency: entryCurrency,
+      balances: newBalances,
+      rates: currentRates,
       note: noteText, // folded into the one message on its own line
     });
     void sendSms(c.phone, message); // auto: one combined SMS (balance + note)
@@ -194,11 +214,14 @@ const CustomerDetail: React.FC = () => {
     const periodLabel = period === 'day' ? 'اليوم' : period === 'month' ? 'هذا الشهر' : 'كل الحركات';
     setExporting(true);
     try {
+      // Loaded on demand — jspdf + html2canvas together are most of the bundle,
+      // and a session that never exports shouldn't pay to parse them.
+      const { exportCustomerStatement } = await import('../lib/pdf');
       await exportCustomerStatement({
         customer,
         transactions: filtered,
         storeName: settings.storeName,
-        currency: settings.currency,
+        rates,
         periodLabel,
       });
     } catch {
@@ -208,8 +231,11 @@ const CustomerDetail: React.FC = () => {
     }
   };
 
-  const balanceColor = balance > 0 ? 'danger' : balance < 0 ? 'success' : 'medium';
-  const balanceLabel = balance > 0 ? 'عليه' : balance < 0 ? 'له' : 'مسدد';
+  // Button/label wording follows the contact's role: recording «دين» against a
+  // supplier reads backwards, so each role names its two directions.
+  const role = customer?.role ?? 'customer';
+  const plusLabel = directionLabel(role, 'debt');
+  const minusLabel = directionLabel(role, 'payment');
 
   return (
     <IonPage>
@@ -218,7 +244,7 @@ const CustomerDetail: React.FC = () => {
           <IonButtons slot="start">
             <IonBackButton defaultHref="/home" text="رجوع" />
           </IonButtons>
-          <IonTitle>{customer?.name ?? 'العميل'}</IonTitle>
+          <IonTitle>{customer?.name ?? 'جهة'}</IonTitle>
           <IonButtons slot="end">
             <IonButton onClick={askExport} disabled={!customer}>
               <IonIcon slot="icon-only" icon={documentTextOutline} />
@@ -234,19 +260,17 @@ const CustomerDetail: React.FC = () => {
           </div>
         ) : !customer ? (
           <IonText color="medium">
-            <p className="ion-text-center ion-padding">العميل غير موجود.</p>
+            <p className="ion-text-center ion-padding">الجهة غير موجودة.</p>
           </IonText>
         ) : (
           <>
-            {/* Balance summary */}
+            {/* Balance summary — one line per currency in play, plus a YER
+                equivalent at today's rates when there is more than one. */}
             <div className="balance-card">
-              <div className="balance-card__label">الرصيد الحالي</div>
-              <IonText color={balanceColor}>
-                <div className="balance-card__amount">
-                  <strong>{formatMinor(Math.abs(balance))} {CURRENCY}</strong>
-                </div>
-                <div className="balance-card__dir">{balanceLabel}</div>
-              </IonText>
+              <div className="balance-card__label">
+                الرصيد الحالي · {roleDef(role).labelAr}
+              </div>
+              <BalanceSummary balances={balances} rates={rates} align="center" />
             </div>
 
             {/* Add debt / add payment */}
@@ -254,12 +278,12 @@ const CustomerDetail: React.FC = () => {
               <IonRow>
                 <IonCol>
                   <IonButton expand="block" color="danger" onClick={() => openForm('debt')}>
-                    إضافة دين
+                    {plusLabel}
                   </IonButton>
                 </IonCol>
                 <IonCol>
                   <IonButton expand="block" color="success" onClick={() => openForm('payment')}>
-                    إضافة دفعة
+                    {minusLabel}
                   </IonButton>
                 </IonCol>
               </IonRow>
@@ -276,13 +300,22 @@ const CustomerDetail: React.FC = () => {
                   <IonItem key={t.id}>
                     <IonLabel>
                       <h2 style={{ color: t.type === 'debt' ? 'var(--ion-color-danger)' : 'var(--ion-color-success)' }}>
-                        {t.type === 'debt' ? 'دين' : 'دفعة'}
+                        {directionLabel(role, t.type)}
                       </h2>
                       {t.note && <p>{t.note}</p>}
                       <p>{new Date(t.occurred_at).toLocaleString('ar')}</p>
                     </IonLabel>
                     <IonText slot="end" color={t.type === 'debt' ? 'danger' : 'success'}>
-                      <strong>{formatMinor(t.amount)} {CURRENCY}</strong>
+                      <div style={{ textAlign: 'end' }}>
+                        <strong>{formatAmount(t.amount, t.currency)}</strong>
+                        {/* Foreign-currency and gold entries also show what they
+                            are worth today — the native figure stays the record. */}
+                        {describeConversion(t.amount, t.currency, rates) && (
+                          <div style={{ fontSize: '0.7em', opacity: 0.8 }}>
+                            {describeConversion(t.amount, t.currency, rates)}
+                          </div>
+                        )}
+                      </div>
                     </IonText>
                   </IonItem>
                 ))}
@@ -294,7 +327,7 @@ const CustomerDetail: React.FC = () => {
         <IonModal ref={modal}>
           <IonHeader>
             <IonToolbar>
-              <IonTitle>{formType === 'debt' ? 'إضافة دين' : 'إضافة دفعة'}</IonTitle>
+              <IonTitle>{formType === 'debt' ? plusLabel : minusLabel}</IonTitle>
               <IonButtons slot="end">
                 <IonButton onClick={() => modal.current?.dismiss()}>إلغاء</IonButton>
               </IonButtons>
@@ -302,7 +335,21 @@ const CustomerDetail: React.FC = () => {
           </IonHeader>
           <IonContent className="ion-padding">
             <IonItem>
-              <IonLabel position="stacked">المبلغ ({CURRENCY})</IonLabel>
+              <IonLabel position="stacked">العملة</IonLabel>
+              <IonSelect
+                value={currency}
+                onIonChange={(e) => setCurrency(e.detail.value as CurrencyCode)}
+                interface="popover"
+              >
+                {CURRENCIES.map((c) => (
+                  <IonSelectOption key={c.code} value={c.code}>{c.longAr}</IonSelectOption>
+                ))}
+              </IonSelect>
+            </IonItem>
+            <IonItem>
+              <IonLabel position="stacked">
+                {currencyDef(currency).isWeight ? 'الوزن بالجرام' : `المبلغ (${currencyDef(currency).shortAr})`}
+              </IonLabel>
               <IonInput
                 type="number"
                 inputmode="decimal"
@@ -311,6 +358,15 @@ const CustomerDetail: React.FC = () => {
                 placeholder="0"
               />
             </IonItem>
+            {/* Live conversion while typing, so the owner sees what the entry is
+                worth in riyals before committing to it. */}
+            {currency !== BASE_CURRENCY && Number(amount.replace(',', '.')) > 0 && (
+              <IonNote className="ion-padding-start">
+                <IonText color="medium">
+                  {describeAmount(toMinor(Number(amount.replace(',', '.'))), currency, rates)}
+                </IonText>
+              </IonNote>
+            )}
             <IonItem>
               <IonLabel position="stacked">ملاحظة (اختياري)</IonLabel>
               <IonInput

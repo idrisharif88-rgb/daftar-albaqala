@@ -169,7 +169,7 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
 
 ### Automated tests (sync)
 - `server/src/test/` — integration tests for `/sync/push` + `/sync/pull` + subscription gate
-  (24 cases) using
+  (34 cases) using
   Node's built-in test runner + `supertest`, driving the real Express app (`src/app.ts`, split
   out of `index.ts` so it has no `listen()`). Run with **`npm test`** in `server/`.
 - They hit a **real MySQL** `daftar_test` DB — **never** production `daftar_db` (a guard refuses
@@ -178,7 +178,9 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
 - Coverage: last-write-wins (stale skip / newer overwrite), idempotent re-push, append-only
   (no dup transactions), tenant isolation (cross-owner UUID rejected on both tables), input
   validation, pull delta `since` filter, tombstones included, 401/400 paths,
-  subscription gate (active allowed; none/expired/past-expiry → 402; future-expiry allowed).
+  subscription gate (active allowed; none/expired/past-expiry → 402; future-expiry allowed),
+  and (Phase 8) per-row accept/reject, clock skew, keyset paging incl. tied timestamps,
+  contact role + transaction currency.
 - **One-time test-DB setup** (owner, on droplet `sudo mysql -u root -p`):
   `CREATE DATABASE daftar_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` then
   `GRANT SELECT,INSERT,UPDATE,DELETE ON daftar_test.* TO 'daftar_user'@'localhost';` then load
@@ -319,12 +321,14 @@ Five owner-reported items, each built + device-tested against the droplet:
       declared. The manifest had only `READ_CONTACTS`, so the alias was permanently denied and
       `pickContact` bailed before opening. Fix: added **`WRITE_CONTACTS`** (unused, but required by
       the alias). Button label shortened «اختيار من جهات الاتصال» → «جهات الاتصال».
-- [x] **In-app activation requests.** New `POST /account/request-activation` (`server/src/routes/account.ts`),
-      mounted behind `requireAuth` **but NOT `requireSubscription`** (an inactive account is the one
-      that must reach it). Stamps new `users.activation_requested_at` + `activation_message` columns.
-      Client: `requestActivation()` in `lib/api.ts`; a «طلب التفعيل» button on Settings (optional-note
-      alert) shown only while inactive. Tests: `server/src/test/account.test.ts` (5 cases; suite 29/29).
-      **Migration required** (DDL — `daftar_user` is DML-only, run as root on the droplet):
+- [x] **In-app activation requests.** ⚠️ **SUPERSEDED by commit `b9b4394`** — the server endpoint
+      `POST /account/request-activation` (`server/src/routes/account.ts`) and its tests
+      (`server/src/test/account.test.ts`) were **removed**. The «طلب التفعيل» button on Settings now
+      just **opens WhatsApp to the owner** with a pre-filled message; no server call, no API client
+      method. The original design is kept below for history — the `users` columns still exist:
+      it stamped `users.activation_requested_at` + `activation_message`, mounted behind `requireAuth`
+      but **NOT** `requireSubscription` (an inactive account is the one that must reach it).
+      **Migration was required** (DDL — `daftar_user` is DML-only, run as root on the droplet):
       `ALTER TABLE daftar_db.users ADD COLUMN activation_requested_at DATETIME NULL, ADD COLUMN activation_message VARCHAR(255) NULL;`
       Owner lists pending: `SELECT phone, store_name, activation_requested_at, activation_message FROM
       users WHERE subscription_status<>'active' AND activation_requested_at IS NOT NULL;` **(migration applied on droplet ✓)**
@@ -350,8 +354,66 @@ Five owner-reported items, each built + device-tested against the droplet:
 > fast). Possible future polish: add a ~15s fetch timeout so it errors cleanly. Cloudflare-proxy
 > (orange-cloud) to cut RTT was attempted but never took effect.
 
-> ▶ **RESUME HERE:** Phase 7 (WhatsApp OTP). To test sync, the user's `subscription_status` must be
-> `active` in the droplet `daftar_db`
+## Status — IN PROGRESS (Phase 8: multi-currency, roles, sync hardening, Excel)
+Owner-requested round (2026-07-29). Built, typechecks clean, **not yet device-tested**.
+
+- [x] **Local schema migrations.** `src/data/migrations.ts` — numbered migrations applied on init,
+      versioned by SQLite's `PRAGMA user_version` (NOT `app_meta`, which `ensureLocalOwner` wipes on
+      an account switch). `schema.ts` is now the BASELINE only; never add columns there.
+- [x] **Multi-currency (YER / SAR / USD / GOLD in grams).** `src/data/currencies.ts` = registry +
+      conversion + formatting; `src/data/rates.ts` = owner-set YER rates in `app_meta`, stamped with
+      `rates_updated_at` and flagged stale after 7 days. **The native currency is the debt of
+      record** — a 100 SAR debt stays 100 SAR; the YER figure is a reference recomputed at today's
+      rate. So a balance is a LIST (`getBalances` / `getBalancesByCustomer`), not a number. Rates are
+      per-device and deliberately NOT synced. Messages spell out both — «100 ر.س (≈ 14,000 ريال سعر
+      الصرف 140)».
+- [x] **Contact roles (عميل / مورد / شريك).** `src/data/roles.ts` — `customers.role` column; role
+      picker on add, filter tabs on Home (shown only in a mixed book), and per-role wording for the
+      two directions (a supplier's entries read «بضاعة بالأجل» / «سداد له», not «دين»). The ledger
+      maths is unchanged: `debt` = +, `payment` = −.
+- [x] **Sync data-loss fixes** (the important part):
+      - **Per-row acknowledgement.** `/sync/push` now returns `{accepted:[id], rejected:[{id,reason}]}`
+        per table. The client marks clean **only** what the server named. Previously it marked
+        everything clean on a 200 and the reply was only counts — a rejected row was lost forever
+        while the app said «تمت المزامنة».
+      - **Server-stamped delta clock.** New `server_updated_at DATETIME(3)` on both tables; `/sync/pull`
+        filters on it instead of the phone-supplied `created_at`/`updated_at`. A device with a wrong
+        clock used to write rows dated in the past that no other device would ever pull.
+      - **Keyset cursor + paging.** The cursor is `(server_updated_at, id)` per table, encoded as one
+        opaque string, with `has_more`. A timestamp-only cursor stalls forever when more rows share a
+        millisecond than fit in a page — exactly what a migration produces.
+      - **Chunked push** (200 rows) + `express.json({limit:'2mb'})`; the default 100 KB cap made a
+        long offline backlog fail permanently with a 413.
+      - Contacts are pushed and acknowledged **before** their transactions.
+- [x] **Sync warning indicator.** Yellow triangle + black «!» in the Home header whenever the last run
+      wasn't clean (`getSyncHealth` / `needsAttention`, persisted in `app_meta`); tap = retry.
+      `src/components/SyncWarning.tsx` (inline SVG — ionicons' `warning` knocks the mark out in the
+      background colour). New `partial` outcome = synced, but the server refused some rows.
+- [x] **Excel export.** `src/lib/excel.ts` via **`write-excel-file`** (browser build; exceljs needs
+      Node polyfills in a WebView). Three RTL sheets — ملخص الجهات / الحركات / الإجماليات — frozen
+      headers, column widths, real numeric + date cells (so Excel can sum and sort), colour-coded.
+      Button on Settings. Both exporters (pdf, excel) are now **dynamically imported** to keep jspdf +
+      html2canvas + the xlsx writer out of the startup bundle.
+- [x] **Unification:** `src/data/meta.ts` (one copy of the app_meta get/set that settings, sync,
+      account and owner each had); `server/src/domain.ts` (valid currencies/roles/types shared by the
+      sync and transactions routes); `BalanceSummary` + `roles.ts` own all balance wording/colour.
+      Settings' old global `currency` field is **gone** (each transaction carries its own).
+      `getBalancesByCustomer` replaces the Home list's per-contact N+1.
+
+> ⚠️ **MIGRATIONS REQUIRED before this runs anywhere with an existing DB** (DDL — `daftar_user` is
+> DML-only, so run as root). Local dev + test:
+> `sudo bash server/db/local-reset.sh` (drops + reloads both local DBs from `schema.sql`).
+> Droplet: `sudo mysql -u root -p daftar_db < server/db/migrations/001_currency_role_sync_clock.sql`.
+> Phones migrate themselves on next launch via `migrations.ts`.
+
+> ✅ **Server tests pass 34/34** (2026-07-29) against a migrated local `daftar_test`.
+>
+> ▶ **RESUME HERE:** deploy Phase 8 to the droplet — apply
+> `server/db/migrations/001_currency_role_sync_clock.sql` to `daftar_db` as root, then
+> `cd /opt/daftar-albaqala && git pull && pm2 restart daftar-api`. Then `npx cap sync android`
+> (mandatory — see Phase 6.6) + build the APK and device-test Phase 8, then Phase 7 (WhatsApp OTP).
+> To test sync, the user's
+> `subscription_status` must be `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)

@@ -39,7 +39,8 @@
     "react-dom": "19.0.0",
     "react-router": "^5.3.4",
     "react-router-dom": "^5.3.4",
-    "sql.js": "1.11.0"
+    "sql.js": "1.11.0",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.4.0",
