@@ -1,7 +1,6 @@
 import { Capacitor } from '@capacitor/core';
-import { formatMinor } from '../data/money';
 import {
-  BASE_CURRENCY, baseValueLine, currencyDef, formatAmount, hasRate, totalInBase,
+  BASE_CURRENCY, baseValueLine, formatAmountFull, hasRate, totalInBase,
   type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
 import { contactBalanceLabel, contactDirectionLabel } from '../data/roles';
@@ -67,7 +66,7 @@ export function buildMessage(opts: {
 
   // What just happened, in the currency it was recorded in — then its riyal
   // value, with the rate, when it wasn't riyals.
-  lines.push(`${contactDirectionLabel(role, type)} ${formatAmount(amount, currency)}`);
+  lines.push(`${contactDirectionLabel(role, type)} ${formatAmountFull(amount, currency)}`);
   const entryInBase = baseValueLine(amount, currency, rates);
   if (entryInBase) lines.push(entryInBase);
 
@@ -97,7 +96,7 @@ function balanceLines(balances: CurrencyBalance[], rates: Rates): string[] {
   const perCurrency = balances.length > 1 || balances[0].currency !== BASE_CURRENCY;
   if (perCurrency) {
     for (const b of balances) {
-      lines.push(`${formatAmount(Math.abs(b.minor), b.currency)} ${contactBalanceLabel(b.minor)}`);
+      lines.push(`${formatAmountFull(Math.abs(b.minor), b.currency)} ${contactBalanceLabel(b.minor)}`);
       // With one currency the total line below already gives the riyal value.
       if (balances.length > 1) {
         const inBase = baseValueLine(Math.abs(b.minor), b.currency, rates, false);
@@ -108,11 +107,10 @@ function balanceLines(balances: CurrencyBalance[], rates: Rates): string[] {
 
   if (canTotal) {
     const { minor: totalMinor, complete } = totalInBase(balances, rates);
-    const baseShort = currencyDef(BASE_CURRENCY).shortAr;
     // Say so rather than quietly understating the debt when a rate is missing.
     const partial = complete ? '' : ' (عدا ما لم يُحدَّد سعره)';
     lines.push(
-      `رصيدك الآن: ${formatMinor(Math.abs(totalMinor))} ${baseShort} ` +
+      `رصيدك الآن: ${formatAmountFull(Math.abs(totalMinor), BASE_CURRENCY)} ` +
       `${contactBalanceLabel(totalMinor)}${partial}`
     );
     lines.push(tafqeetBaseMinor(Math.abs(totalMinor)));

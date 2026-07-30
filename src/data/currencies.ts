@@ -22,6 +22,12 @@ export interface CurrencyDef {
   code: CurrencyCode;
   /** Compact label for lists and tables — «100 ر.س». */
   shortAr: string;
+  /**
+   * The unambiguous label, for anything that leaves the phone (SMS, WhatsApp).
+   * «ريال» on its own is not enough in a message that also mentions a Saudi
+   * riyal, and the recipient can't tap anything to find out which is which.
+   */
+  messageAr: string;
   /** Full name for settings and pickers. */
   longAr: string;
   /** True for the base currency everything converts to. */
@@ -32,10 +38,10 @@ export interface CurrencyDef {
 
 // Display order — base first, then hard currencies, then gold.
 export const CURRENCIES: CurrencyDef[] = [
-  { code: 'YER',  shortAr: 'ريال',  longAr: 'ريال يمني',    isBase: true,  isWeight: false },
-  { code: 'SAR',  shortAr: 'ر.س',   longAr: 'ريال سعودي',   isBase: false, isWeight: false },
-  { code: 'USD',  shortAr: 'دولار', longAr: 'دولار أمريكي', isBase: false, isWeight: false },
-  { code: 'GOLD', shortAr: 'جرام',  longAr: 'ذهب (جرام)',   isBase: false, isWeight: true  },
+  { code: 'YER',  shortAr: 'ريال',  messageAr: 'ريال يمني',    longAr: 'ريال يمني',    isBase: true,  isWeight: false },
+  { code: 'SAR',  shortAr: 'ر.س',   messageAr: 'ريال سعودي',   longAr: 'ريال سعودي',   isBase: false, isWeight: false },
+  { code: 'USD',  shortAr: 'دولار', messageAr: 'دولار أمريكي', longAr: 'دولار أمريكي', isBase: false, isWeight: false },
+  { code: 'GOLD', shortAr: 'جرام',  messageAr: 'جرام ذهب',     longAr: 'ذهب (جرام)',   isBase: false, isWeight: true  },
 ];
 
 export const BASE_CURRENCY: CurrencyCode = 'YER';
@@ -58,6 +64,12 @@ export function currencyDef(code: string): CurrencyDef {
 /** «1,500 ريال» / «100 ر.س» / «5 جرام». Amount is minor units. */
 export function formatAmount(minor: number, code: string): string {
   return `${formatMinor(minor)} ${currencyDef(code).shortAr}`;
+}
+
+/** The same, spelled out in full — «1,500 ريال يمني» / «100 ريال سعودي». For
+ *  messages, where the reader has no screen context to disambiguate. */
+export function formatAmountFull(minor: number, code: string): string {
+  return `${formatMinor(minor)} ${currencyDef(code).messageAr}`;
 }
 
 // ---- Rates ----
@@ -154,8 +166,7 @@ export function baseValueLine(
   if (def.isBase) return null;
   const converted = toBaseMinor(minor, code, rates);
   if (converted === null) return null;
-  const baseShort = currencyDef(BASE_CURRENCY).shortAr;
-  const line = `≈ ${formatMinor(converted)} ${baseShort}`;
+  const line = `≈ ${formatAmountFull(converted, BASE_CURRENCY)}`;
   if (!withRate) return line;
   const rateLabel = def.isWeight ? 'سعر الجرام' : 'سعر الصرف';
   return `${line} (${rateLabel} ${formatRate(rates[def.code])})`;
