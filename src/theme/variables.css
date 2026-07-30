@@ -89,6 +89,40 @@ ion-header ion-toolbar ion-searchbar {
   padding: 6px 8px;
 }
 
+/* The role filter tabs (زبائن / أصحاب المتاجر / شركاء) sit in a third toolbar,
+   i.e. ON the dark-green bar. Ionic's default segment is near-black text on a
+   white pill for the selected tab — unreadable unselected, and the selected one
+   goes dark just when you're looking at it.
+   So the label is ALWAYS white and bold; selection is carried by a darker
+   backing and a white underline, never by changing the text colour. */
+ion-header ion-toolbar ion-segment {
+  --background: transparent;
+  margin: 0 4px;
+}
+ion-header ion-toolbar ion-segment-button {
+  --color: #ffffff;
+  --color-checked: #ffffff;
+  --indicator-color: transparent; /* no pill */
+  --background: transparent;      /* no box */
+  --background-checked: transparent;
+  --background-hover: transparent;
+  --border-radius: 0;
+  font-weight: 700;
+  font-size: 0.85rem;
+  min-height: 38px;
+  text-transform: none;
+  letter-spacing: 0;
+  /* The tab is just the word. The bar underneath is drawn transparent on every
+     tab so the text never shifts when the selection moves. */
+  border-bottom: 3px solid transparent;
+  opacity: 0.62;
+  transition: opacity 0.15s ease;
+}
+ion-header ion-toolbar ion-segment-button.segment-button-checked {
+  opacity: 1;
+  border-bottom-color: #ffffff;
+}
+
 /* Slightly rounder, calmer cards/list items for a professional feel. */
 ion-list { background: transparent; }
 ion-item { --background: #ffffff; }
