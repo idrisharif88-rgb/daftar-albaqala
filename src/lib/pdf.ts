@@ -10,7 +10,9 @@ import {
   BASE_CURRENCY, CURRENCIES, currencyDef, formatAmount, totalInBase,
   type CurrencyBalance, type Rates,
 } from '../data/currencies';
-import { directionLabel, ownerBalanceLabel } from '../data/roles';
+import {
+  directionLabel, isGrowthEntry, orderedTypes, ownerBalanceLabel, roleDef,
+} from '../data/roles';
 
 // Per-customer PDF statement. Arabic in PDF is the hard part: jsPDF can't shape
 // Arabic letters (joining/RTL), so instead we render a styled HTML report into
@@ -97,7 +99,7 @@ function rowsHtml(txns: Transaction[], role: string): string {
     .map((t) => `
       <tr>
         <td style="${td}">${esc(new Date(t.occurred_at).toLocaleString('ar'))}</td>
-        <td style="${td}color:${t.type === 'debt' ? '#c0392b' : '#1b5e20'};font-weight:700;">
+        <td style="${td}color:${isGrowthEntry(role, t.type) ? '#c0392b' : '#1b5e20'};font-weight:700;">
           ${esc(directionLabel(role, t.type))}
         </td>
         <td style="${td}">${esc(formatAmount(t.amount, t.currency))}</td>
@@ -109,12 +111,19 @@ function rowsHtml(txns: Transaction[], role: string): string {
 // Totals are PER CURRENCY — riyals, dollars and grams of gold are separate
 // debts and adding them together would be meaningless. The riyal estimate at
 // the bottom is a convenience, labelled as today's rates.
+//
+// The two total columns are named for the contact's ROLE, not for the stored
+// type: against a صاحب متجر the 'payment' rows ARE the debts, so a column
+// headed «إجمالي الديون» over the 'debt' rows would report the exact opposite.
 function totalsHtml(o: StatementOptions): string {
-  const perCurrency = new Map<string, { debt: number; pay: number }>();
+  const role = o.customer.role;
+  const [growsType, settlesType] = orderedTypes(role);
+
+  const perCurrency = new Map<string, { grows: number; settles: number }>();
   for (const t of o.transactions) {
-    const entry = perCurrency.get(t.currency) ?? { debt: 0, pay: 0 };
-    if (t.type === 'debt') entry.debt += t.amount;
-    else entry.pay += t.amount;
+    const entry = perCurrency.get(t.currency) ?? { grows: 0, settles: 0 };
+    if (t.type === growsType) entry.grows += t.amount;
+    else entry.settles += t.amount;
     perCurrency.set(t.currency, entry);
   }
 
@@ -123,14 +132,17 @@ function totalsHtml(o: StatementOptions): string {
   for (const c of CURRENCIES) {
     const entry = perCurrency.get(c.code);
     if (!entry) continue;
-    const balance = entry.debt - entry.pay;
-    balances.push({ currency: c.code, minor: balance });
+    // The signed balance still comes from the stored types, unchanged.
+    const signed = growsType === 'debt'
+      ? entry.grows - entry.settles
+      : entry.settles - entry.grows;
+    balances.push({ currency: c.code, minor: signed });
     rows.push(`
       <tr>
         <td style="${td}">${esc(c.longAr)}</td>
-        <td style="${td}color:#c0392b;">${esc(formatAmount(entry.debt, c.code))}</td>
-        <td style="${td}color:#1b5e20;">${esc(formatAmount(entry.pay, c.code))}</td>
-        <td style="${td}"><b>${esc(formatAmount(Math.abs(balance), c.code))} ${esc(ownerBalanceLabel(balance))}</b></td>
+        <td style="${td}color:#c0392b;">${esc(formatAmount(entry.grows, c.code))}</td>
+        <td style="${td}color:#1b5e20;">${esc(formatAmount(entry.settles, c.code))}</td>
+        <td style="${td}"><b>${esc(formatAmount(Math.abs(signed), c.code))} ${esc(ownerBalanceLabel(signed))}</b></td>
       </tr>`);
   }
 
@@ -151,8 +163,8 @@ function totalsHtml(o: StatementOptions): string {
       <thead>
         <tr style="background:#f3f3f3;">
           <th style="${td}">العملة</th>
-          <th style="${td}">إجمالي الديون</th>
-          <th style="${td}">إجمالي الدفعات</th>
+          <th style="${td}">إجمالي ${esc(directionLabel(role, growsType))}</th>
+          <th style="${td}">إجمالي ${esc(directionLabel(role, settlesType))}</th>
           <th style="${td}">الرصيد</th>
         </tr>
       </thead>
@@ -176,7 +188,7 @@ function buildPageHtml(
   return `
   <div dir="rtl" style="font-family:'Cairo','Tahoma',sans-serif;width:${PAGE_W}px;height:${PAGE_H}px;padding:28px;color:#222;background:#fff;box-sizing:border-box;overflow:hidden;position:relative;">
     <h1 style="text-align:center;margin:0 0 4px;font-size:26px;">${esc(o.storeName || 'دفتر البقالة')}</h1>
-    <h2 style="text-align:center;margin:0 0 20px;font-size:18px;color:#666;font-weight:500;">كشف حساب العميل</h2>
+    <h2 style="text-align:center;margin:0 0 20px;font-size:18px;color:#666;font-weight:500;">كشف حساب ${esc(roleDef(o.customer.role).labelAr)}</h2>
     <table style="width:100%;font-size:14px;margin-bottom:14px;">
       <tr><td>الاسم:</td><td><b>${esc(o.customer.name)}</b></td><td>الهاتف:</td><td>${esc(o.customer.phone)}</td></tr>
       <tr><td>الفترة:</td><td>${esc(o.periodLabel)}</td><td>تاريخ الإصدار:</td><td>${esc(issuedAt)}</td></tr>

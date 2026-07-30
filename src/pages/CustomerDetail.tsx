@@ -7,19 +7,21 @@ import {
   IonSelect, IonSelectOption, useIonViewWillEnter,
   useIonAlert, useIonActionSheet,
 } from '@ionic/react';
-import { documentTextOutline } from 'ionicons/icons';
-import { getCustomer, type Customer } from '../data/customers';
+import { documentTextOutline, createOutline } from 'ionicons/icons';
+import { getCustomer, updateCustomer, type Customer } from '../data/customers';
 import {
   listTransactions, getBalances, addTransaction, type Transaction, type TxnType,
 } from '../data/transactions';
 import { toMinor } from '../data/money';
-import { getSettings } from '../data/settings';
+import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
 import {
   BASE_CURRENCY, CURRENCIES, currencyDef, describeAmount, describeConversion,
   formatAmount, DEFAULT_RATES, type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
-import { directionLabel, roleDef } from '../data/roles';
+import {
+  ROLES, directionColor, directionLabel, orderedTypes, roleDef, type ContactRole,
+} from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
 import BalanceSummary from '../components/BalanceSummary';
@@ -47,6 +49,16 @@ const CustomerDetail: React.FC = () => {
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // edit-contact modal state. The role in particular has to be changeable after
+  // the fact: everything the contact reads — «تسجيل دين» vs «أخذت منك» — hangs
+  // off it, and contacts created before roles existed are all «زبون».
+  const editModal = useRef<HTMLIonModalElement>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editRole, setEditRole] = useState<ContactRole>('customer');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
   // A long history takes a few seconds to render into the PDF; without this the
   // screen just sits there and reads as a freeze.
   const [exporting, setExporting] = useState(false);
@@ -137,7 +149,8 @@ const CustomerDetail: React.FC = () => {
     ]);
     if (!settings.notifyCustomers) return; // notifications turned off in Settings
     const message = buildMessage({
-      storeName: settings.storeName,
+      senderName: messageSender(settings),
+      role: c.role, // the wording of the whole message follows the contact's role
       type,
       amount: amountMinor,
       currency: entryCurrency,
@@ -186,6 +199,42 @@ const CustomerDetail: React.FC = () => {
     });
   };
 
+  // ---- Edit the contact ----
+  //
+  // Name, phone, note and role. Changing the role rewrites what both the screen
+  // and every future message call the two directions, so the whole page is
+  // reloaded afterwards rather than patched in place.
+  const openEdit = () => {
+    if (!customer) return;
+    setEditName(customer.name);
+    setEditPhone(customer.phone);
+    setEditNote(customer.note ?? '');
+    setEditRole(customer.role);
+    setEditError(null);
+    void editModal.current?.present();
+  };
+
+  const saveEdit = async () => {
+    setEditError(null);
+    if (!editName.trim()) { setEditError('الاسم مطلوب'); return; }
+    if (!editPhone.trim()) { setEditError('رقم الهاتف مطلوب'); return; }
+    setEditSaving(true);
+    try {
+      await updateCustomer(customerId, {
+        name: editName,
+        phone: editPhone,
+        note: editNote.trim() || null,
+        role: editRole,
+      });
+      await load();
+      await editModal.current?.dismiss();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   // Export a PDF statement for this customer. Ask which period first, filter
   // the history by occurred_at, then render + share (see lib/pdf.ts).
   const askExport = () => {
@@ -220,7 +269,7 @@ const CustomerDetail: React.FC = () => {
       await exportCustomerStatement({
         customer,
         transactions: filtered,
-        storeName: settings.storeName,
+        storeName: messageSender(settings),
         rates,
         periodLabel,
       });
@@ -232,10 +281,12 @@ const CustomerDetail: React.FC = () => {
   };
 
   // Button/label wording follows the contact's role: recording «دين» against a
-  // supplier reads backwards, so each role names its two directions.
+  // shop you buy from reads backwards, so each role names its two directions.
+  // The order and the colours follow it too — for a صاحب متجر the debt-growing
+  // entry is the 'payment' one, and it still has to be the red button on the
+  // right, or a new debt shows up green.
   const role = customer?.role ?? 'customer';
-  const plusLabel = directionLabel(role, 'debt');
-  const minusLabel = directionLabel(role, 'payment');
+  const [firstType, secondType] = orderedTypes(role);
 
   return (
     <IonPage>
@@ -246,6 +297,9 @@ const CustomerDetail: React.FC = () => {
           </IonButtons>
           <IonTitle>{customer?.name ?? 'جهة'}</IonTitle>
           <IonButtons slot="end">
+            <IonButton onClick={openEdit} disabled={!customer}>
+              <IonIcon slot="icon-only" icon={createOutline} />
+            </IonButton>
             <IonButton onClick={askExport} disabled={!customer}>
               <IonIcon slot="icon-only" icon={documentTextOutline} />
             </IonButton>
@@ -273,19 +327,20 @@ const CustomerDetail: React.FC = () => {
               <BalanceSummary balances={balances} rates={rates} align="center" />
             </div>
 
-            {/* Add debt / add payment */}
+            {/* The two directions, everyday one first, named for this role */}
             <IonGrid>
               <IonRow>
-                <IonCol>
-                  <IonButton expand="block" color="danger" onClick={() => openForm('debt')}>
-                    {plusLabel}
-                  </IonButton>
-                </IonCol>
-                <IonCol>
-                  <IonButton expand="block" color="success" onClick={() => openForm('payment')}>
-                    {minusLabel}
-                  </IonButton>
-                </IonCol>
+                {[firstType, secondType].map((t) => (
+                  <IonCol key={t}>
+                    <IonButton
+                      expand="block"
+                      color={directionColor(role, t)}
+                      onClick={() => openForm(t)}
+                    >
+                      {directionLabel(role, t)}
+                    </IonButton>
+                  </IonCol>
+                ))}
               </IonRow>
             </IonGrid>
 
@@ -299,13 +354,13 @@ const CustomerDetail: React.FC = () => {
                 {txns.map((t) => (
                   <IonItem key={t.id}>
                     <IonLabel>
-                      <h2 style={{ color: t.type === 'debt' ? 'var(--ion-color-danger)' : 'var(--ion-color-success)' }}>
+                      <h2 style={{ color: `var(--ion-color-${directionColor(role, t.type)})` }}>
                         {directionLabel(role, t.type)}
                       </h2>
                       {t.note && <p>{t.note}</p>}
                       <p>{new Date(t.occurred_at).toLocaleString('ar')}</p>
                     </IonLabel>
-                    <IonText slot="end" color={t.type === 'debt' ? 'danger' : 'success'}>
+                    <IonText slot="end" color={directionColor(role, t.type)}>
                       <div style={{ textAlign: 'end' }}>
                         <strong>{formatAmount(t.amount, t.currency)}</strong>
                         {/* Foreign-currency and gold entries also show what they
@@ -327,7 +382,7 @@ const CustomerDetail: React.FC = () => {
         <IonModal ref={modal}>
           <IonHeader>
             <IonToolbar>
-              <IonTitle>{formType === 'debt' ? plusLabel : minusLabel}</IonTitle>
+              <IonTitle>{directionLabel(role, formType)}</IonTitle>
               <IonButtons slot="end">
                 <IonButton onClick={() => modal.current?.dismiss()}>إلغاء</IonButton>
               </IonButtons>
@@ -383,12 +438,84 @@ const CustomerDetail: React.FC = () => {
 
             <IonButton
               expand="block"
-              color={formType === 'debt' ? 'danger' : 'success'}
+              color={directionColor(role, formType)}
               onClick={save}
               disabled={saving}
               className="ion-margin-top"
             >
               {saving ? <IonSpinner name="crescent" /> : 'حفظ'}
+            </IonButton>
+          </IonContent>
+        </IonModal>
+
+        {/* Edit the contact — including its role, which decides the wording of
+            every message this contact receives from here on. */}
+        <IonModal ref={editModal}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>تعديل الجهة</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => editModal.current?.dismiss()}>إلغاء</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent className="ion-padding">
+            <IonItem>
+              <IonLabel position="stacked">الاسم</IonLabel>
+              <IonInput
+                value={editName}
+                onIonInput={(e) => setEditName(e.detail.value ?? '')}
+              />
+            </IonItem>
+            <IonItem>
+              <IonLabel position="stacked">رقم الهاتف</IonLabel>
+              <IonInput
+                type="tel"
+                inputmode="tel"
+                value={editPhone}
+                onIonInput={(e) => setEditPhone(e.detail.value ?? '')}
+              />
+            </IonItem>
+            <IonItem>
+              <IonLabel>الصفة</IonLabel>
+              <IonSelect
+                value={editRole}
+                onIonChange={(e) => setEditRole(e.detail.value as ContactRole)}
+                interface="popover"
+              >
+                {ROLES.map((r) => (
+                  <IonSelectOption key={r.role} value={r.role}>{r.labelAr}</IonSelectOption>
+                ))}
+              </IonSelect>
+            </IonItem>
+            <IonItem>
+              <IonLabel position="stacked">ملاحظة (اختياري)</IonLabel>
+              <IonInput
+                value={editNote}
+                onIonInput={(e) => setEditNote(e.detail.value ?? '')}
+              />
+            </IonItem>
+
+            <IonNote color="medium" className="ion-padding-start">
+              <IonText>
+                تغيير الصفة يغيّر تسمية الحركات ونص الرسائل المرسلة لهذه الجهة،
+                ولا يغيّر الأرصدة ولا الحركات المسجّلة.
+              </IonText>
+            </IonNote>
+
+            {editError && (
+              <IonNote color="danger" className="ion-padding-start">
+                <IonText>{editError}</IonText>
+              </IonNote>
+            )}
+
+            <IonButton
+              expand="block"
+              onClick={saveEdit}
+              disabled={editSaving}
+              className="ion-margin-top"
+            >
+              {editSaving ? <IonSpinner name="crescent" /> : 'حفظ'}
             </IonButton>
           </IonContent>
         </IonModal>

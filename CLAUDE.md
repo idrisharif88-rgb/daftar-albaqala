@@ -414,18 +414,8 @@ Owner-requested round (2026-07-29). Built, typechecks clean, **not yet device-te
 > numeric cells with a separate currency column, PDF → WhatsApp shares with the file attached, and
 > the SMS/WhatsApp message spells out both currencies with the rate used.
 
-### Phase 8 — two known gaps (owner deferred: "not now but consider")
-- **A contact's role can't be changed after creation.** `updateCustomer` already accepts `role`
-  (`src/data/customers.ts`) but nothing calls it — Home offers the picker only on the *add* form.
-  Every contact created before Phase 8 is stuck as `customer`. Fix: an edit screen (pencil on
-  CustomerDetail) for name/phone/note/role. Interim workaround is server-side SQL — and it MUST
-  bump `updated_at=UTC_TIMESTAMP()` in the same statement, or the phone pulls the row and discards
-  it as stale under last-write-wins.
-- **`buildMessage` ignores the role** (`src/lib/notify.ts`) — it always says «تم تسجيل دين» /
-  «تم تسجيل دفعة». For a supplier that inverts the meaning: goods taken on credit are stored as
-  `payment`, so the creditor gets texted "a payment was recorded". Fix: use `directionLabel(role,
-  type)` from `src/data/roles.ts`. The balance line is already correct (written from the contact's
-  point of view).
+### Phase 8 — two known gaps → **both CLOSED in Phase 9 below** (2026-07-30)
+(A contact's role couldn't be changed after creation; `buildMessage` ignored the role.)
 
 > **Who actually uses this (2026-07-29):** the grocer it was built for never adopted it. The owner
 > now uses it **inverted** — to track what *he* owes his own grocer, Khawlah, and his wife —
@@ -433,9 +423,59 @@ Owner-requested round (2026-07-29). Built, typechecks clean, **not yet device-te
 > usually a **creditor**, not a customer; the `supplier` role models this correctly. Don't assume a
 > grocer→customer direction in new wording. This is why the `buildMessage` gap above matters.
 
-> ▶ **RESUME HERE:** Phase 7 (WhatsApp OTP), or the two Phase 8 gaps above if the owner asks.
-> To test sync, the user's
-> `subscription_status` must be `active` in the droplet `daftar_db`
+## Status — DONE (Phase 9: role vocabulary + the notification message) ✅ (2026-07-30)
+Owner-specified round. Typechecks + builds clean, 18 frontend unit tests pass. **Not yet
+device-tested.** No server change and NO migration — the stored role codes are untouched
+(`customer` / `supplier` / `partner`); only the Arabic they render as changed.
+
+- [x] **Role wording redefined** (`src/data/roles.ts`, the single source):
+      `customer` → «زبون», `supplier` → «صاحب متجر» (a shop the owner buys FROM),
+      `partner` → «شريك». Entry names: زبون + صاحب متجر both use «تسجيل دين» / «تسديد دفعة»
+      (mirrored sign — for a صاحب متجر «تسجيل دين» is the stored `payment`); شريك uses
+      «أخذت منه» / «دفعت له».
+- [x] **Two vocabularies, kept apart.** `directionLabel` = owner-facing (buttons, history, PDF,
+      Excel); **`contactDirectionLabel`** = what the recipient reads, so a شريك is told
+      «أخذت منك», not «أخذت منه». Mixing them up is how a message says the wrong person owes.
+- [x] **Colour + button order now follow the role, not the raw type** (`isGrowthEntry`,
+      `orderedTypes`, `directionColor`). A `debt`-typed row is NOT always the red one: against a
+      صاحب متجر the debt-growing entry is the `payment`. Applied on CustomerDetail, the PDF rows,
+      and the Excel الحركات sheet. The PDF totals table also names its two columns per role (a
+      column headed «إجمالي الديون» over the `debt` rows reported the exact opposite for a
+      supplier); the whole-book Excel الإجماليات sheet can't do that across mixed roles, so it
+      reports «إجمالي الزيادة (+)» / «إجمالي النقص (−)» with a footnote.
+- [x] **Message rewritten to the owner's layout** (`buildMessage`, `src/lib/notify.ts`) — one fact
+      per line: sender name / the entry in its own currency / `≈ YER (سعر الصرف …)` / blank /
+      balance per currency (native line, then its `≈ YER` line) / «رصيدك الآن: <total> ريال عليك|لك»
+      / **the same total in Arabic words**. A lone riyal balance skips the per-currency block (the
+      total line already says it); a lone foreign balance skips its own `≈` line. With no rate set
+      there is no honest total, so the per-currency lines stand under a «رصيدك الآن:» heading and
+      no words line; a partially-convertible total is marked «(عدا ما لم يُحدَّد سعره)».
+- [x] **تفقيط — `src/lib/tafqeet.ts`** (new): Arabic number→words with the real grammar (ألف /
+      ألفان / ثلاثة آلاف / أربعة وثلاثون ألفاً, and the construct form before the counted noun —
+      «أربعة وثلاثون ألف ريال», «مئتا ألف ريال», «ألفا ريال»). Only the YER total is spelled out.
+      Unit-tested (`tafqeet.test.ts`, 8 cases).
+- [x] **Contact edit screen** (Phase 8 gap #1): pencil in the CustomerDetail header → modal for
+      name / phone / note / **role**, calling the existing `updateCustomer`. Contacts created
+      before Phase 8 can finally be moved off `customer` from inside the app.
+- [x] **`ownerName` setting** — the message's first line is the store name, falling back to the
+      owner's own name (the app is also used for personal debts, and a message must be signed by
+      something). `messageSender(settings)` is the one helper; used by notifications, the PDF
+      statement, the Excel export and the activation request.
+- [x] **Tests:** `src/lib/notify.test.ts` (10 cases, whole-message assertions incl. the
+      صاحب متجر and شريك wording) + `src/lib/tafqeet.test.ts` (8). Run with `npx vitest run src/lib`
+      (`npm run test.unit` also picks up the server's node:test files, which vitest can't run —
+      use `cd server && npm test` for those).
+
+> ▶ **RESUME HERE:** device-test Phase 9 on the real phone (see the checklist below), then
+> Phase 7 (WhatsApp OTP).
+>
+> **Phase 9 device checklist:** set «اسمك» in Settings with the store name empty → the SMS starts
+> with it; change a contact's role via the new pencil → the buttons rename, reorder and recolour;
+> record an entry against a صاحب متجر → the SMS says «تسجيل دين» and «رصيدك الآن … لك»; a شريك
+> entry says «أخذت منك»; a SAR entry on a contact who also owes YER → both currency lines, the
+> combined total and its words; clear the SAR rate → no total line, no words.
+>
+> To test sync, the user's `subscription_status` must be `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)

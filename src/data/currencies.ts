@@ -140,6 +140,27 @@ export function describeConversion(minor: number, code: string, rates: Rates): s
   return `(≈ ${formatMinor(converted)} ${baseShort} ${rateLabel} ${formatRate(rates[def.code])})`;
 }
 
+/**
+ * The base-currency value of an amount as a LINE of its own —
+ * «≈ 14,000 ريال (سعر الصرف 140)» — for the notification message, which puts
+ * each currency on one line and its riyal value on the next. `withRate` drops
+ * the rate note where it has already been stated higher up.
+ * Returns null for the base currency, or when no rate is set.
+ */
+export function baseValueLine(
+  minor: number, code: string, rates: Rates, withRate = true,
+): string | null {
+  const def = currencyDef(code);
+  if (def.isBase) return null;
+  const converted = toBaseMinor(minor, code, rates);
+  if (converted === null) return null;
+  const baseShort = currencyDef(BASE_CURRENCY).shortAr;
+  const line = `≈ ${formatMinor(converted)} ${baseShort}`;
+  if (!withRate) return line;
+  const rateLabel = def.isWeight ? 'سعر الجرام' : 'سعر الصرف';
+  return `${line} (${rateLabel} ${formatRate(rates[def.code])})`;
+}
+
 /** Rates are prices, not money — show them plainly, up to 2 decimals. */
 export function formatRate(rate: number): string {
   return rate.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });

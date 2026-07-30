@@ -11,7 +11,7 @@ import {
   BASE_CURRENCY, CURRENCIES, currencyDef, totalInBase,
   type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
-import { directionLabel, ownerBalanceLabel, roleDef } from '../data/roles';
+import { directionLabel, isGrowthEntry, ownerBalanceLabel, roleDef } from '../data/roles';
 
 // Excel export of the whole book: a summary sheet, every transaction, and
 // per-currency totals.
@@ -142,18 +142,18 @@ function transactionsSheet(
   for (const t of transactions) {
     const customer = byId.get(t.customer_id);
     const role = customer?.role ?? 'customer';
-    const isDebt = t.type === 'debt';
+    // Red for an entry that grows what is owed, green for one that settles it.
+    // Which stored type that is depends on the role — against a صاحب متجر the
+    // 'payment' rows are the debts.
+    const color = isGrowthEntry(role, t.type) ? DEBT_COLOR : PAYMENT_COLOR;
     data.push([
       // A real date cell, so Excel can sort and filter chronologically.
       { type: Date, value: new Date(t.occurred_at), format: DATE_FORMAT },
       textCell(customer?.name ?? '—'),
       textCell(customer?.phone ?? ''),
       textCell(roleDef(role).labelAr),
-      textCell(directionLabel(role, t.type), {
-        textColor: isDebt ? DEBT_COLOR : PAYMENT_COLOR,
-        fontWeight: 'bold',
-      }),
-      moneyCell(t.amount, isDebt ? DEBT_COLOR : PAYMENT_COLOR),
+      textCell(directionLabel(role, t.type), { textColor: color, fontWeight: 'bold' }),
+      moneyCell(t.amount, color),
       textCell(currencyDef(t.currency).shortAr),
       textCell(t.note ?? ''),
     ]);
@@ -184,8 +184,15 @@ function totalsSheet(
     totals.set(t.currency, entry);
   }
 
+  // This sheet spans the whole book, so it can't name the two directions the way
+  // a single contact's statement does — «دين» against a زبون and against a
+  // صاحب متجر are opposite signs. It reports the sign instead, and the per-role
+  // wording lives in the الحركات sheet.
   const data: XlsxRow[] = [
-    headerRow(['العملة', 'إجمالي الديون', 'إجمالي الدفعات', 'الرصيد', 'السعر مقابل الريال', 'ما يعادله بالريال']),
+    headerRow([
+      'العملة', 'إجمالي الزيادة (+)', 'إجمالي النقص (−)', 'الرصيد',
+      'السعر مقابل الريال', 'ما يعادله بالريال',
+    ]),
   ];
 
   const balances: CurrencyBalance[] = [];
@@ -217,6 +224,13 @@ function totalsSheet(
       complete
         ? 'المبالغ بالعملات الأخرى والذهب محفوظة بعملتها الأصلية؛ ما يقابلها بالريال محسوب بأسعار اليوم.'
         : 'بعض الأسعار غير محددة في الإعدادات، لذا الإجمالي بالريال غير مكتمل.',
+      { textColor: '#777777' },
+    ),
+  ]);
+  data.push([
+    textCell(
+      '(+) حركات تزيد ما لك على الجهة، و(−) حركات تنقصه. تسمية كل حركة حسب صفة ' +
+      'الجهة (زبون / صاحب متجر / شريك) تجدها في ورقة «الحركات».',
       { textColor: '#777777' },
     ),
   ]);

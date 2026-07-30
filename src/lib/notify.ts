@@ -1,10 +1,11 @@
 import { Capacitor } from '@capacitor/core';
 import { formatMinor } from '../data/money';
 import {
-  BASE_CURRENCY, currencyDef, describeAmount, totalInBase,
+  BASE_CURRENCY, baseValueLine, currencyDef, formatAmount, hasRate, totalInBase,
   type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
-import { contactBalanceLabel } from '../data/roles';
+import { contactBalanceLabel, contactDirectionLabel } from '../data/roles';
+import { tafqeetBaseMinor } from './tafqeet';
 import type { TxnType } from '../data/transactions';
 
 // Customer notifications: when the shopkeeper records a debt/payment we tell the
@@ -27,17 +28,30 @@ export function toIntlDigits(phone: string): string {
   return YEMEN_CC + d;
 }
 
-// The Arabic message: store name + what happened (debt/payment + amount) + the
-// contact's new running balance and its direction. The grocer's note, if any,
-// is appended on its own line as "ملاحظة من <store>: <note>".
+// The Arabic message, one fact per line, in the order the recipient reads them:
 //
-// A debt in SAR, USD or gold is spelled out BOTH ways — «100 ر.س (≈ 14,000
-// ريال سعر الصرف 140)» — because the two sides of the deal think in different
-// units. The customer needs to see the figure they'll be judged by AND the
-// rate it was worked out at, or the conversion looks arbitrary when the rate
-// moves next week. The native amount stays the debt of record.
+//   بقالة الأمل                    ← who is writing
+//   تسجيل دين 100 ر.س              ← what was recorded, in its own currency
+//   ≈ 14,000 ريال (سعر الصرف 140)  ← and what that is worth in riyals
+//                                  ← (blank)
+//   100 ر.س عليك                   ← the balance, one line per currency
+//   ≈ 14,000 ريال
+//   20,000 ريال عليك
+//   رصيدك الآن: 34,000 ريال عليك    ← the one figure that settles the argument
+//   أربعة وثلاثون ألف ريال          ← the same figure in letters
+//
+// Three rules the layout is built on:
+//  - The NATIVE currency is the debt of record (see currencies.ts). A 100 SAR
+//    debt is spelled out in riyals as a courtesy, with the rate it was worked
+//    out at, or the conversion looks arbitrary when the rate moves next week.
+//  - The wording follows the contact's ROLE and is written from THEIR side:
+//    a partner reads «أخذت منك», not «أخذت منه» (see roles.ts).
+//  - The closing balance is repeated in words. A digit misread, an SMS mangled
+//    on a bad line, a screenshot forwarded — the letters are the check.
 export function buildMessage(opts: {
-  storeName: string;
+  /** Store name, or the owner's own name when there is no shop. */
+  senderName: string;
+  role: string; // what this contact is — decides the wording of the entry
   type: TxnType;
   amount: number; // minor units
   currency: CurrencyCode; // what the entry was recorded in
@@ -45,41 +59,65 @@ export function buildMessage(opts: {
   rates: Rates;
   note?: string;
 }): string {
-  const { storeName, type, amount, currency, balances, rates, note } = opts;
-  const store = storeName.trim();
-  const action = type === 'debt' ? 'تسجيل دين' : 'تسجيل دفعة';
-  const amountStr = describeAmount(amount, currency, rates);
+  const { senderName, role, type, amount, currency, balances, rates, note } = opts;
+  const sender = senderName.trim();
+  const lines: string[] = [];
 
-  let balanceBlock: string;
-  if (balances.length === 0) {
-    balanceBlock = 'رصيدك الآن: مسدد';
-  } else if (balances.length === 1) {
-    const b = balances[0];
-    balanceBlock =
-      `رصيدك الآن: ${describeAmount(Math.abs(b.minor), b.currency, rates)} (${contactBalanceLabel(b.minor)})`;
-  } else {
-    // Several currencies never merge into one figure, so they're listed — with
-    // a combined riyal estimate underneath, clearly labelled as today's rates.
-    const lines = balances.map(
-      (b) => `  • ${describeAmount(Math.abs(b.minor), b.currency, rates)} (${contactBalanceLabel(b.minor)})`
-    );
-    const { minor: totalMinor, complete } = totalInBase(balances, rates);
-    if (complete) {
-      const baseShort = currencyDef(BASE_CURRENCY).shortAr;
-      lines.push(
-        `  الإجمالي التقريبي: ${formatMinor(Math.abs(totalMinor))} ${baseShort} ` +
-        `(${contactBalanceLabel(totalMinor)}) بأسعار اليوم`
-      );
-    }
-    balanceBlock = `رصيدك الآن:\n${lines.join('\n')}`;
-  }
+  if (sender) lines.push(sender);
 
-  const head = store ? `${store}\n` : '';
-  let msg = `${head}تم ${action} بمبلغ ${amountStr}\n${balanceBlock}`;
+  // What just happened, in the currency it was recorded in — then its riyal
+  // value, with the rate, when it wasn't riyals.
+  lines.push(`${contactDirectionLabel(role, type)} ${formatAmount(amount, currency)}`);
+  const entryInBase = baseValueLine(amount, currency, rates);
+  if (entryInBase) lines.push(entryInBase);
+
+  lines.push(''); // the balance is a separate thought
+  lines.push(...balanceLines(balances, rates));
+
   if (note && note.trim()) {
-    msg += `\nملاحظة من ${store || 'البقالة'}: ${note.trim()}`;
+    lines.push(sender ? `ملاحظة من ${sender}: ${note.trim()}` : `ملاحظة: ${note.trim()}`);
   }
-  return msg;
+  return lines.join('\n');
+}
+
+// The closing balance. Currencies never merge into one debt, so each gets its
+// own line; the riyal total underneath is a convenience at today's rates and is
+// the figure written out in letters.
+function balanceLines(balances: CurrencyBalance[], rates: Rates): string[] {
+  if (balances.length === 0) return ['رصيدك الآن: مسدد'];
+
+  const lines: string[] = [];
+  const convertible = balances.filter((b) => hasRate(rates, b.currency));
+  // Without a single rate there is no honest total to close on, so the
+  // per-currency lines have to stand on their own under a heading.
+  const canTotal = convertible.length > 0;
+  if (!canTotal) lines.push('رصيدك الآن:');
+
+  // A lone riyal balance would just repeat the total line below it.
+  const perCurrency = balances.length > 1 || balances[0].currency !== BASE_CURRENCY;
+  if (perCurrency) {
+    for (const b of balances) {
+      lines.push(`${formatAmount(Math.abs(b.minor), b.currency)} ${contactBalanceLabel(b.minor)}`);
+      // With one currency the total line below already gives the riyal value.
+      if (balances.length > 1) {
+        const inBase = baseValueLine(Math.abs(b.minor), b.currency, rates, false);
+        if (inBase) lines.push(inBase);
+      }
+    }
+  }
+
+  if (canTotal) {
+    const { minor: totalMinor, complete } = totalInBase(balances, rates);
+    const baseShort = currencyDef(BASE_CURRENCY).shortAr;
+    // Say so rather than quietly understating the debt when a rate is missing.
+    const partial = complete ? '' : ' (عدا ما لم يُحدَّد سعره)';
+    lines.push(
+      `رصيدك الآن: ${formatMinor(Math.abs(totalMinor))} ${baseShort} ` +
+      `${contactBalanceLabel(totalMinor)}${partial}`
+    );
+    lines.push(tafqeetBaseMinor(Math.abs(totalMinor)));
+  }
+  return lines;
 }
 
 // wa.me deep link that opens a chat to this customer with the message pre-filled.

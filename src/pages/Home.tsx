@@ -14,7 +14,7 @@ import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { getSettings } from '../data/settings';
 import { getRates } from '../data/rates';
 import { DEFAULT_RATES, type CurrencyBalance, type Rates } from '../data/currencies';
-import { ROLES, roleDef, type ContactRole } from '../data/roles';
+import { DEFAULT_ROLE, ROLES, roleDef, type ContactRole } from '../data/roles';
 import { pickContact } from '../lib/contacts';
 import BalanceSummary from '../components/BalanceSummary';
 import { SyncWarning, SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
@@ -48,7 +48,7 @@ const Home: React.FC = () => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
-  const [role, setRole] = useState<ContactRole>('customer');
+  const [role, setRole] = useState<ContactRole>(DEFAULT_ROLE);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false); // synchronous double-tap guard (see CustomerDetail)

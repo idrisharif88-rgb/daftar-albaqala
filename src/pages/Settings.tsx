@@ -5,7 +5,9 @@ import {
   IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { checkmarkCircle } from 'ionicons/icons';
-import { getSettings, saveSettings, type Settings as AppSettings } from '../data/settings';
+import {
+  getSettings, saveSettings, messageSender, type Settings as AppSettings,
+} from '../data/settings';
 import { runSync } from '../data/sync';
 import { isAccountActive } from '../data/account';
 import { getRatesState, saveRates, ratesAreStale, RATE_STALE_AFTER_DAYS } from '../data/rates';
@@ -51,10 +53,10 @@ const Settings: React.FC = () => {
   // owner sees the sender's WhatsApp number (proving the grocer owns it) and
   // activates the account on the server. No server call — this is a direct chat.
   const requestActivationFlow = () => {
-    const store = settings?.storeName?.trim();
+    const who = settings ? messageSender(settings) : '';
     const msg =
       `مرحباً، أرجو تفعيل حسابي في تطبيق دفتر البقالة.` +
-      (store ? `\nاسم المتجر: ${store}` : '');
+      (who ? `\nالاسم: ${who}` : '');
     openWhatsApp(OWNER_WHATSAPP, msg);
   };
 
@@ -96,7 +98,7 @@ const Settings: React.FC = () => {
       // Loaded on demand: the xlsx writer is a big dependency that most sessions
       // never touch, and startup on a cheap Android is the scarce resource.
       const { exportWorkbook } = await import('../lib/excel');
-      await exportWorkbook({ storeName: settings?.storeName ?? '', rates });
+      await exportWorkbook({ storeName: settings ? messageSender(settings) : '', rates });
     } catch {
       await presentToast({ message: 'تعذّر إنشاء ملف Excel', color: 'danger', duration: 2500 });
     } finally {
@@ -149,6 +151,14 @@ const Settings: React.FC = () => {
                 />
               </IonItem>
               <IonItem>
+                <IonLabel position="stacked">اسمك</IonLabel>
+                <IonInput
+                  value={settings.ownerName}
+                  onIonInput={(e) => update({ ownerName: e.detail.value ?? '' })}
+                  placeholder="يُستخدم في الرسائل إذا لم يكن لديك متجر"
+                />
+              </IonItem>
+              <IonItem>
                 <IonLabel>صفة الجهة الافتراضية</IonLabel>
                 <IonSelect
                   value={settings.defaultRole}
@@ -175,16 +185,17 @@ const Settings: React.FC = () => {
                   checked={settings.notifyCustomers}
                   onIonChange={(e) => void toggleNotify(e.detail.checked)}
                 >
-                  إشعار العملاء (SMS وواتساب)
+                  إشعار الجهات (SMS وواتساب)
                 </IonToggle>
               </IonItem>
             </IonList>
 
             <IonNote color="medium" className="ion-padding-start">
               <IonText>
-                اسم المتجر يظهر في الرسائل المرسلة للعملاء. عند إيقاف الإشعارات لن
-                يتم إرسال أي رسالة عند تسجيل دين أو دفعة. «صفة الجهة الافتراضية»
-                هي الصفة المقترحة عند إضافة جهة جديدة.
+                يظهر اسم المتجر في أول سطر من الرسائل والكشوفات، وإذا تركته فارغاً
+                يظهر اسمك بدلاً منه. عند إيقاف الإشعارات لن يتم إرسال أي رسالة عند
+                تسجيل دين أو دفعة. «صفة الجهة الافتراضية» هي الصفة المقترحة عند
+                إضافة جهة جديدة.
               </IonText>
             </IonNote>
 
