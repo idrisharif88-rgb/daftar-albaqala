@@ -455,8 +455,15 @@ device-tested.** No server change and NO migration — the stored role codes are
       «أربعة وثلاثون ألف ريال», «مئتا ألف ريال», «ألفا ريال»). Only the YER total is spelled out.
       Unit-tested (`tafqeet.test.ts`, 8 cases).
 - [x] **Contact edit screen** (Phase 8 gap #1): pencil in the CustomerDetail header → modal for
-      name / phone / note / **role**, calling the existing `updateCustomer`. Contacts created
-      before Phase 8 can finally be moved off `customer` from inside the app.
+      name / phone / note / **role**, calling the existing `updateCustomer`.
+      ⚠️ **Built but GATED OFF in the shopkeeper build** (owner's call, 2026-07-30): the three
+      fields each rewrite history other people rely on — the phone is who past notifications went
+      to, and flipping the role renames «تسجيل دين» ↔ «تسديد دفعة» across the whole history at
+      once. It belongs to a planned **owner build** (`VITE_OWNER_BUILD=1` → `FEATURES.editContacts`
+      in `src/config.ts`) that will also carry account activation and granting access, so a change
+      happens only after the owner hears the reason. Meanwhile roles are changed by SQL on the
+      droplet — and the statement MUST bump `updated_at=UTC_TIMESTAMP()` or the phone discards the
+      pulled row as stale (`server_updated_at` bumps itself, it is `ON UPDATE CURRENT_TIMESTAMP`).
 - [x] **`ownerName` setting** — the message's first line is the store name, falling back to the
       owner's own name (the app is also used for personal debts, and a message must be signed by
       something). `messageSender(settings)` is the one helper; used by notifications, the PDF

@@ -24,6 +24,7 @@ import {
 } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
+import { FEATURES } from '../config';
 import BalanceSummary from '../components/BalanceSummary';
 
 // Contact detail — transaction history + record an entry in either direction.
@@ -297,9 +298,12 @@ const CustomerDetail: React.FC = () => {
           </IonButtons>
           <IonTitle>{customer?.name ?? 'جهة'}</IonTitle>
           <IonButtons slot="end">
-            <IonButton onClick={openEdit} disabled={!customer}>
-              <IonIcon slot="icon-only" icon={createOutline} />
-            </IonButton>
+            {/* Owner build only — see FEATURES.editContacts in config.ts. */}
+            {FEATURES.editContacts && (
+              <IonButton onClick={openEdit} disabled={!customer}>
+                <IonIcon slot="icon-only" icon={createOutline} />
+              </IonButton>
+            )}
             <IonButton onClick={askExport} disabled={!customer}>
               <IonIcon slot="icon-only" icon={documentTextOutline} />
             </IonButton>
@@ -449,7 +453,9 @@ const CustomerDetail: React.FC = () => {
         </IonModal>
 
         {/* Edit the contact — including its role, which decides the wording of
-            every message this contact receives from here on. */}
+            every message this contact receives from here on. Not mounted at all
+            outside the owner build, so there is no way to reach it. */}
+        {FEATURES.editContacts && (
         <IonModal ref={editModal}>
           <IonHeader>
             <IonToolbar>
@@ -519,6 +525,7 @@ const CustomerDetail: React.FC = () => {
             </IonButton>
           </IonContent>
         </IonModal>
+        )}
 
         <IonLoading isOpen={exporting} message="جارٍ إنشاء الكشف..." />
       </IonContent>
