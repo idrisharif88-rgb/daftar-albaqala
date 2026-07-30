@@ -423,10 +423,10 @@ Owner-requested round (2026-07-29). Built, typechecks clean, **not yet device-te
 > usually a **creditor**, not a customer; the `supplier` role models this correctly. Don't assume a
 > grocer→customer direction in new wording. This is why the `buildMessage` gap above matters.
 
-## Status — DONE (Phase 9: role vocabulary + the notification message) ✅ (2026-07-30)
-Owner-specified round. Typechecks + builds clean, 18 frontend unit tests pass. **Not yet
-device-tested.** No server change and NO migration — the stored role codes are untouched
-(`customer` / `supplier` / `partner`); only the Arabic they render as changed.
+## Status — DONE + DEVICE-VERIFIED (Phase 9: role vocabulary + the message) ✅ (2026-07-30)
+Owner-specified round. 18 frontend unit tests pass. **All device tests passed on the real
+tablet against the droplet.** No server change and NO migration — the stored role codes are
+untouched (`customer` / `supplier` / `partner`); only the Arabic they render as changed.
 
 - [x] **Role wording redefined** (`src/data/roles.ts`, the single source):
       `customer` → «زبون», `supplier` → «صاحب متجر» (a shop the owner buys FROM),
@@ -473,17 +473,63 @@ device-tested.** No server change and NO migration — the stored role codes are
       (`npm run test.unit` also picks up the server's node:test files, which vitest can't run —
       use `cd server && npm test` for those).
 
-> ▶ **RESUME HERE:** device-test Phase 9 on the real phone (see the checklist below), then
-> Phase 7 (WhatsApp OTP).
->
-> **Phase 9 device checklist:** set «اسمك» in Settings with the store name empty → the SMS starts
-> with it; change a contact's role via the new pencil → the buttons rename, reorder and recolour;
-> record an entry against a صاحب متجر → the SMS says «تسجيل دين» and «رصيدك الآن … لك»; a شريك
-> entry says «أخذت منك»; a SAR entry on a contact who also owes YER → both currency lines, the
-> combined total and its words; clear the SAR rate → no total line, no words.
+### Phase 9 follow-ups, same day, all device-verified
+- [x] **Currencies named IN FULL in anything that leaves the phone** (`messageAr` + `formatAmountFull`,
+      `src/data/currencies.ts`): «ريال يمني» / «ريال سعودي» / «دولار أمريكي» / «جرام ذهب». «ريال»
+      alone is fine on a screen that also shows «ر.س» — the reader can tap through — but in an SMS
+      showing two kinds of riyal there is nothing to disambiguate them. Screens/tables keep
+      `shortAr`, where row width is the constraint.
+- [x] **Role tabs legible on the green header** (`src/theme/variables.css`): Ionic's segment is
+      near-black text on a white pill, i.e. unreadable on the brand bar AND the selected tab turns
+      dark exactly when you look at it. Labels are now always white + bold; selection is an
+      underline (drawn transparent on every tab so text doesn't shift), no pills, no boxes.
+- [x] **PDF export is fast now** — `src/lib/pdf.ts` **draws each page onto a canvas** with
+      fillText/fillRect instead of building HTML and snapshotting it. html2canvas was the whole
+      cost: per page it cloned the DOM, re-parsed every stylesheet and re-laid-out the document.
+      Seconds per page → milliseconds. **html2canvas is uninstalled**; the lazy PDF chunk went
+      592 KB → 389 KB. One canvas is reused across pages; 24 rows/page instead of 16. Output is
+      still a bitmap **on purpose** — jsPDF can't shape Arabic, so letting the WebView draw the
+      text is what keeps the Arabic joined and in order. (A true text PDF needs an embedded Arabic
+      TTF + a shaping engine — a separate project, and one that risks broken Arabic on a document
+      people treat as official.)
+- [x] **Statement timestamps** use a fixed `2026-07-30 18:47` form. `toLocaleString('ar')` returns
+      Arabic-Indic digits wrapped in direction marks, which canvas re-resolves against the
+      surrounding run — inside a table cell day/month/time came out shuffled. Matches the Excel
+      export's date column.
+
+### ⚠️ Phase 10 (settings sync) — BUILT, THEN REVERTED. Read before restarting it.
+Owner asked for the exchange rates + store name + owner name to sync with the account (today they
+are device-local, so a reinstall or a second device loses them). It was fully built and
+**41/41 server tests passed** — then the working tree was reverted before the commit, so **only
+two orphan files survive** and neither compiles on its own:
+`server/db/migrations/002_user_settings.sql` and `server/src/test/sync.settings.test.ts`
+(plus `src/data/metaSync.ts`, moved out of `src/` because it broke the build — it is in the
+session scratchpad, not the repo). **The `user_settings` table DOES already exist in the local
+`daftar_db` + `daftar_test`** (migration run 2026-07-30) but NOT on the droplet, and it is empty
+everywhere.
+The design, if it is picked up again: `user_settings(user_id, key, value, updated_at,
+server_updated_at)`; `/sync/push` merges last-write-wins per key in **one**
+`ON DUPLICATE KEY UPDATE` (atomic — a read-then-write races the same owner's other device);
+`/sync/pull` returns the **whole set every time**, deliberately outside the keyset cursor (a dozen
+short strings, so nothing to page and a device that missed one self-heals). What may travel is an
+**allowlist on both sides** — `app_meta` also holds the sync cursor, the activation flag and the
+owning user id; syncing the cursor would have one phone rewind another, and activation is the
+server's to decide. Client side needs `app_meta.updated_at` (local migration 2) and
+`ensureLocalOwner` must seed `store_name` at the **epoch**, not `now`, or a fresh login overwrites
+the name set on the owner's other phone.
+
+> ▶ **RESUME HERE:** Phase 10 (settings sync, above) if the owner still wants it, or Phase 7
+> (WhatsApp OTP). The owner build (`VITE_OWNER_BUILD=1`) is the other open thread: contact
+> editing already lives behind it, and account activation + granting access are meant to join it.
 >
 > To test sync, the user's `subscription_status` must be `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
+>
+> **Live data note (2026-07-30):** the book was pruned by SQL on the droplet to two real contacts —
+> Majed - Shop (`supplier`) and خوله (`partner`) — plus a «تجربة» contact the owner keeps for
+> testing. Nine others were soft-deleted (tombstones, restorable by clearing `deleted_at`).
+> There is **no delete button in the app**; `softDeleteCustomer` exists in `src/data/customers.ts`
+> but nothing calls it.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a
