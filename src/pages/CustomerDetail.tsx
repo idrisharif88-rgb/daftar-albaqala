@@ -264,8 +264,8 @@ const CustomerDetail: React.FC = () => {
     const periodLabel = period === 'day' ? 'اليوم' : period === 'month' ? 'هذا الشهر' : 'كل الحركات';
     setExporting(true);
     try {
-      // Loaded on demand — jspdf + html2canvas together are most of the bundle,
-      // and a session that never exports shouldn't pay to parse them.
+      // Loaded on demand — jspdf is a large dependency, and a session that
+      // never exports a statement shouldn't pay to parse it at startup.
       const { exportCustomerStatement } = await import('../lib/pdf');
       await exportCustomerStatement({
         customer,
