@@ -151,6 +151,28 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
 > a reboot recovered it. **RESOLVED 2026-06-25: a 2GB swap file was added** to absorb spikes.
 > When debugging "empty response"/hangs here, still check `free -h; uptime` first.
 
+> ⚠️ **Outage 2026-07-31 — nginx down 6h, API unreachable ("internet disconnected" in the APK).**
+> **Not RAM, not the app, not Ghost.** nginx was restarted ~06:09 UTC (unattended-upgrades, likely)
+> and its config test failed: `[emerg] host not found in upstream "ap.ghost.org" in
+> /etc/nginx/sites-enabled/167.71.34.80.conf:20`. nginx resolves upstream hostnames **once, at
+> parse time**, so a DNS blip lasting seconds invalidated the whole config — and systemd's default
+> is to try once and give up, so the outage outlived its cause by 6 hours. The hostname is correct
+> and Ghost's config was never edited; DNS recovered on its own. **Fix = `sudo systemctl start
+> nginx`** (it read the same unchanged file and resolved fine).
+> **Hardened:** `/etc/systemd/system/nginx.service.d/retry.conf` (drop-in, survives package
+> updates) — `Restart=on-failure`, `RestartSec=30`, `StartLimitIntervalSec=0` (no give-up cap),
+> `After=network-online.target`. A repeat now self-heals in ~30s. Verify with
+> `systemctl show nginx -p Restart -p RestartUSec` (note: `RestartUSec`, not `RestartSec` —
+> `systemctl show` prints **nothing** for an unknown property name rather than erroring).
+> **Triage order for "app can't reach the server":** `curl https://shopbook.shahed.uk/health` from
+> anywhere first — it separates server-down from phone/network in one step; if the TCP connect
+> times out while DNS resolves, nginx is down (`systemctl status nginx`), not the API.
+> **Still open:** (1) no monitoring — the outage was discovered hours later, from the app, so an
+> external uptime check on `/health` is the real gap; (2) `runSync()` reports a dead server as
+> «لا يوجد اتصال بالإنترنت», which points the owner at the phone instead of the server —
+> distinguishing "connect failed" from "device offline" would have saved the whole hunt;
+> (3) the droplet has pending kernel updates / needs a reboot (37d uptime as of this date).
+
 ## Status — DONE (Phase 5: sync + subscription enforcement) ✅
 - [x] **`POST /sync/push` DONE.** `src/routes/sync.ts` mounted at `/sync` behind `requireAuth`.
       Body `{ customers:[...], transactions:[...] }`. Customers = upsert by UUID, last-write-wins
