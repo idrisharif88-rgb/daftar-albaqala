@@ -58,6 +58,10 @@ export interface StatementOptions {
   customer: Customer;
   transactions: Transaction[]; // already filtered to the chosen period
   storeName: string;
+  /** Who issued the statement — printed as its own labelled line, because the
+   *  heading alone reads like a letterhead and the reader needs to be told
+   *  whose book this is. Falls back to the store name. */
+  ownerName: string;
   /** Today's YER rates, for the reference conversions in the totals block. */
   rates: Rates;
   periodLabel: string;
@@ -196,6 +200,11 @@ function drawHeader(ctx: Ctx, o: StatementOptions, issuedAt: string): void {
   text(ctx, `الهاتف: ${o.customer.phone}`, mid, 226, { size: 26, align: 'right' });
   text(ctx, `الفترة: ${o.periodLabel}`, right, 276, { size: 26, align: 'right' });
   text(ctx, `تاريخ الإصدار: ${issuedAt}`, mid, 276, { size: 26, align: 'right' });
+
+  const issuer = o.ownerName.trim() || o.storeName.trim();
+  if (issuer) {
+    text(ctx, `صاحب الكشف: ${issuer}`, right, 326, { size: 26, bold: true, align: 'right' });
+  }
 }
 
 function drawTableHead(ctx: Ctx, y: number): void {

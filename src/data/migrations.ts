@@ -67,6 +67,50 @@ const MIGRATIONS: Migration[] = [
       );
     },
   },
+  {
+    version: 2,
+    name: 'app_meta.updated_at (account settings sync)',
+    async run(db) {
+      // When each key was last written, so the store name and the exchange
+      // rates can be merged with the server's copy last-write-wins instead of
+      // one device blindly overwriting the other.
+      //
+      // Existing rows default to '' — deliberately, and read as "older than
+      // anything". A value already on this phone must not outrank a value the
+      // owner set on their other phone just because this one happens to sync
+      // first; an unstamped local value should lose that argument.
+      await addColumn(db, 'app_meta', 'updated_at', `TEXT NOT NULL DEFAULT ''`);
+    },
+  },
+  {
+    version: 3,
+    name: 'items (per-contact price list)',
+    async run(db) {
+      // A price list per contact — see items.ts. CREATE TABLE IF NOT EXISTS is
+      // safe to re-run, which matters because the app can be killed between the
+      // statement and the version bump.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS items (
+  id           TEXT PRIMARY KEY NOT NULL,
+  customer_id  TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  price        INTEGER NOT NULL DEFAULT 0,
+  currency     TEXT NOT NULL DEFAULT 'YER',
+  note         TEXT,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  deleted_at   TEXT,
+  synced       INTEGER NOT NULL DEFAULT 0
+);
+`);
+      // Each statement on its OWN line: the Android plugin splits a batch on
+      // ";\n" and execSQL would otherwise run only the first (see owner.ts).
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_items_customer ON items (customer_id, name);
+CREATE INDEX IF NOT EXISTS idx_items_synced ON items (synced);`,
+      );
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

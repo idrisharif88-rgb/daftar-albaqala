@@ -35,7 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
     // Wipe any previous grocer's local data on a user switch BEFORE we flip to
     // authenticated, so AutoSync pulls the new user into a clean store.
-    await ensureLocalOwner(res.user.id, res.user.store_name);
+    await ensureLocalOwner(res.user.id);
     setAuthed(true);
   }, []);
 
@@ -44,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await api.register(phone, password, storeName);
       setToken(res.token);
       setUser(res.user);
-      await ensureLocalOwner(res.user.id, res.user.store_name);
+      await ensureLocalOwner(res.user.id);
       setAuthed(true);
     },
     []

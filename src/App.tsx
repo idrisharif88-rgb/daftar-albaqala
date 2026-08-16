@@ -7,6 +7,8 @@ import { IonReactRouter } from '@ionic/react-router';
 import { App as CapacitorApp } from '@capacitor/app';
 import Home from './pages/Home';
 import CustomerDetail from './pages/CustomerDetail';
+import Items from './pages/Items';
+import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -109,6 +111,14 @@ const Routes: React.FC = () => {
         </Route>
         <Route exact path="/customers/:id">
           {isAuthenticated ? <CustomerDetail /> : <Redirect to="/login" />}
+        </Route>
+        {/* More specific paths come first — a bare /customers/:id would
+            otherwise swallow both of these. */}
+        <Route exact path="/customers/:id/items">
+          {isAuthenticated ? <Items /> : <Redirect to="/login" />}
+        </Route>
+        <Route exact path="/customers/:id/invoice">
+          {isAuthenticated ? <Invoice /> : <Redirect to="/login" />}
         </Route>
         <Route exact path="/settings">
           {isAuthenticated ? <Settings /> : <Redirect to="/login" />}

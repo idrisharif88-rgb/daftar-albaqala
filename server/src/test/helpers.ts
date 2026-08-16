@@ -16,7 +16,9 @@ export function mysqlDate(d: Date): string {
 // test starts from a known-empty state.
 export async function cleanDb(): Promise<void> {
   await pool.query('DELETE FROM transactions');
+  await pool.query('DELETE FROM items');
   await pool.query('DELETE FROM customers');
+  await pool.query('DELETE FROM user_settings');
   await pool.query('DELETE FROM users');
 }
 

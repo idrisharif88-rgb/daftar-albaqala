@@ -207,3 +207,62 @@ ion-item { --background: #ffffff; }
 }
 .sync-round-btn:active { transform: scale(0.96); }
 .sync-round-btn:disabled { opacity: 0.6; }
+
+/* Book totals — the standing "where do I stand" bar under the contact list.
+   It lives in an IonFooter, so it is pinned above the tab bar area and never
+   scrolls away; the FAB floats over the list, not over this. */
+.book-totals {
+  padding: 8px 14px calc(8px + var(--ion-safe-area-bottom, 0px));
+  background: var(--ion-color-light, #f4f5f8);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.book-totals-row {
+  display: flex;
+  justify-content: space-around;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.book-totals-net {
+  margin-top: 2px;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.book-totals-note {
+  margin-top: 2px;
+  font-size: 0.72rem;
+}
+
+/* Quantity stepper on the invoice screen — −  n  + on one line, sized so the
+   two buttons stay comfortably tappable next to the item name. */
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.qty-stepper__count {
+  min-width: 28px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+/* The running invoice total, pinned above the keyboard-safe area. */
+.invoice-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px calc(8px + var(--ion-safe-area-bottom, 0px));
+  background: var(--ion-color-light, #f4f5f8);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.invoice-bar__total { font-size: 1.02rem; }
+.invoice-bar__count { font-size: 0.8rem; }
+.invoice-bar__actions { display: flex; gap: 6px; }

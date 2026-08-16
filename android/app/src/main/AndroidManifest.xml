@@ -57,4 +57,21 @@
          for the picker to open even though we never write contacts. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+
+    <!-- Bluetooth receipt printer (ESC/POS over the classic serial profile).
+         Android 12 SPLIT the old permissions: BLUETOOTH / BLUETOOTH_ADMIN are
+         install-time and only apply up to API 30, while BLUETOOTH_CONNECT is a
+         RUNTIME permission from API 31 on. Declaring only the old pair means
+         listing paired devices silently returns nothing on any modern phone,
+         which reads as "the printer isn't there".
+         SCAN is declared because the plugin's discovery path needs it; we only
+         use the paired list, hence neverForLocation — this app never derives a
+         location from Bluetooth and says so, or the Play review asks why. -->
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
 </manifest>

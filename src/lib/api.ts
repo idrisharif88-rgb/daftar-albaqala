@@ -94,6 +94,10 @@ export interface PushTransaction {
   id: string; customer_id: string; type: string; amount: number; currency: string;
   note: string | null; occurred_at: string; created_at: string;
 }
+export interface PushItem {
+  id: string; customer_id: string; name: string; price: number; currency: string;
+  note: string | null; created_at: string; updated_at: string; deleted_at: string | null;
+}
 
 // Why the server would not store a row. 'missing_customer' is the only one
 // worth retrying — see server/src/routes/sync.ts.
@@ -111,6 +115,19 @@ export interface TableAck {
 export interface PushResult {
   customers: TableAck;
   transactions: TableAck;
+  /** Absent from a server older than the price list. */
+  items?: TableAck;
+  /** Keyed by setting NAME rather than by UUID — a setting has no id but its
+   *  key is already unique per account. Absent from a server older than
+   *  settings sync. */
+  settings?: TableAck;
+}
+
+/** An account setting (store name, owner name, exchange rate) on the wire. */
+export interface SettingRow {
+  key: string;
+  value: string | null;
+  updated_at: string;
 }
 
 export interface PullCustomer {
@@ -122,18 +139,30 @@ export interface PullTransaction {
   currency: string | null;
   note: string | null; occurred_at: string; created_at: string;
 }
+export interface PullItem {
+  id: string; customer_id: string; name: string; price: string | number;
+  currency: string | null; note: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
 export interface PullResult {
   customers: PullCustomer[];
   transactions: PullTransaction[];
+  /** Absent from a server older than the price list. */
+  items?: PullItem[];
   /** Opaque cursor to send as `since` next time. Do not parse it. */
   synced_at: string;
   /** More pages are waiting — call again with the new cursor. */
   has_more?: boolean;
+  /** The WHOLE settings set, on every page — they sit outside the delta
+   *  cursor. Absent from a server older than settings sync. */
+  settings?: SettingRow[];
 }
 
 export function syncPush(body: {
   customers: PushCustomer[];
   transactions: PushTransaction[];
+  items?: PushItem[];
+  settings?: SettingRow[];
 }): Promise<PushResult> {
   return request<PushResult>('/sync/push', { method: 'POST', body: JSON.stringify(body) });
 }

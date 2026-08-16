@@ -3,7 +3,7 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonList, IonItem, IonLabel, IonText, IonSpinner, IonFab, IonFabButton, IonIcon,
   IonModal, IonInput, IonNote, IonSearchbar, IonSegment, IonSegmentButton,
-  IonSelect, IonSelectOption, IonChip, useIonViewWillEnter, useIonToast,
+  IonSelect, IonSelectOption, IonChip, IonFooter, useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { add, settingsOutline, personCircleOutline, checkmarkCircle } from 'ionicons/icons';
 import { useAuth } from '../lib/auth';
@@ -17,6 +17,7 @@ import { DEFAULT_RATES, type CurrencyBalance, type Rates } from '../data/currenc
 import { DEFAULT_ROLE, ROLES, roleDef, type ContactRole } from '../data/roles';
 import { pickContact } from '../lib/contacts';
 import BalanceSummary from '../components/BalanceSummary';
+import BookTotals from '../components/BookTotals';
 import { SyncWarning, SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
 
 // A contact plus its locally-computed running balances (one per currency).
@@ -123,6 +124,7 @@ const Home: React.FC = () => {
     try {
       await createCustomer({ name, phone, note: note.trim() || null, role });
       await load();
+      void runSync(); // fire-and-forget; see CustomerDetail.save
       resetForm();
       await modal.current?.dismiss();
     } catch (err) {
@@ -134,8 +136,11 @@ const Home: React.FC = () => {
   };
 
   const term = search.trim().toLowerCase();
-  const visible = rows.filter((r) => {
-    if (roleFilter !== 'all' && r.customer.role !== roleFilter) return false;
+  // The role tab scopes the totals — the tab you are on is the book you are
+  // looking at. The SEARCH term deliberately does not: a total that changes as
+  // you type is a total you can't trust.
+  const inScope = rows.filter((r) => roleFilter === 'all' || r.customer.role === roleFilter);
+  const visible = inScope.filter((r) => {
     if (!term) return true;
     return r.customer.name.toLowerCase().includes(term) || r.customer.phone.includes(term);
   });
@@ -314,6 +319,14 @@ const Home: React.FC = () => {
           </IonContent>
         </IonModal>
       </IonContent>
+
+      {/* Standing book total. Outside IonContent so it stays pinned while the
+          contact list scrolls. */}
+      {!loading && (
+        <IonFooter>
+          <BookTotals balances={inScope.map((r) => r.balances)} rates={rates} />
+        </IonFooter>
+      )}
     </IonPage>
   );
 };

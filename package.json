@@ -29,6 +29,7 @@
     "@ionic/react-router": "^8.5.0",
     "@types/react-router": "^5.1.20",
     "@types/react-router-dom": "^5.3.3",
+    "cordova-plugin-bluetooth-serial": "^0.4.7",
     "cordova-plugin-x-socialsharing": "^6.0.4",
     "cordova-sms-plugin": "^1.0.5",
     "ionicons": "^7.4.0",

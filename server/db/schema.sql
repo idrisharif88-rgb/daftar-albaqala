@@ -82,3 +82,49 @@ CREATE TABLE IF NOT EXISTS transactions (
   KEY idx_txn_user_cust (user_id, customer_id),        -- معاملات عميل معيّن
   KEY idx_txn_sync (user_id, server_updated_at)        -- جلب الجديد منذ آخر مزامنة
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- إعدادات الحساب — اسم المتجر، اسم المالك، أسعار الصرف
+-- مفتاح/قيمة لكل مستخدم. الدمج: آخر تعديل يفوز (updated_at).
+-- تُرسل كاملة في كل مزامنة (قليلة وقصيرة)، خارج مؤشّر الدلتا.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS user_settings (
+  user_id     CHAR(36)     NOT NULL,
+  `key`       VARCHAR(64)  NOT NULL,
+  value       VARCHAR(512) NULL,
+  updated_at  DATETIME     NOT NULL,                   -- ساعة الهاتف (للدمج)
+
+  -- ساعة السيرفر (لا تُستخدم في المؤشّر، لكن للتتبّع والتشخيص)
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+  PRIMARY KEY (user_id, `key`),
+  CONSTRAINT fk_settings_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- الأصناف — قائمة أسعار لكل جهة (لكل متجر قائمته)
+-- ليست مخزوناً: السعر هو آخر سعر شراء، ولا تُحسب كميات.
+-- الدمج كالعملاء: upsert بالـ UUID، آخر تعديل يفوز، حذف ناعم.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS items (
+  id           CHAR(36)      NOT NULL,
+  user_id      CHAR(36)      NOT NULL,               -- مالك السجل (عزل المستأجرين)
+  customer_id  CHAR(36)      NOT NULL,               -- الجهة صاحبة القائمة
+  name         VARCHAR(128)  NOT NULL,
+  price        DECIMAL(12,2) NOT NULL DEFAULT 0,
+  currency     VARCHAR(8)    NOT NULL DEFAULT 'YER',
+  note         TEXT          NULL,
+  created_at   DATETIME      NOT NULL,
+  updated_at   DATETIME      NOT NULL,
+  deleted_at   DATETIME      NULL,                   -- شاهدة حذف (تُزامَن)
+
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+  PRIMARY KEY (id),
+  CONSTRAINT fk_item_user FOREIGN KEY (user_id)     REFERENCES users(id),
+  CONSTRAINT fk_item_cust FOREIGN KEY (customer_id) REFERENCES customers(id),
+  KEY idx_item_user_cust (user_id, customer_id),
+  KEY idx_item_sync (user_id, server_updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -12,8 +12,8 @@ describe('numberToArabicWords', () => {
     expect(numberToArabicWords(7)).toBe('سبعة');
     expect(numberToArabicWords(15)).toBe('خمسة عشر');
     expect(numberToArabicWords(25)).toBe('خمسة وعشرون');
-    expect(numberToArabicWords(100)).toBe('مئة');
-    expect(numberToArabicWords(250)).toBe('مئتان وخمسون');
+    expect(numberToArabicWords(100)).toBe('مائة');
+    expect(numberToArabicWords(250)).toBe('مائتان وخمسون');
   });
 
   it('picks the right shape for each scale word', () => {
@@ -26,9 +26,9 @@ describe('numberToArabicWords', () => {
   });
 
   it('joins groups with و', () => {
-    expect(numberToArabicWords(1500)).toBe('ألف وخمسمئة');
+    expect(numberToArabicWords(1500)).toBe('ألف وخمسمائة');
     expect(numberToArabicWords(1_234_567)).toBe(
-      'مليون ومئتان وأربعة وثلاثون ألفاً وخمسمئة وسبعة وستون'
+      'مليون ومائتان وأربعة وثلاثون ألفاً وخمسمائة وسبعة وستون'
     );
   });
 });
@@ -40,7 +40,7 @@ describe('amountToArabicWords', () => {
     expect(amountToArabicWords(5)).toBe('خمسة ريالات');
     expect(amountToArabicWords(11)).toBe('أحد عشر ريالاً');
     expect(amountToArabicWords(50)).toBe('خمسون ريالاً');
-    expect(amountToArabicWords(100)).toBe('مئة ريال');
+    expect(amountToArabicWords(100)).toBe('مائة ريال');
   });
 
   // A scale word directly in front of the noun loses its tanween/nun:
@@ -51,7 +51,7 @@ describe('amountToArabicWords', () => {
     expect(amountToArabicWords(14000)).toBe('أربعة عشر ألف ريال');
     expect(amountToArabicWords(20000)).toBe('عشرون ألف ريال');
     expect(amountToArabicWords(34000)).toBe('أربعة وثلاثون ألف ريال');
-    expect(amountToArabicWords(200000)).toBe('مئتا ألف ريال');
+    expect(amountToArabicWords(200000)).toBe('مائتا ألف ريال');
   });
 
   it('reads the sign off the caller — the direction word carries it', () => {

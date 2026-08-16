@@ -15,3 +15,28 @@ export const DEFAULT_CURRENCY = 'YER';
 // What a contact is to the owner of the book.
 export const VALID_ROLES = new Set(['customer', 'supplier', 'partner']);
 export const DEFAULT_ROLE = 'customer';
+
+// Settings that belong to the ACCOUNT and therefore sync between the owner's
+// devices — the name a notification is signed with, and the exchange rates the
+// riyal reference figures are computed from.
+//
+// This is an ALLOWLIST, not a filter, and that is the whole point. The phone
+// keeps these in `app_meta`, the same key/value table that also holds the sync
+// cursor, the local activation flag and the id of the owning user. Syncing a
+// cursor would let one phone rewind another's; `account_active` is the server's
+// verdict to issue, not the client's to assert. So only names on this list may
+// cross, in either direction.
+export const SYNCABLE_SETTING_KEYS = new Set([
+  'store_name',
+  'owner_name',
+  'language',
+  'rate_SAR',
+  'rate_USD',
+  'rate_GOLD',
+  'rates_updated_at',
+]);
+
+// Matches the VARCHAR(512) the column is declared as — checked here so an
+// oversized value is REPORTED to the client rather than silently truncated by
+// MySQL into a different value than the one the owner typed.
+export const MAX_SETTING_VALUE_LENGTH = 512;

@@ -21,7 +21,7 @@ const ONES = [
 const TENS = ['', '', 'عشرون', 'ثلاثون', 'أربعون', 'خمسون', 'ستون', 'سبعون', 'ثمانون', 'تسعون'];
 
 const HUNDREDS = [
-  '', 'مئة', 'مئتان', 'ثلاثمئة', 'أربعمئة', 'خمسمئة', 'ستمئة', 'سبعمئة', 'ثمانمئة', 'تسعمئة',
+  '', 'مائة', 'مائتان', 'ثلاثمائة', 'أربعمائة', 'خمسمائة', 'ستمائة', 'سبعمائة', 'ثمانمائة', 'تسعمائة',
 ];
 
 // Arabic counts its scale words in four shapes, picked by the number in front
@@ -57,13 +57,13 @@ const YER_WORDS: CountedWords = {
 };
 
 // 1–999. `idafa` = something this group counts follows it, which is the only
-// place «مئتان» has to shrink to «مئتا».
+// place «مائتان» has to shrink to «مائتا».
 function under1000(n: number, idafa: boolean): string {
   const parts: string[] = [];
   const h = Math.floor(n / 100);
   const r = n % 100;
 
-  if (h) parts.push(idafa && h === 2 && r === 0 ? 'مئتا' : HUNDREDS[h]);
+  if (h) parts.push(idafa && h === 2 && r === 0 ? 'مائتا' : HUNDREDS[h]);
   if (r) {
     if (r < 20) parts.push(ONES[r]);
     else {
@@ -129,7 +129,7 @@ function countedWord(n: number, words: CountedWords): string {
   // «... ألف ريال» — a round scale leaves the noun singular.
   if (n % 1000 === 0) return words.one;
   const r = n % 100;
-  if (r === 0) return words.one;          // مئة ريال
+  if (r === 0) return words.one;          // مائة ريال
   if (r === 1) return words.one;
   if (r === 2) return words.two;
   if (r <= 10) return words.few;

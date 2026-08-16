@@ -14,10 +14,7 @@ import { getDB, persist } from './db';
 
 const OWNER_KEY = 'owner_user_id';
 
-export async function ensureLocalOwner(
-  userId: string,
-  storeName?: string | null,
-): Promise<void> {
+export async function ensureLocalOwner(userId: string): Promise<void> {
   const db = await getDB();
   const res = await db.query(`SELECT value FROM app_meta WHERE key = ?`, [OWNER_KEY]);
   const current = ((res.values ?? [])[0]?.value as string) ?? null;
@@ -44,14 +41,18 @@ DELETE FROM app_meta;`,
     [OWNER_KEY, userId],
   );
 
-  // Seed the store name from the account (used in customer notifications).
-  if (storeName) {
-    await db.run(
-      `INSERT INTO app_meta (key, value) VALUES ('store_name', ?)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      [storeName],
-    );
-  }
-
+  // The store name is deliberately NOT seeded from the account here.
+  //
+  // It used to be: `users.store_name`, typed once at registration, was written
+  // into app_meta on every login. Once the store name became a SYNCED setting
+  // that gave it two sources of truth, and the registration one always won —
+  // it is written at login, before the first pull. An owner who had cleared the
+  // field got the old registration value back on the next sign-in, with no way
+  // to make it stay empty.
+  //
+  // So the setting owns it now, in one place. A fresh install has no store name
+  // until one syncs down or is typed, and messages fall back to the owner's own
+  // name (`messageSender`) — which is the right answer anyway for a book that
+  // is used for personal debts rather than a shop.
   await persist();
 }

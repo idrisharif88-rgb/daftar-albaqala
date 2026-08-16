@@ -10,10 +10,14 @@ import {
   type TxnType, type Transaction,
 } from './transactions';
 import {
+  getDirtyItems, markItemsSynced, applyServerItem, type Item,
+} from './items';
+import {
   syncPush, syncPull, ApiError,
-  type PushCustomer, type PushTransaction, type TableAck,
+  type PushCustomer, type PushTransaction, type PushItem, type TableAck,
 } from '../lib/api';
 import { setAccountActive } from './account';
+import { getLocalSettings, applyServerSettings, type SettingRow } from './settingsSync';
 
 // Sync engine — reconciles the local SQLite store with the cloud (server's
 // daftar_db) over /sync/push + /sync/pull. Offline-first: this is best-effort
@@ -71,6 +75,15 @@ function toPushCustomer(c: Customer): PushCustomer {
   return {
     id: c.id, name: c.name, phone: c.phone, note: c.note, role: c.role,
     created_at: c.created_at, updated_at: c.updated_at, deleted_at: c.deleted_at,
+  };
+}
+
+function toPushItem(i: Item): PushItem {
+  return {
+    id: i.id, customer_id: i.customer_id, name: i.name,
+    price: fromMinor(i.price), // minor → major for the server's DECIMAL
+    currency: i.currency, note: i.note,
+    created_at: i.created_at, updated_at: i.updated_at, deleted_at: i.deleted_at,
   };
 }
 
@@ -171,15 +184,25 @@ export function runSync(): Promise<SyncOutcome> {
  */
 async function pushChunks<T>(
   rows: T[],
-  build: (batch: T[]) => { customers: PushCustomer[]; transactions: PushTransaction[] },
-  pick: (result: { customers: TableAck; transactions: TableAck }) => TableAck,
+  build: (batch: T[]) => {
+    customers: PushCustomer[];
+    transactions: PushTransaction[];
+    items?: PushItem[];
+    settings?: SettingRow[];
+  },
+  pick: (result: {
+    customers: TableAck; transactions: TableAck; items?: TableAck;
+  }) => TableAck | undefined,
   markClean: (accepted: Set<string>, batch: T[]) => Promise<void>,
 ): Promise<{ accepted: number; rejected: number }> {
   let accepted = 0;
   let rejected = 0;
   for (const batch of chunk(rows, PUSH_CHUNK)) {
     const result = await syncPush(build(batch));
-    const ack = pick(result);
+    // A server that predates this table says nothing about it. Treat silence as
+    // "not stored": the rows stay dirty and go again once the server is
+    // upgraded, which is the safe direction to be wrong in.
+    const ack = pick(result) ?? { accepted: [], rejected: [] };
     const acceptedIds = new Set(ack.accepted);
     await markClean(acceptedIds, batch);
     accepted += acceptedIds.size;
@@ -196,9 +219,22 @@ async function pushChunks<T>(
 async function doSync(): Promise<SyncOutcome> {
   let dirtyCustomers: Customer[] = [];
   let dirtyTxns: Transaction[] = [];
+  let dirtyItems: Item[] = [];
   try {
     dirtyCustomers = await getDirtyCustomers();
     dirtyTxns = await getDirtyTransactions();
+    dirtyItems = await getDirtyItems();
+
+    // The account settings ride along on the first push request of the run,
+    // whichever one that turns out to be. They are seven short strings, so
+    // spending a whole extra round trip on them would be wasteful — and this
+    // run now happens after EVERY entry, not just at app open.
+    let pendingSettings: SettingRow[] | null = await getLocalSettings();
+    const takeSettings = (): SettingRow[] | undefined => {
+      const rows = pendingSettings ?? undefined;
+      pendingSettings = null;
+      return rows;
+    };
 
     // ---- 1. push contacts FIRST, and only then their transactions ----
     // A transaction is refused if its contact isn't on the server yet, so the
@@ -207,7 +243,9 @@ async function doSync(): Promise<SyncOutcome> {
     // an early chunk is available to a transaction in a later one.
     const custResult = await pushChunks(
       dirtyCustomers,
-      (batch) => ({ customers: batch.map(toPushCustomer), transactions: [] }),
+      (batch) => ({
+        customers: batch.map(toPushCustomer), transactions: [], settings: takeSettings(),
+      }),
       (r) => r.customers,
       async (acceptedIds, batch) => {
         // Guarded by updated_at inside markCustomersSynced: a row edited again
@@ -219,14 +257,41 @@ async function doSync(): Promise<SyncOutcome> {
       },
     );
 
+    // Items after contacts (an item is refused if its contact isn't stored
+    // yet) and before transactions, which is the same dependency order the
+    // server applies within a single request.
+    const itemResult = await pushChunks(
+      dirtyItems,
+      (batch) => ({
+        customers: [], transactions: [], items: batch.map(toPushItem),
+        settings: takeSettings(),
+      }),
+      (r) => r.items,
+      async (acceptedIds, batch) => {
+        await markItemsSynced(
+          batch.filter((i) => acceptedIds.has(i.id))
+            .map((i) => ({ id: i.id, updated_at: i.updated_at })),
+        );
+      },
+    );
+
     const txnResult = await pushChunks(
       dirtyTxns,
-      (batch) => ({ customers: [], transactions: batch.map(toPushTransaction) }),
+      (batch) => ({
+        customers: [], transactions: batch.map(toPushTransaction), settings: takeSettings(),
+      }),
       (r) => r.transactions,
       async (acceptedIds, batch) => {
         await markTransactionsSynced(batch.filter((t) => acceptedIds.has(t.id)).map((t) => t.id));
       },
     );
+
+    // Nothing was dirty, so neither push above ran and the settings never
+    // left. Send them on their own.
+    const leftoverSettings = takeSettings();
+    if (leftoverSettings && leftoverSettings.length > 0) {
+      await syncPush({ customers: [], transactions: [], settings: leftoverSettings });
+    }
 
     await persist();
 
@@ -244,6 +309,14 @@ async function doSync(): Promise<SyncOutcome> {
           created_at: c.created_at, updated_at: c.updated_at, deleted_at: c.deleted_at,
         });
       }
+      for (const i of page.items ?? []) {
+        await applyServerItem({
+          id: i.id, customer_id: i.customer_id, name: i.name,
+          price: toMinor(Number(i.price)), // major → minor for local storage
+          currency: i.currency, note: i.note,
+          created_at: i.created_at, updated_at: i.updated_at, deleted_at: i.deleted_at,
+        });
+      }
       for (const t of page.transactions) {
         await applyServerTransaction({
           id: t.id, customer_id: t.customer_id, type: t.type as TxnType,
@@ -252,7 +325,13 @@ async function doSync(): Promise<SyncOutcome> {
           note: t.note, occurred_at: t.occurred_at, created_at: t.created_at,
         });
       }
-      pulled += page.customers.length + page.transactions.length;
+      // The server sends the whole settings set on every page — outside the
+      // delta cursor — so this merges the same handful of keys more than once
+      // on a multi-page drain. That is the intent: it is idempotent, and it is
+      // what lets a device that missed an update repair itself.
+      if (page.settings) await applyServerSettings(page.settings);
+
+      pulled += page.customers.length + page.transactions.length + (page.items?.length ?? 0);
 
       // Save the cursor with the page it belongs to, before asking for the
       // next one. If the app is killed mid-drain, the next run resumes here
@@ -268,14 +347,14 @@ async function doSync(): Promise<SyncOutcome> {
 
     await setAccountActive(true); // a successful sync means the owner activated us
 
-    const rejected = custResult.rejected + txnResult.rejected;
+    const rejected = custResult.rejected + itemResult.rejected + txnResult.rejected;
     // Stopping at the page cap means data is still waiting on the server, which
     // is not a clean sync — report it as partial so the warning stays up rather
     // than telling the owner everything is fine.
     if (!drained) console.warn('sync: pull hit the page cap without draining');
     const outcome: SyncOutcome = {
       status: rejected > 0 || !drained ? 'partial' : 'ok',
-      pushed: custResult.accepted + txnResult.accepted,
+      pushed: custResult.accepted + itemResult.accepted + txnResult.accepted,
       pulled,
       rejected,
     };
@@ -284,7 +363,9 @@ async function doSync(): Promise<SyncOutcome> {
   } catch (err) {
     await persist().catch(() => {}); // keep whatever did land
     // Anything still dirty is un-backed-up data the user should know about.
-    const unsynced = await countDirty(dirtyCustomers.length + dirtyTxns.length);
+    const unsynced = await countDirty(
+      dirtyCustomers.length + dirtyTxns.length + dirtyItems.length,
+    );
     let outcome: SyncOutcome = { status: 'error' };
     if (err instanceof ApiError) {
       if (err.status === 402) {
@@ -304,10 +385,10 @@ async function doSync(): Promise<SyncOutcome> {
 // figure if the database itself is the thing that broke.
 async function countDirty(fallback: number): Promise<number> {
   try {
-    const [customers, transactions] = await Promise.all([
-      getDirtyCustomers(), getDirtyTransactions(),
+    const [customers, transactions, items] = await Promise.all([
+      getDirtyCustomers(), getDirtyTransactions(), getDirtyItems(),
     ]);
-    return customers.length + transactions.length;
+    return customers.length + transactions.length + items.length;
   } catch {
     return fallback;
   }

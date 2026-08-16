@@ -4,10 +4,12 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
   IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, IonLoading,
-  IonSelect, IonSelectOption, useIonViewWillEnter,
+  IonSelect, IonSelectOption, IonDatetime, useIonViewWillEnter,
   useIonAlert, useIonActionSheet,
 } from '@ionic/react';
-import { documentTextOutline, createOutline } from 'ionicons/icons';
+import {
+  documentTextOutline, createOutline, receiptOutline, pricetagsOutline,
+} from 'ionicons/icons';
 import { getCustomer, updateCustomer, type Customer } from '../data/customers';
 import {
   listTransactions, getBalances, addTransaction, type Transaction, type TxnType,
@@ -23,6 +25,7 @@ import {
   ROLES, directionColor, directionLabel, orderedTypes, roleDef, type ContactRole,
 } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
+import { runSync } from '../data/sync';
 import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
 import { FEATURES } from '../config';
 import BalanceSummary from '../components/BalanceSummary';
@@ -34,6 +37,18 @@ import BalanceSummary from '../components/BalanceSummary';
 // Every entry carries its own CURRENCY, and the currency is part of the debt —
 // so the amount field and the history rows both name it explicitly rather than
 // assuming riyals.
+// The statement's period. The first three are relative to today; the fourth is
+// a calendar range the owner picks, held as plain 'YYYY-MM-DD' local days
+// (never a UTC instant — «إلى 30 يوليو» has to mean that whole day here, not
+// wherever the timestamp was written).
+type ExportPeriod = 'day' | 'month' | 'full' | { from: string; to: string };
+
+/** 'YYYY-MM-DD' in LOCAL time, which is the date shown on the phone. */
+function localDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 const CustomerDetail: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -63,6 +78,10 @@ const CustomerDetail: React.FC = () => {
   // A long history takes a few seconds to render into the PDF; without this the
   // screen just sits there and reads as a freeze.
   const [exporting, setExporting] = useState(false);
+  // Custom date range for the statement.
+  const rangeModal = useRef<HTMLIonModalElement>(null);
+  const [fromDay, setFromDay] = useState('');
+  const [toDay, setToDay] = useState('');
   // Synchronous in-flight guard — `saving` state updates a tick late, so a fast
   // double-tap could slip a second (duplicate) transaction through before the
   // button re-renders disabled. The ref blocks the second call immediately.
@@ -124,6 +143,12 @@ const CustomerDetail: React.FC = () => {
         note: note.trim() || null,
       });
       await load();
+      // Push it to the server straight away, but NEVER wait for it: the entry
+      // is already saved locally, and the round trip to the droplet is ~400ms
+      // on a good link and unbounded on a bad one. Offline it no-ops and the
+      // row stays dirty for the next run. `runSync` is single-flight and never
+      // throws, so a burst of entries collapses into one run.
+      void runSync();
       await modal.current?.dismiss();
       await notifyCustomer(formType, amountMinor, entryCurrency, note.trim());
     } catch (err) {
@@ -228,6 +253,7 @@ const CustomerDetail: React.FC = () => {
         role: editRole,
       });
       await load();
+      void runSync();
       await editModal.current?.dismiss();
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -245,23 +271,49 @@ const CustomerDetail: React.FC = () => {
         { text: 'اليوم', handler: () => { void doExport('day'); } },
         { text: 'هذا الشهر', handler: () => { void doExport('month'); } },
         { text: 'كل الحركات', handler: () => { void doExport('full'); } },
+        { text: 'فترة محددة', handler: () => { openRange(); } },
         { text: 'إلغاء', role: 'cancel' },
       ],
     });
   };
 
-  const doExport = async (period: 'day' | 'month' | 'full') => {
+  // Default the picker to this month so far — the commonest ask, and it saves
+  // two taps when it is right.
+  const openRange = () => {
+    const now = new Date();
+    setFromDay(localDay(new Date(now.getFullYear(), now.getMonth(), 1)));
+    setToDay(localDay(now));
+    void rangeModal.current?.present();
+  };
+
+  const confirmRange = async () => {
+    if (!fromDay || !toDay) return;
+    // Picked backwards? Swap rather than scold — the intent is unambiguous.
+    const [from, to] = fromDay <= toDay ? [fromDay, toDay] : [toDay, fromDay];
+    await rangeModal.current?.dismiss();
+    await doExport({ from, to });
+  };
+
+  const doExport = async (period: ExportPeriod) => {
     if (!customer) return;
     const now = new Date();
     const inPeriod = (iso: string) => {
       if (period === 'full') return true;
       const d = new Date(iso);
       if (period === 'day') return d.toDateString() === now.toDateString();
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      if (period === 'month') {
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      }
+      // Both ends inclusive, compared as local calendar days.
+      const day = localDay(d);
+      return day >= period.from && day <= period.to;
     };
     const filtered = txns.filter((t) => inPeriod(t.occurred_at));
     const settings = await getSettings();
-    const periodLabel = period === 'day' ? 'اليوم' : period === 'month' ? 'هذا الشهر' : 'كل الحركات';
+    const periodLabel = period === 'day' ? 'اليوم'
+      : period === 'month' ? 'هذا الشهر'
+      : period === 'full' ? 'كل الحركات'
+      : `من ${period.from} إلى ${period.to}`;
     setExporting(true);
     try {
       // Loaded on demand — jspdf is a large dependency, and a session that
@@ -271,6 +323,7 @@ const CustomerDetail: React.FC = () => {
         customer,
         transactions: filtered,
         storeName: messageSender(settings),
+        ownerName: settings.ownerName,
         rates,
         periodLabel,
       });
@@ -346,6 +399,34 @@ const CustomerDetail: React.FC = () => {
                   </IonCol>
                 ))}
               </IonRow>
+              {/* A price list and an invoice only make sense against a SHOP —
+                  a صاحب متجر is the one you buy goods from. A زبون or a شريك
+                  has debts, not a catalogue, and putting the buttons there
+                  would be two dead ends on every contact screen. */}
+              {role === 'supplier' && (
+                <IonRow>
+                  <IonCol>
+                    <IonButton
+                      expand="block"
+                      fill="outline"
+                      routerLink={`/customers/${customerId}/invoice`}
+                    >
+                      <IonIcon slot="start" icon={receiptOutline} />
+                      فاتورة
+                    </IonButton>
+                  </IonCol>
+                  <IonCol>
+                    <IonButton
+                      expand="block"
+                      fill="outline"
+                      routerLink={`/customers/${customerId}/items`}
+                    >
+                      <IonIcon slot="start" icon={pricetagsOutline} />
+                      الأصناف
+                    </IonButton>
+                  </IonCol>
+                </IonRow>
+              )}
             </IonGrid>
 
             {/* History — newest first */}
@@ -526,6 +607,35 @@ const CustomerDetail: React.FC = () => {
           </IonContent>
         </IonModal>
         )}
+
+        {/* Custom statement range. Two date pickers, both ends inclusive. */}
+        <IonModal ref={rangeModal}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>فترة محددة</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => rangeModal.current?.dismiss()}>إلغاء</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent className="ion-padding">
+            <IonLabel className="ion-padding-start"><h2>من تاريخ</h2></IonLabel>
+            <IonDatetime
+              presentation="date"
+              value={fromDay}
+              onIonChange={(e) => setFromDay(String(e.detail.value ?? '').slice(0, 10))}
+            />
+            <IonLabel className="ion-padding-start"><h2>إلى تاريخ</h2></IonLabel>
+            <IonDatetime
+              presentation="date"
+              value={toDay}
+              onIonChange={(e) => setToDay(String(e.detail.value ?? '').slice(0, 10))}
+            />
+            <IonButton expand="block" className="ion-margin-top" onClick={confirmRange}>
+              إنشاء الكشف
+            </IonButton>
+          </IonContent>
+        </IonModal>
 
         <IonLoading isOpen={exporting} message="جارٍ إنشاء الكشف..." />
       </IonContent>

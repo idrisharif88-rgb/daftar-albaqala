@@ -3,6 +3,7 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonInput, IonSelect, IonSelectOption,
   IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
+  useIonAlert,
 } from '@ionic/react';
 import { checkmarkCircle } from 'ionicons/icons';
 import {
@@ -16,6 +17,9 @@ import {
 } from '../data/currencies';
 import { ROLES, type ContactRole } from '../data/roles';
 import { openWhatsApp } from '../lib/notify';
+import {
+  printingAvailable, listPrinters, getSavedPrinter, savePrinter,
+} from '../lib/print';
 import { SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
@@ -38,7 +42,10 @@ const Settings: React.FC = () => {
   const [active, setActive] = useState(true); // assume active until we check
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
+  // The remembered receipt printer — chosen once, used for every invoice.
+  const [printer, setPrinter] = useState<string | null>(null);
   const [presentToast] = useIonToast();
+  const [presentAlert] = useIonAlert();
 
   useIonViewWillEnter(() => {
     void getSettings().then(setSettings);
@@ -47,6 +54,7 @@ const Settings: React.FC = () => {
       setRates(state.rates);
       setRatesUpdatedAt(state.updatedAt);
     });
+    void getSavedPrinter().then(setPrinter);
   });
 
   // Open a WhatsApp chat to the owner with a pre-filled activation request. The
@@ -79,9 +87,59 @@ const Settings: React.FC = () => {
       await saveSettings(settings);
       await saveRates(rates);
       setRatesUpdatedAt(new Date().toISOString());
+      // The name and the rates belong to the ACCOUNT, so get them to the
+      // server while the owner is still here. Fire-and-forget: they are saved
+      // locally either way, and offline this simply no-ops.
+      void runSync();
       await presentToast({ message: 'تم الحفظ', duration: 1500, color: 'success' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Pick the receipt printer from Android's PAIRED devices. Pairing itself
+  // happens in Android's own Bluetooth settings — it needs a PIN and a system
+  // dialog, neither of which an app can stand in for.
+  const choosePrinter = async () => {
+    try {
+      const devices = await listPrinters();
+      if (devices.length === 0) {
+        presentAlert({
+          header: 'لا توجد أجهزة',
+          message: 'اقرن الطابعة أولاً من إعدادات البلوتوث في الهاتف، ثم عد إلى هنا.',
+          buttons: ['حسناً'],
+        });
+        return;
+      }
+      presentAlert({
+        header: 'اختر الطابعة',
+        inputs: devices.map((d) => ({
+          type: 'radio' as const,
+          label: d.name ? `${d.name} (${d.address})` : d.address,
+          value: d.address,
+          checked: d.address === printer,
+        })),
+        buttons: [
+          { text: 'إلغاء', role: 'cancel' },
+          {
+            text: 'حفظ',
+            handler: (address: string) => {
+              if (!address) return;
+              void (async () => {
+                await savePrinter(address);
+                setPrinter(address);
+                await presentToast({ message: 'تم اختيار الطابعة', duration: 1500, color: 'success' });
+              })();
+            },
+          },
+        ],
+      });
+    } catch (err) {
+      presentAlert({
+        header: 'تعذّر قراءة الأجهزة',
+        message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
+        buttons: ['حسناً'],
+      });
     }
   };
 
@@ -246,6 +304,20 @@ const Settings: React.FC = () => {
             >
               {syncing ? <IonSpinner name="crescent" /> : 'مزامنة الآن'}
             </IonButton>
+
+            {/* Receipt printer. Only offered on a build that can actually
+                print — on the web the plugin does not exist and the button
+                would be a promise the app cannot keep. */}
+            {printingAvailable() && (
+              <IonButton
+                expand="block"
+                fill="outline"
+                onClick={choosePrinter}
+                className="ion-margin-top"
+              >
+                {printer ? 'تغيير طابعة الفواتير' : 'اختيار طابعة الفواتير'}
+              </IonButton>
+            )}
 
             <IonButton
               expand="block"
