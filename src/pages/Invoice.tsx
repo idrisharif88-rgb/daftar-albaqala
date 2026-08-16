@@ -19,6 +19,7 @@ import {
 } from '../data/currencies';
 import { directionLabel, orderedTypes, roleDef } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
+import { useContactNotifier } from '../lib/useContactNotifier';
 import type { InvoiceLine } from '../lib/receipt';
 
 // Build one purchase out of the contact's price list, record it as a SINGLE
@@ -44,6 +45,8 @@ const Invoice: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [presentAlert] = useIonAlert();
+  // Same SMS + WhatsApp flow the contact screen uses.
+  const notifyContact = useContactNotifier();
   // Synchronous guard — `busy` lands a render late, and a double tap on «حفظ»
   // would otherwise record the basket twice (see CustomerDetail).
   const savingRef = useRef(false);
@@ -130,24 +133,36 @@ const Invoice: React.FC = () => {
       });
       void runSync();
 
-      if (thenPrint) {
-        setBusy('جارٍ الطباعة...');
-        const settings = await getSettings();
-        // Loaded on demand: the printer driver and the receipt renderer are
-        // dead weight in a session that never prints.
-        const { printReceipt } = await import('../lib/print');
-        await printReceipt({
-          storeName: messageSender(settings),
-          contactName: customer.name,
-          roleLabel: roleDef(role).labelAr,
-          entryLabel: directionLabel(role, growthType),
-          lines,
-          total,
-          currency: invoiceCurrency,
-          issuedAt: new Date(),
-          rates,
+      // Recording WITHOUT printing goes through the ordinary notification
+      // flow — the same SMS and WhatsApp offer as an entry typed by hand, so
+      // the contact hears about a basket exactly as they hear about a single
+      // debt. With a printed receipt the paper IS the notice, so it is not
+      // also sent as a message.
+      if (!thenPrint) {
+        setQty({});
+        await notifyContact({
+          customerId, type: growthType, amount: total, currency: invoiceCurrency, note,
         });
+        router.goBack();
+        return;
       }
+
+      setBusy('جارٍ الطباعة...');
+      const settings = await getSettings();
+      // Loaded on demand: the printer driver and the receipt renderer are dead
+      // weight in a session that never prints.
+      const { printReceipt } = await import('../lib/print');
+      await printReceipt({
+        storeName: messageSender(settings),
+        contactName: customer.name,
+        roleLabel: roleDef(role).labelAr,
+        entryLabel: directionLabel(role, growthType),
+        lines,
+        total,
+        currency: invoiceCurrency,
+        issuedAt: new Date(),
+        rates,
+      });
 
       setQty({});
       router.goBack();
@@ -250,13 +265,17 @@ const Invoice: React.FC = () => {
                 {' '}({lines.length} صنف)
               </IonNote>
             </div>
+            {/* Both buttons record the SAME entry; they differ only in what
+                happens afterwards. Named from the role, so a صاحب متجر reads
+                «تسجيل دين» — the label must match the button the owner presses
+                on the contact screen for the same act. */}
             <div className="invoice-bar__actions">
-              <IonButton size="small" fill="outline" onClick={() => { void save(false); }}>
-                حفظ فقط
+              <IonButton onClick={() => { void save(false); }}>
+                {directionLabel(role, growthType)}
               </IonButton>
-              <IonButton size="small" onClick={() => { void save(true); }}>
+              <IonButton fill="outline" onClick={() => { void save(true); }}>
                 <IonIcon slot="start" icon={printOutline} />
-                حفظ وطباعة
+                {directionLabel(role, growthType)} وطباعة
               </IonButton>
             </div>
           </div>

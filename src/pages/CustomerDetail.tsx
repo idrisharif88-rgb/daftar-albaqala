@@ -26,7 +26,7 @@ import {
 } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { runSync } from '../data/sync';
-import { buildMessage, sendSms, openWhatsApp } from '../lib/notify';
+import { useContactNotifier } from '../lib/useContactNotifier';
 import { FEATURES } from '../config';
 import BalanceSummary from '../components/BalanceSummary';
 
@@ -37,6 +37,7 @@ import BalanceSummary from '../components/BalanceSummary';
 // Every entry carries its own CURRENCY, and the currency is part of the debt —
 // so the amount field and the history rows both name it explicitly rather than
 // assuming riyals.
+
 // The statement's period. The first three are relative to today; the fourth is
 // a calendar range the owner picks, held as plain 'YYYY-MM-DD' local days
 // (never a UTC instant — «إلى 30 يوليو» has to mean that whole day here, not
@@ -88,6 +89,9 @@ const CustomerDetail: React.FC = () => {
   const savingRef = useRef(false);
   const [presentAlert] = useIonAlert();
   const [presentSheet] = useIonActionSheet();
+  // The SMS + WhatsApp flow, shared with the invoice screen so both tell the
+  // contact exactly the same thing.
+  const notifyContact = useContactNotifier();
 
   const load = useCallback(async () => {
     const [c, list, bals, currentRates] = await Promise.all([
@@ -150,79 +154,16 @@ const CustomerDetail: React.FC = () => {
       // throws, so a burst of entries collapses into one run.
       void runSync();
       await modal.current?.dismiss();
-      await notifyCustomer(formType, amountMinor, entryCurrency, note.trim());
+      await notifyContact({
+        customerId, type: formType, amount: amountMinor,
+        currency: entryCurrency, note: note.trim(),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
       setSaving(false);
       savingRef.current = false;
     }
-  };
-
-  // After recording a debt/payment, tell the customer (from the shopkeeper's own
-  // phone). Auto-sends SMS — the main notice (amount + balance) and, if present,
-  // the grocer's note as its own separate SMS (Android only; no-op on web). Then
-  // offers the same messages via WhatsApp. Failures never block the save.
-  const notifyCustomer = async (
-    type: TxnType, amountMinor: number, entryCurrency: CurrencyCode, noteText: string,
-  ) => {
-    const c = await getCustomer(customerId);
-    if (!c) return;
-    const [settings, newBalances, currentRates] = await Promise.all([
-      getSettings(),
-      getBalances(customerId),
-      getRates(),
-    ]);
-    if (!settings.notifyCustomers) return; // notifications turned off in Settings
-    const message = buildMessage({
-      senderName: messageSender(settings),
-      role: c.role, // the wording of the whole message follows the contact's role
-      type,
-      amount: amountMinor,
-      currency: entryCurrency,
-      balances: newBalances,
-      rates: currentRates,
-      note: noteText, // folded into the one message on its own line
-    });
-    void sendSms(c.phone, message); // auto: one combined SMS (balance + note)
-    presentSendSheet(c.phone, message);
-  };
-
-  // WhatsApp send sheet — one olive "send" button + "cancel". The chosen action
-  // runs from onDidDismiss (after the sheet has fully closed) so the cancel
-  // confirmation can present without racing the dismiss animation.
-  const presentSendSheet = (phone: string, message: string) => {
-    let choice: 'send' | 'cancel' | null = null;
-    presentSheet({
-      header: 'إرسال إشعار عبر واتساب',
-      buttons: [
-        { text: 'إرسال عبر واتساب', cssClass: 'as-olive', handler: () => { choice = 'send'; } },
-        { text: 'إلغاء', cssClass: 'as-olive', handler: () => { choice = 'cancel'; } },
-      ],
-      onDidDismiss: () => {
-        // Anything other than an explicit "send" — the إلغاء button, the back
-        // button, or a backdrop tap — is treated as a cancel and confirmed.
-        if (choice === 'send') openWhatsApp(phone, message);
-        else confirmCancel(phone, message);
-      },
-    });
-  };
-
-  // Make sure cancelling the WhatsApp notice was intentional. "تراجع" reopens the
-  // send sheet (deferred so this alert has finished dismissing first).
-  const confirmCancel = (phone: string, message: string) => {
-    presentAlert({
-      header: 'تأكيد الإلغاء',
-      message: 'هل أنت متأكد أنك لا تريد إرسال الإشعار عبر واتساب؟',
-      buttons: [
-        {
-          text: 'تراجع',
-          cssClass: 'alert-btn-send',
-          handler: () => setTimeout(() => presentSendSheet(phone, message), 350),
-        },
-        { text: 'نعم، إلغاء', role: 'cancel', cssClass: 'alert-btn-cancel' },
-      ],
-    });
   };
 
   // ---- Edit the contact ----

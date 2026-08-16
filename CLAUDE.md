@@ -39,7 +39,8 @@ daftar-albaqala/
 ├── src/              # the React/Ionic app (default starter so far — no app code yet)
 ├── capacitor.config.ts
 ├── server/           # the backend
-│   ├── db/schema.sql # daftar_db tables: users, customers, transactions
+│   ├── db/schema.sql # daftar_db tables: users, customers, transactions, items, user_settings
+│   ├── db/migrations/ # numbered DDL, run as root on the droplet (daftar_user is DML-only)
 │   ├── src/index.ts  # Express app — currently only GET /health
 │   ├── package.json  # scripts: dev (tsx watch) / build (tsc) / start (node dist)
 │   ├── tsconfig.json
@@ -191,7 +192,7 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
 
 ### Automated tests (sync)
 - `server/src/test/` — integration tests for `/sync/push` + `/sync/pull` + subscription gate
-  (34 cases) using
+  + settings + items (**52 cases**) using
   Node's built-in test runner + `supertest`, driving the real Express app (`src/app.ts`, split
   out of `index.ts` so it has no `listen()`). Run with **`npm test`** in `server/`.
 - They hit a **real MySQL** `daftar_test` DB — **never** production `daftar_db` (a guard refuses
@@ -202,7 +203,11 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
   validation, pull delta `since` filter, tombstones included, 401/400 paths,
   subscription gate (active allowed; none/expired/past-expiry → 402; future-expiry allowed),
   and (Phase 8) per-row accept/reject, clock skew, keyset paging incl. tied timestamps,
-  contact role + transaction currency.
+  contact role + transaction currency; (Phase 10) settings allowlist + per-key LWW + whole-set
+  pull, and items LWW/tombstones/tenant isolation/`v1`→`v2` cursor upgrade.
+  ⚠️ A test that builds a cursor by hand must read the clock from **MySQL** (`SELECT NOW(3)`),
+  not from Node — `DATETIME` carries no timezone and the driver reads it back through the
+  connection's, so a Node-built "one minute from now" can still be in the column's past.
 - **One-time test-DB setup** (owner, on droplet `sudo mysql -u root -p`):
   `CREATE DATABASE daftar_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;` then
   `GRANT SELECT,INSERT,UPDATE,DELETE ON daftar_test.* TO 'daftar_user'@'localhost';` then load
@@ -519,39 +524,108 @@ untouched (`customer` / `supplier` / `partner`); only the Arabic they render as 
       surrounding run — inside a table cell day/month/time came out shuffled. Matches the Excel
       export's date column.
 
-### ⚠️ Phase 10 (settings sync) — BUILT, THEN REVERTED. Read before restarting it.
-Owner asked for the exchange rates + store name + owner name to sync with the account (today they
-are device-local, so a reinstall or a second device loses them). It was fully built and
-**41/41 server tests passed** — then the working tree was reverted before the commit, so **only
-two orphan files survive** and neither compiles on its own:
-`server/db/migrations/002_user_settings.sql` and `server/src/test/sync.settings.test.ts`
-(plus `src/data/metaSync.ts`, moved out of `src/` because it broke the build — it is in the
-session scratchpad, not the repo). **The `user_settings` table DOES already exist in the local
-`daftar_db` + `daftar_test`** (migration run 2026-07-30) but NOT on the droplet, and it is empty
-everywhere.
-The design, if it is picked up again: `user_settings(user_id, key, value, updated_at,
-server_updated_at)`; `/sync/push` merges last-write-wins per key in **one**
-`ON DUPLICATE KEY UPDATE` (atomic — a read-then-write races the same owner's other device);
-`/sync/pull` returns the **whole set every time**, deliberately outside the keyset cursor (a dozen
-short strings, so nothing to page and a device that missed one self-heals). What may travel is an
-**allowlist on both sides** — `app_meta` also holds the sync cursor, the activation flag and the
-owning user id; syncing the cursor would have one phone rewind another, and activation is the
-server's to decide. Client side needs `app_meta.updated_at` (local migration 2) and
-`ensureLocalOwner` must seed `store_name` at the **epoch**, not `now`, or a fresh login overwrites
-the name set on the owner's other phone.
+## Status — DONE (Phase 10: settings sync, price list, invoices, Bluetooth printing) ✅ (2026-08-17)
+Owner round of 2026-08-16/17. Committed (`f80b581` + follow-ups), deployed to the droplet, and
+device-verified except the printer (no hardware yet). **Server tests 52/52**, frontend 18/18.
 
-> ▶ **RESUME HERE:** Phase 10 (settings sync, above) if the owner still wants it, or Phase 7
-> (WhatsApp OTP). The owner build (`VITE_OWNER_BUILD=1`) is the other open thread: contact
-> editing already lives behind it, and account activation + granting access are meant to join it.
+- [x] **Account settings sync (the old reverted Phase 10, rebuilt).** `user_settings(user_id, key,
+      value, updated_at, server_updated_at)` — migration `002_user_settings.sql`, applied to the
+      droplet ✓. `/sync/push` merges last-write-wins per key in **one** `ON DUPLICATE KEY UPDATE`
+      (atomic; a read-then-write races the owner's other device). `/sync/pull` returns the **whole
+      set every time**, deliberately outside the keyset cursor — a dozen short strings, so nothing
+      to page and a device that missed one repairs itself. What may travel is an **allowlist on
+      both sides** (`server/src/domain.ts` ↔ `src/data/settingsSync.ts`): store_name, owner_name,
+      language, rate_SAR/USD/GOLD, rates_updated_at. `app_meta` also holds the sync cursor and the
+      activation flag; syncing a cursor would have one phone rewind another's, and activation is
+      the server's verdict to issue. Client: `app_meta.updated_at` (local migration 2), stamped by
+      `setMetaRaw`; a value ARRIVING from the server keeps the server's timestamp, or a stale value
+      would win its next argument. Verified live — `owner_name`/`store_name` land in the droplet.
+      ⚠️ **Timestamps are compared as instants, not strings** (`millis()`): the phone writes
+      `toISOString()` while a MySQL DATETIME comes back as «2026-07-30 10:00:00».
+- [x] **`ensureLocalOwner` no longer seeds `store_name`** (`src/data/owner.ts`). It used to write
+      `users.store_name` (typed once at registration) into `app_meta` on every login — i.e. BEFORE
+      the first pull, so the registration value always beat the synced one and an owner who cleared
+      the field got «مركز أبو الليث» back on the next sign-in. The setting is the only source now.
+      A fresh install simply has no store name and `messageSender` falls back to the owner's name.
+- [x] **Per-contact price list.** `items` table (local migration 3 + server migration
+      `003_items.sql`, applied ✓) and `src/data/items.ts`. Separate list per contact, on purpose:
+      the same word costs a different amount at two shops. Name + price (INTEGER minor units) +
+      currency + note; soft-delete; syncs like contacts (upsert by UUID, LWW, tombstones). An item
+      is REFUSED unless its contact belongs to the pusher — a valid FK to another tenant's contact
+      is still a leak. Screen: `src/pages/Items.tsx` at `/customers/:id/items`.
+      **NOT inventory** — nothing counts stock; the owner is the one buying.
+- [x] **Invoices.** `src/pages/Invoice.tsx` at `/customers/:id/invoice`: search the shop's list,
+      tap ±, running total pinned at the bottom. Records **ONE** entry for the basket (append-only
+      stays honest — eight rows would need eight reversing entries to fix one mistake); the item
+      breakdown lives in the note and on the receipt. One currency per invoice. Two buttons, both
+      labelled from the role: **«تسجيل دين»** saves + runs the ordinary SMS/WhatsApp notice, and
+      **«تسجيل دين وطباعة»** saves + prints (the paper IS the notice, so no SMS).
+- [x] **Items/invoice shown only for `supplier`** (صاحب متجر). A زبون or شريك has debts, not a
+      catalogue.
+- [x] **Bluetooth receipt printing.** `src/lib/receipt.ts` (draw + ESC/POS) + `src/lib/print.ts`
+      (transport). 80mm = **576 dots**, must be a multiple of 8 (`GS v 0` packs 8 px per byte).
+      The receipt is a **BITMAP**: cheap ESC/POS printers have no Arabic character set, and the
+      ones that do print letters unjoined and reversed — so the WebView draws it, same reasoning as
+      the PDF. Raster goes down in **bands** (128 rows) because their input buffer is a few KB.
+      Transport is Bluetooth **CLASSIC (SPP)** via `cordova-plugin-bluetooth-serial`, NOT BLE —
+      BLE plugins cannot talk to these printers at all, which is the usual way this is built wrong.
+      `write` means "handed to the OS", not "printed", so the socket is held ~1.2s before
+      disconnecting or a long receipt is cut off mid-page. Printer chosen once in Settings from
+      Android's **paired** devices (pairing itself needs Android's own PIN dialog).
+      Manifest: `BLUETOOTH`/`BLUETOOTH_ADMIN` (`maxSdkVersion=30`) **plus** `BLUETOOTH_CONNECT`
+      (runtime, API 31+) — declaring only the old pair makes the paired list silently empty on any
+      modern phone. ⚠️ **Never device-tested — the owner has no printer yet.**
+- [x] **Shared notifier.** `src/lib/useContactNotifier.tsx` — the SMS + WhatsApp offer + cancel
+      confirmation, lifted out of `CustomerDetail` so the invoice tells the contact the same thing.
+- [x] **Instant sync.** `runSync()` fires after every transaction, contact create/edit, item
+      change and settings save — **fire-and-forget**, so the save never waits on a ~400ms RTT.
+- [x] **Book totals bar.** `src/components/BookTotals.tsx`, pinned under the contact list:
+      لك / عليك / الصافي, **YER only**, foreign amounts converted at today's rates and a note when
+      a rate is missing. Each contact is netted FIRST, then classified. Follows the role tab; the
+      search box deliberately does NOT scope it (a total that changes as you type is not a total).
+- [x] **PDF:** «صاحب الكشف: …» line in the header; a **«فترة محددة»** option with two date pickers
+      (both ends inclusive, compared as LOCAL calendar days); and the shared file is finally named
+      «كشف-<contact>-<date>.pdf» — the WhatsApp path had a hardcoded `statement.pdf`, so every
+      statement ever sent arrived under the same name.
+- [x] **تفقيط writes مائة** (not مئة): مائة / مائتان / ثلاثمائة… and «مائتا ألف».
+- [x] **Sync cursor is `v2`** — `(server_updated_at, id)` per table, now three tables. `decodeCursor`
+      still accepts `v1` and a bare ISO timestamp; a v1 client starts items from ZERO rather than
+      inheriting the contacts' position, or the whole price list would never be delivered.
+
+> ⚠️ **Play Store blockers, found 2026-08-17, NOT yet fixed** (owner deferred): (1) **`SEND_SMS`** —
+> Play restricts it to apps whose core purpose is SMS (default handler); auto-sending a debt notice
+> is not an approved use, so this is a likely rejection. Safe fix: drop the permission and use an
+> `ACTION_SENDTO` intent (pre-filled, user taps send), like the WhatsApp flow already does.
+> (2) **Paid activation outside Play** — cloud sync is sold and activated manually over WhatsApp;
+> Play requires Play Billing for digital purchases and forbids steering users to outside payment.
+> Play billing is unavailable in Yemen, so the defensible position is that the app sells nothing
+> (no prices, no "subscribe" wording in-app). (3) `WRITE_CONTACTS` is declared but never used (only
+> to satisfy the contacts plugin's permission alias) — reviewers ask. (4) Data Safety requires an
+> **account-deletion** route; there is no delete-account endpoint. (5) Play needs a signed **AAB**
+> and demo login credentials whose account is `subscription_status='active'`.
+
+> ⚠️ **Local build toolchain (2026-08-17):** Android Studio is a **snap** and auto-updates its
+> bundled JDK. Rev 236 carried JDK 21, rev 241 carries **JDK 25**, which Gradle 8.14.3 rejects.
+> The Gradle JDK is stored **per project** (`android/.gradle/config.properties`), and this project
+> pointed at rev **232**, since garbage-collected → invalid path → fell back to JDK 25 → sync
+> failed. Fixed by installing `openjdk-21-jdk` (`/usr/lib/jvm/java-21-openjdk-amd64`, apt-owned so
+> snap cannot move it) and setting it as the Gradle JDK. The other project (`quran-fives-react`)
+> still points at a surviving snap revision and will break the same way when it is cleaned up.
+
+> ▶ **RESUME HERE:** the Play Store items above (SMS permission first — it changes code), or
+> Phase 7 (WhatsApp OTP). The owner build (`VITE_OWNER_BUILD=1`) is the other open thread: contact
+> editing lives behind it, and account activation + granting access are meant to join it.
+> The **printer is untested** — first real 80mm unit is the next verification.
 >
 > To test sync, the user's `subscription_status` must be `active` in the droplet `daftar_db`
 > (`sudo mysql -u root -p -e "UPDATE daftar_db.users SET subscription_status='active';"`) or sync returns 402.
 >
-> **Live data note (2026-07-30):** the book was pruned by SQL on the droplet to two real contacts —
-> Majed - Shop (`supplier`) and خوله (`partner`) — plus a «تجربة» contact the owner keeps for
-> testing. Nine others were soft-deleted (tombstones, restorable by clearing `deleted_at`).
+> **Live data note (2026-08-17):** the book holds Majed - Shop (`supplier`) and خوله (`partner`)
+> plus a «تجربة» contact kept for testing; the two APK test numbers (735716727, 737383692) were
+> soft-deleted by SQL on 2026-08-16, and «عبد الرحمن الناشري» was moved to 775589040 the same way.
 > There is **no delete button in the app**; `softDeleteCustomer` exists in `src/data/customers.ts`
-> but nothing calls it.
+> but nothing calls it. Any hand-written SQL on `customers` MUST bump `updated_at=UTC_TIMESTAMP()`
+> or the phone discards the pulled row as stale.
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a

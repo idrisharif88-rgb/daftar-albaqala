@@ -236,19 +236,32 @@ ion-item { --background: #ffffff; }
   font-size: 0.72rem;
 }
 
-/* Quantity stepper on the invoice screen — −  n  + on one line, sized so the
-   two buttons stay comfortably tappable next to the item name. */
+/* Quantity stepper on the invoice screen — −  n  + on one line.
+   The circles are deliberately large: this is the control the owner taps most,
+   often several times in a row while standing at a counter holding shopping,
+   and Ionic's default icon button is sized for occasional use. */
 .qty-stepper {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
+}
+
+.qty-stepper ion-button {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  height: 56px;
+  margin: 0;
+}
+
+.qty-stepper ion-icon {
+  font-size: 2.6rem;
 }
 
 .qty-stepper__count {
-  min-width: 28px;
+  min-width: 38px;
   text-align: center;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.35rem;
 }
 
 /* The running invoice total, pinned above the keyboard-safe area. */
