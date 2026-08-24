@@ -14,6 +14,32 @@ import { getDB, persist } from './db';
 
 const OWNER_KEY = 'owner_user_id';
 
+/**
+ * Empty the local store completely — every contact, every entry, the price
+ * lists, the saved baskets and all app state.
+ *
+ * Used in two places: a different account signing in on this phone, and the
+ * owner deleting their account outright. Both need the same thing, and having
+ * had one copy of it inline was how `items` came to be left behind.
+ *
+ * NOTE: the native (Android) plugin splits a batch on ";\n", and Android's
+ * execSQL runs only the FIRST statement of a single-line ";"-joined string. So
+ * each DELETE MUST stay on its own line, or only `transactions` gets wiped —
+ * balances reset to zero while the contacts survive, which is exactly the
+ * cross-account leak this once caused in production.
+ */
+export async function wipeLocalStore(): Promise<void> {
+  const db = await getDB();
+  await db.execute(
+    `DELETE FROM transactions;
+DELETE FROM item_groups;
+DELETE FROM items;
+DELETE FROM customers;
+DELETE FROM app_meta;`,
+  );
+  await persist();
+}
+
 export async function ensureLocalOwner(userId: string): Promise<void> {
   const db = await getDB();
   const res = await db.query(`SELECT value FROM app_meta WHERE key = ?`, [OWNER_KEY]);
@@ -27,13 +53,7 @@ export async function ensureLocalOwner(userId: string): Promise<void> {
     // execSQL runs only the FIRST statement of a single-line ";"-joined string.
     // So each DELETE MUST be on its own line, or only `transactions` gets wiped
     // (balances reset to zero) while `customers` leak across accounts.
-    await db.execute(
-      `DELETE FROM transactions;
-DELETE FROM item_groups;
-DELETE FROM items;
-DELETE FROM customers;
-DELETE FROM app_meta;`,
-    );
+    await wipeLocalStore();
   }
 
   // Record the new owner so the next switch is detected.

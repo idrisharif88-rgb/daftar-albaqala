@@ -81,6 +81,14 @@ export function login(phone: string, password: string): Promise<AuthResult> {
   });
 }
 
+// ---- Account ----
+
+/** Erase this account and everything in it, server-side. Hard delete: the rows
+ *  are gone, not tombstoned — there is no other device left to tell. */
+export function deleteAccount(): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>('/account', { method: 'DELETE' });
+}
+
 // ---- Sync ----
 // Wire shapes mirror the server (server/src/routes/sync.ts). NOTE: transaction
 // `amount` travels as MAJOR units (e.g. 500.00) to match the server's DECIMAL —

@@ -16,11 +16,14 @@ import {
   BASE_CURRENCY, CONVERTIBLE_CURRENCIES, currencyDef, DEFAULT_RATES, type Rates,
 } from '../data/currencies';
 import { ROLES, type ContactRole } from '../data/roles';
-import { openEmail, openUrl, openWhatsApp } from '../lib/notify';
+import { openEmail, openWhatsApp } from '../lib/notify';
 import {
   printingAvailable, listPrinters, getSavedPrinter, savePrinter,
 } from '../lib/print';
 import { SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
+import { useAuth } from '../lib/auth';
+import { deleteAccount, ApiError } from '../lib/api';
+import { wipeLocalStore } from '../data/owner';
 import { INACTIVE_MESSAGE, SUPPORT_EMAIL } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 
@@ -41,7 +44,9 @@ const Settings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
+  const { logout } = useAuth();
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   // The remembered receipt printer — chosen once, used for every invoice.
@@ -93,6 +98,80 @@ const Settings: React.FC = () => {
         color: 'warning',
         duration: 2500,
       });
+    }
+  };
+
+  // Deleting the account. Play requires an app that lets you sign up to let you
+  // leave from inside the app, and it is the right thing besides: the book
+  // holds other people's names, numbers and debts, and whoever typed them in
+  // should be able to take them back without asking anyone.
+  //
+  // Two confirmations, because there is no undo and no tombstone — the server
+  // hard-deletes, and the local store is emptied. The second one makes the
+  // owner type the word, so it cannot be reached by two taps in a pocket.
+  const confirmDeleteAccount = () => {
+    presentAlert({
+      header: 'حذف الحساب نهائياً',
+      message:
+        'سيُحذف حسابك وكل ما فيه: جميع الجهات وأرقامها، وكل الديون والدفعات، ' +
+        'وقوائم الأسعار والمجموعات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n' +
+        'لا يمكن التراجع عن هذا، ولا يمكن استعادة الدفتر بعده.',
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        { text: 'متابعة', role: 'destructive', handler: () => { typeToConfirm(); } },
+      ],
+    });
+  };
+
+  const typeToConfirm = () => {
+    // Deferred so the first alert has finished dismissing before the second
+    // presents — two overlays racing leaves one of them orphaned.
+    setTimeout(() => {
+      presentAlert({
+        header: 'تأكيد الحذف',
+        message: 'اكتب كلمة «حذف» للتأكيد.',
+        inputs: [{ name: 'word', type: 'text', placeholder: 'حذف' }],
+        buttons: [
+          { text: 'إلغاء', role: 'cancel' },
+          {
+            text: 'حذف الحساب',
+            role: 'destructive',
+            handler: (data: { word?: string }) => {
+              if ((data.word ?? '').trim() !== 'حذف') {
+                void presentToast({
+                  message: 'لم تتم كتابة الكلمة بشكل صحيح — لم يُحذف شيء',
+                  color: 'warning',
+                  duration: 2500,
+                });
+                return;
+              }
+              void runDeleteAccount();
+            },
+          },
+        ],
+      });
+    }, 350);
+  };
+
+  const runDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      // Server FIRST. If this fails the account still exists, and wiping the
+      // phone would have destroyed the only copy of anything not yet synced
+      // while leaving the account itself standing.
+      await deleteAccount();
+      await wipeLocalStore();
+      logout(); // drops the JWT and returns to the login screen
+    } catch (err) {
+      await presentToast({
+        message: err instanceof ApiError && err.status === 0
+          ? 'تعذّر الاتصال بالخادم — لم يُحذف الحساب. حاول عند توفّر الإنترنت'
+          : 'تعذّر حذف الحساب. حاول مرة أخرى',
+        color: 'danger',
+        duration: 3500,
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -365,6 +444,27 @@ const Settings: React.FC = () => {
             >
               {exporting ? <IonSpinner name="crescent" /> : 'تصدير الدفتر إلى Excel'}
             </IonButton>
+
+            {/* Deleting the account lives at the very bottom, apart from
+                everything else and behind two confirmations: it is the only
+                control in the app with no undo. */}
+            <div className="danger-zone">
+              <IonNote className="ion-padding-start">
+                <IonText>
+                  حذف الحساب يمحو كل الجهات والديون والدفعات من هذا الجهاز ومن الخادم نهائياً.
+                </IonText>
+              </IonNote>
+              <IonButton
+                expand="block"
+                color="danger"
+                fill="outline"
+                onClick={confirmDeleteAccount}
+                disabled={deleting}
+                className="ion-margin-top"
+              >
+                {deleting ? <IonSpinner name="crescent" /> : 'حذف الحساب'}
+              </IonButton>
+            </div>
 
             {/* The same words the blocked screens show, so an owner who goes
                 looking in Settings finds one answer and not a second one. */}

@@ -375,3 +375,11 @@ ion-toast::part(message) {
 }
 
 .pre-line { white-space: pre-line; }
+
+/* The one control in the app with no undo — set apart from everything above it
+   by a rule and a colour, so it is never the thing you tap on the way past. */
+.danger-zone {
+  margin-top: 34px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(var(--ion-color-danger-rgb, 235, 68, 90), 0.3);
+}

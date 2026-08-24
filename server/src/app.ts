@@ -4,6 +4,7 @@ import authRouter from './routes/auth';
 import customersRouter from './routes/customers';
 import transactionsRouter from './routes/transactions';
 import syncRouter from './routes/sync';
+import accountRouter from './routes/account';
 import { requireAuth, AuthedRequest } from './middleware/auth';
 import { requireSubscription } from './middleware/requireSubscription';
 import { asyncHandler } from './asyncHandler';
@@ -45,6 +46,12 @@ app.use('/customers', requireAuth, customersRouter);
 
 // Transactions (append-only) — behind requireAuth, every query filtered by req.userId.
 app.use('/transactions', requireAuth, transactionsRouter);
+
+// The account itself. Behind requireAuth but NOT requireSubscription: an
+// account that was never activated is the likeliest one to be deleted, and
+// gating deletion on the flag that blocked it would trap someone in an account
+// they can neither use nor leave. DELETE /account.
+app.use('/account', requireAuth, accountRouter);
 
 // Sync — phone pushes offline changes up. Behind requireAuth, every record
 // checked against req.userId. requireSubscription gates the PAID cloud feature:
