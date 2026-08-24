@@ -24,3 +24,13 @@ export const FEATURES = {
   /** Pencil on the contact screen: edit name / phone / note / role. */
   editContacts: OWNER_BUILD,
 };
+
+/**
+ * The privacy policy, served by the API itself (server/public/privacy.html).
+ *
+ * It lives on the same host as the API on purpose: nginx already proxies
+ * everything there, so there is nothing extra to configure and nothing that can
+ * be reachable in the app but not on the web. A link to a page that 404s is
+ * worse than no link at all.
+ */
+export const PRIVACY_URL = 'https://shopbook.shahed.uk/privacy.html';

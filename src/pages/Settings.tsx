@@ -16,12 +16,13 @@ import {
   BASE_CURRENCY, CONVERTIBLE_CURRENCIES, currencyDef, DEFAULT_RATES, type Rates,
 } from '../data/currencies';
 import { ROLES, type ContactRole } from '../data/roles';
-import { openEmail, openWhatsApp } from '../lib/notify';
+import { openEmail, openUrl, openWhatsApp } from '../lib/notify';
 import {
   printingAvailable, listPrinters, getSavedPrinter, savePrinter,
 } from '../lib/print';
 import { SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
 import { useAuth } from '../lib/auth';
+import { PRIVACY_URL } from '../config';
 import { deleteAccount, ApiError } from '../lib/api';
 import { wipeLocalStore } from '../data/owner';
 import { INACTIVE_MESSAGE, SUPPORT_EMAIL } from '../data/account';
@@ -172,6 +173,17 @@ const Settings: React.FC = () => {
       });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const openPrivacyPolicy = async () => {
+    const opened = await openUrl(PRIVACY_URL);
+    if (!opened) {
+      await presentToast({
+        message: 'لا يوجد متصفح على هذا الجهاز',
+        color: 'warning',
+        duration: 2500,
+      });
     }
   };
 
@@ -443,6 +455,19 @@ const Settings: React.FC = () => {
               className="ion-margin-top"
             >
               {exporting ? <IonSpinner name="crescent" /> : 'تصدير الدفتر إلى Excel'}
+            </IonButton>
+
+            {/* Privacy policy. Not required by Play for an app that collects
+                what this one does, but reviewers look for it, and the page has
+                to actually exist — a link to a 404 is worse than no link. */}
+            <IonButton
+              expand="block"
+              fill="clear"
+              size="small"
+              onClick={() => { void openPrivacyPolicy(); }}
+              className="ion-margin-top"
+            >
+              سياسة الخصوصية
             </IonButton>
 
             {/* Deleting the account lives at the very bottom, apart from

@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import path from 'node:path';
 import express, { NextFunction, Request, Response } from 'express';
 import authRouter from './routes/auth';
 import customersRouter from './routes/customers';
@@ -28,6 +29,17 @@ const app = express();
 // the 1GB droplet to buffer an arbitrarily large body in memory. The number
 // should be the largest legitimate request, and no larger.
 app.use(express.json({ limit: '2mb' }));
+
+// The privacy policy, served as a plain file from server/public.
+//
+// It lives on the API's own host because nginx already proxies everything
+// there: nothing extra to configure, and no way for the page to be reachable
+// in the app but missing on the web. A privacy link that 404s is worse than no
+// link — a reviewer reads it as an app hiding what it does.
+//
+// This is the ONLY static path. Everything else here is JSON, and the
+// directory holds exactly one file, so there is nothing else to expose.
+app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // Health check — confirms the server is alive and reachable.
 app.get('/health', (_req, res) => {

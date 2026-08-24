@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>سياسة الخصوصية — دفتر البقالة</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font-family: system-ui, "Segoe UI", Tahoma, sans-serif;
+    line-height: 1.75; max-width: 44rem; margin: 0 auto; padding: 32px 20px 80px;
+    background: #ffffff; color: #1a1a1a;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #14171a; color: #e6e8e6; } }
+  h1 { font-size: 1.6rem; margin-bottom: 4px; }
+  h2 { font-size: 1.12rem; margin-top: 34px; }
+  .updated { color: #6b7280; font-size: 0.9rem; margin-top: 0; }
+  ul { padding-inline-start: 1.3rem; }
+  li { margin-bottom: 6px; }
+  code, .ltr { direction: ltr; unicode-bidi: isolate; }
+  hr { border: 0; border-top: 1px solid #d8dcd8; margin: 40px 0 24px; }
+  .en { direction: ltr; text-align: left; }
+</style>
+</head>
+<body>
+
+<h1>سياسة الخصوصية — دفتر البقالة</h1>
+<p class="updated">آخر تحديث: 24 أغسطس 2026</p>
+
+<p>
+  «دفتر البقالة» تطبيق لتسجيل الديون والدفعات بين صاحب الدفتر ومن يتعامل معهم.
+  البيانات التي تُدخلها تخصّك أنت، وهذه الصفحة تشرح ما يُخزَّن وأين، بالتحديد.
+</p>
+
+<h2>ما الذي نجمعه</h2>
+<ul>
+  <li><b>حسابك:</b> رقم هاتفك (وهو معرّف الدخول)، واسم المتجر إن أدخلته، وكلمة السر مخزَّنة
+      <b>مُشفَّرة بطريقة غير قابلة للعكس</b> (bcrypt) — لا نحتفظ بكلمة السر نفسها.</li>
+  <li><b>الجهات التي تسجّلها:</b> الاسم، رقم الهاتف، وأي ملاحظة تكتبها.</li>
+  <li><b>الحركات:</b> نوعها (دين أو تسديد)، المبلغ، العملة، الملاحظة، وتاريخها.</li>
+  <li><b>قوائم الأسعار والمجموعات:</b> أسماء الأصناف وأسعارها كما أدخلتها.</li>
+  <li><b>إعدادات الحساب:</b> اسم المتجر أو اسمك، اللغة، وأسعار الصرف التي تحدّدها.</li>
+</ul>
+
+<h2>ما الذي لا نجمعه</h2>
+<ul>
+  <li><b>لا نقرأ جهات اتصالك.</b> التطبيق لا يملك إذن قراءة دفتر العناوين. عند اختيار رقم،
+      يفتح النظام قائمته الخاصة وتُعيد إلينا جهة واحدة فقط هي التي اخترتها.</li>
+  <li><b>لا نرسل ولا نقرأ الرسائل النصية.</b> التطبيق لا يملك إذن الرسائل؛ الإشعار يفتح تطبيق
+      الرسائل الخاص بك بنص جاهز، وأنت من يضغط «إرسال».</li>
+  <li><b>لا نجمع موقعك، ولا نستخدم الكاميرا أو الميكروفون.</b></li>
+  <li><b>لا يوجد أي تتبّع أو إحصاءات أو إعلانات.</b> لا نستخدم أي أدوات تحليل أو تقارير أعطال
+      من طرف ثالث — ولا سطر واحد منها في التطبيق.</li>
+</ul>
+
+<h2>أين تُخزَّن</h2>
+<ul>
+  <li><b>على هاتفك أولاً.</b> التطبيق يعمل بلا إنترنت، وكل شيء يُحفظ في قاعدة بيانات داخل جهازك.</li>
+  <li><b>على خادمنا</b> عند المزامنة، لغرض واحد: ألا يضيع دفترك إذا ضاع الهاتف. الخادم
+      (<span class="ltr">shopbook.shahed.uk</span>) يعمل عبر اتصال مشفَّر (HTTPS)، وبيانات كل
+      صاحب دفتر معزولة عن غيره.</li>
+</ul>
+
+<h2>ما الذي يخرج من الجهاز، وإلى أين</h2>
+<ul>
+  <li><b>إلى خادمنا فقط:</b> ما سبق ذكره أعلاه. لا نرسل شيئاً إلى أي جهة أخرى.</li>
+  <li><b>إلى الشخص الذي تبلّغه:</b> عندما تختار إرسال إشعار، يفتح التطبيق واتساب أو تطبيق
+      الرسائل لديك بنص جاهز، ثم <b>أنت</b> من يرسله من حسابك أو شريحتك. ما يصل إليه هو نص
+      الفاتورة والرصيد. نحن لا نرسل نيابةً عنك.</li>
+  <li><b>إلى الطابعة:</b> عند الطباعة تُرسل الفاتورة عبر البلوتوث إلى الطابعة المقترنة بجهازك
+      مباشرة، دون مرور بأي شبكة.</li>
+</ul>
+
+<h2>لا نبيع بياناتك ولا نشاركها</h2>
+<p>لا تُباع بياناتك ولا تُشارَك مع أي طرف ثالث لأي غرض. لا نصل إليها إلا عند الضرورة التقنية
+   لتشغيل الخدمة أو لطلبك المساعدة.</p>
+
+<h2>حذف حسابك</h2>
+<p>
+  يمكنك حذف حسابك من داخل التطبيق: <b>الإعدادات ← حذف الحساب</b>. عند التأكيد يُحذف حسابك وكل
+  ما فيه — الجهات والأرقام والديون والدفعات وقوائم الأسعار والإعدادات — من الخادم ومن الجهاز،
+  <b>حذفاً نهائياً لا يمكن التراجع عنه</b>. أو راسلنا على العنوان أدناه وننفّذه نيابةً عنك.
+</p>
+
+<h2>تفعيل الحساب</h2>
+<p>المزامنة السحابية تعمل بعد التحقق من أن رقم الهاتف المسجَّل يخصّك فعلاً. للتحقق راسلنا على
+   العنوان أدناه.</p>
+
+<h2>الأطفال</h2>
+<p>التطبيق موجَّه لأصحاب المتاجر ومن يمسك دفتر حساباته، وليس للأطفال دون 13 عاماً.</p>
+
+<h2>التواصل</h2>
+<p>لأي سؤال عن بياناتك أو لطلب حذفها: <a href="mailto:idrisharif88@gmail.com">idrisharif88@gmail.com</a></p>
+
+<hr>
+
+<div class="en">
+<h1>Privacy Policy — Daftar Al-Baqala (ShopBook)</h1>
+<p class="updated">Last updated: 24 August 2026</p>
+
+<p>ShopBook records debts and payments between the person keeping the book and the people they
+deal with. The data you enter is yours. This page states exactly what is stored and where.</p>
+
+<h2>What we collect</h2>
+<ul>
+  <li><b>Your account:</b> your phone number (the login identity), a shop name if you enter one,
+      and your password stored only as an irreversible bcrypt hash — never the password itself.</li>
+  <li><b>The people you record:</b> name, phone number, and any note you write.</li>
+  <li><b>Entries:</b> type (debt or payment), amount, currency, note, and date.</li>
+  <li><b>Price lists and saved baskets:</b> item names and prices, as you entered them.</li>
+  <li><b>Account settings:</b> shop or owner name, language, and the exchange rates you set.</li>
+</ul>
+
+<h2>What we do not collect</h2>
+<ul>
+  <li><b>We do not read your contacts.</b> The app holds no contacts permission. Choosing a number
+      opens Android's own picker, which returns only the single contact you selected.</li>
+  <li><b>We do not send or read SMS.</b> The app holds no SMS permission. A notice opens your own
+      messaging app pre-filled; you press send.</li>
+  <li><b>No location, no camera, no microphone.</b></li>
+  <li><b>No analytics, no crash reporting, no advertising, no tracking of any kind.</b> There is not
+      one third-party SDK of that sort in the app.</li>
+</ul>
+
+<h2>Where it is stored</h2>
+<ul>
+  <li><b>On your phone first.</b> The app works with no connection; everything is saved in a
+      database on the device.</li>
+  <li><b>On our server</b> when you sync, for one purpose: so your book survives losing the phone.
+      The server (shopbook.shahed.uk) is reached over HTTPS, and each account's data is isolated
+      from every other.</li>
+</ul>
+
+<h2>What leaves the device</h2>
+<ul>
+  <li><b>To our server only:</b> the data listed above. Nothing is sent anywhere else.</li>
+  <li><b>To the person you are billing:</b> when you choose to send a notice, the app opens your
+      WhatsApp or your messaging app with the text ready, and <b>you</b> send it from your own
+      account or SIM. We do not send anything on your behalf.</li>
+  <li><b>To your printer:</b> the receipt goes over Bluetooth directly to the printer you paired,
+      touching no network.</li>
+</ul>
+
+<h2>We do not sell or share your data</h2>
+<p>Your data is never sold and never shared with any third party for any purpose.</p>
+
+<h2>Deleting your account</h2>
+<p>You can delete your account inside the app: <b>Settings → Delete account</b>. On confirmation,
+your account and everything in it — contacts, numbers, debts, payments, price lists and settings —
+is erased from the server and from the device. This is permanent and cannot be undone. You may
+also write to us and we will do it for you.</p>
+
+<h2>Account activation</h2>
+<p>Cloud sync works once we have verified that the registered phone number is really yours. Write
+to us at the address below to verify.</p>
+
+<h2>Children</h2>
+<p>The app is for shopkeepers and people keeping their own accounts. It is not directed at children
+under 13.</p>
+
+<h2>Contact</h2>
+<p>For any question about your data, or to request its deletion:
+<a href="mailto:idrisharif88@gmail.com">idrisharif88@gmail.com</a></p>
+</div>
+
+</body>
+</html>
