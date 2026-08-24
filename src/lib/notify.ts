@@ -284,38 +284,40 @@ export function openWhatsApp(phone: string, message: string): void {
   window.open(whatsappUrl(phone, message), '_blank');
 }
 
-// Auto-send an SMS from the shopkeeper's phone — no UI, no tap. Android only:
-// uses cordova-sms-plugin (window.sms) with an empty intent so it sends directly
-// (requires the SEND_SMS permission, requested at runtime by the plugin). On web
-// / iOS this is a safe no-op so the dev loop and builds keep working.
-export async function sendSms(phone: string, message: string): Promise<boolean> {
+// Open the phone's own SMS app with the number and the message already filled
+// in. The grocer taps send.
+//
+// It used to send in the BACKGROUND, with no tap, through cordova-sms-plugin
+// and the SEND_SMS permission. That permission had to go: Google Play restricts
+// SEND_SMS to apps whose core purpose is messaging — the default SMS handler —
+// and refuses everything else, so the app could never be published while it
+// held it. There is no declaration form to fill in that changes this.
+//
+// The replacement needs NO permission at all. Handing the OS an `sms:` URI
+// starts the user's own messaging app, pre-filled; the message is sent by the
+// person, from the app they already trust, which is also why Play is happy with
+// it. The cost is one extra tap per notice, and no way to confirm delivery.
+//
+// 🧩 Server concept: capability vs. delegation. Asking for SEND_SMS is asking
+// to hold the capability yourself — the app can then message anyone, silently,
+// forever. Firing an intent DELEGATES the act to a component the user controls,
+// keeping the same outcome without ever holding the power. Least privilege is
+// the same idea as `daftar_user` having DML but not DDL on the droplet: hold
+// what the job needs, and no more.
+//
+// Android only. On web this is a no-op so the dev loop keeps working.
+export function openSms(phone: string, message: string): boolean {
   if (Capacitor.getPlatform() !== 'android') return false;
-  const sms = (window as unknown as { sms?: SmsPlugin }).sms;
-  if (!sms) {
-    console.warn('SMS plugin not available — skipping auto-SMS');
+  try {
+    // `sms:<number>?body=<text>` is the standard URI form (RFC 5724) and is
+    // what Android's messaging apps register for. Capacitor's WebView hands a
+    // non-http scheme straight to the OS as an intent.
+    window.open(`sms:${toIntlDigits(phone)}?body=${encodeURIComponent(message)}`, '_system');
+    return true;
+  } catch (err) {
+    // A device with no messaging app at all. Not fatal: the entry is already
+    // recorded, and WhatsApp is offered alongside this.
+    console.warn('could not open the SMS app', err);
     return false;
   }
-  return new Promise<boolean>((resolve) => {
-    sms.send(
-      toIntlDigits(phone),
-      message,
-      { replaceLineBreaks: false, android: { intent: '' } }, // intent '' = send directly
-      () => resolve(true),
-      (err: unknown) => {
-        console.warn('auto-SMS failed', err);
-        resolve(false);
-      }
-    );
-  });
-}
-
-// Minimal shape of the cordova-sms-plugin API we use.
-interface SmsPlugin {
-  send(
-    phone: string,
-    message: string,
-    options: { replaceLineBreaks: boolean; android: { intent: string } },
-    success: () => void,
-    error: (err: unknown) => void
-  ): void;
 }

@@ -268,8 +268,9 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       deep link, pre-fills text — WhatsApp can't auto-send, grocer taps send). In `CustomerDetail`
       after save: one combined SMS auto-sends, then an olive action sheet offers «إرسال عبر واتساب»
       / «إلغاء»; cancel — including the **back button / backdrop** — routes through a confirm alert.
-      ⚠️ Auto-SMS needs, before the APK build: `npm i cordova-sms-plugin` + `SEND_SMS` permission in
-      `AndroidManifest.xml`. Web shows the dialog only (SMS is a no-op there).
+      ⚠️ **SUPERSEDED 2026-08-24 (Phase 12): the SMS no longer auto-sends and there is no
+      `cordova-sms-plugin` and no `SEND_SMS` permission.** Both channels are a tap now — see the
+      Phase 12 section.
 - [x] **Sync DONE.** `src/data/sync.ts` (`runSync()`): pushes dirty rows (`synced = 0`) via
       `/sync/push`, marks them clean, then pulls deltas via `/sync/pull?since=<cursor>` and applies
       them (customers LWW by `updated_at`, transactions insert-if-new), advancing the cursor stored
@@ -291,8 +292,8 @@ sync when one returns (see Architecture — local SQLite INTEGER minor units, UU
       here is a snap**, so cap can't find it by default: launch `/snap/bin/android-studio <proj>/android`
       or set `CAPACITOR_ANDROID_STUDIO_PATH=/snap/bin/android-studio`. (CLI alt: `cd android &&
       ANDROID_HOME=$HOME/Android/Sdk ./gradlew assembleDebug`; local JDK is 25 — may need 17/21 for CLI.)
-- [x] **Auto-SMS prerequisites done:** `cordova-sms-plugin` installed; `SEND_SMS` permission in
-      `android/app/src/main/AndroidManifest.xml`. (Plugin requests the runtime permission on first send.)
+- [x] ~~**Auto-SMS prerequisites done:** `cordova-sms-plugin` installed; `SEND_SMS` permission.~~
+      **REVERSED 2026-08-24 (Phase 12)** — both were removed for Play compliance. Do not re-add.
 - [x] **Device build points at the droplet:** `.env.production` sets `VITE_API_BASE=https://shopbook.shahed.uk`
       (the APK has no Vite proxy). **Dev** now also targets the droplet — `vite.config.ts` proxy
       `target` was switched from `localhost:3002` to `https://shopbook.shahed.uk` (revert to localhost
@@ -594,10 +595,8 @@ device-verified except the printer (no hardware yet). **Server tests 52/52**, fr
       still accepts `v1` and a bare ISO timestamp; a v1 client starts items from ZERO rather than
       inheriting the contacts' position, or the whole price list would never be delivered.
 
-> ⚠️ **Play Store blockers, found 2026-08-17, NOT yet fixed** (owner deferred): (1) **`SEND_SMS`** —
-> Play restricts it to apps whose core purpose is SMS (default handler); auto-sending a debt notice
-> is not an approved use, so this is a likely rejection. Safe fix: drop the permission and use an
-> `ACTION_SENDTO` intent (pre-filled, user taps send), like the WhatsApp flow already does.
+> ⚠️ **Play Store blockers, found 2026-08-17.** (1) **`SEND_SMS`** — ✅ **FIXED 2026-08-24, see
+> Phase 12.** The rest are still open (owner deferred):
 > (2) **Paid activation outside Play** — cloud sync is sold and activated manually over WhatsApp;
 > Play requires Play Billing for digital purchases and forbids steering users to outside payment.
 > Play billing is unavailable in Yemen, so the defensible position is that the app sells nothing
@@ -705,6 +704,31 @@ frontend unit tests pass. **Not yet device-tested.**
 > Local dev + test: the same file against `daftar_db` AND `daftar_test` (or
 > `sudo bash server/db/local-reset.sh` to reload both from `schema.sql`).
 > Phones migrate themselves on next launch via `migrations.ts` (`user_version` 4).
+
+## Status — DONE (Phase 12: SMS by intent, not by permission) ✅ (2026-08-24)
+Closes Play Store blocker (1). Frontend + manifest only — no server change, no migration.
+Tests 20/20. **Not yet device-tested.**
+
+- [x] **`SEND_SMS` is gone, and must not come back.** Google Play restricts that permission to
+      apps whose core purpose is messaging — the phone's default SMS handler — and this is a
+      ledger. There is no declaration form that changes the answer, so holding it made the app
+      unpublishable. `cordova-sms-plugin` is uninstalled with it.
+- [x] **The notice now opens the user's own messaging app, pre-filled** (`openSms`,
+      `src/lib/notify.ts`): an `sms:<number>?body=<text>` URI handed to the OS, which Capacitor's
+      WebView turns into an intent. **No permission at all.** `<queries>` entries for
+      `SENDTO`/`smsto` and `VIEW`/`sms` were added to the manifest — Android 11+ package
+      visibility, or the intent will not resolve.
+      🧩 Server concept: **capability vs delegation.** Asking for `SEND_SMS` is asking to HOLD the
+      power to message anyone, silently, forever. Firing an intent DELEGATES the act to a
+      component the user controls — same outcome, power never held. It is the same principle as
+      `daftar_user` having DML but not DDL on the droplet.
+- [x] **Both channels are a tap now, so the sheet offers both.** The old flow auto-sent the SMS
+      and then asked only about WhatsApp. `useContactNotifier` now presents «إرسال عبر واتساب» /
+      «إرسال برسالة نصية» / «إلغاء», and cancelling — including via the back button or the
+      backdrop — still routes through the confirm alert.
+- ⚠️ **What was lost:** one extra tap per notice, no background sending, and no delivery
+      confirmation. Also: the grocer now leaves the app to send, so a notice interrupted halfway
+      is simply not sent — the entry is already recorded either way.
 
 > ▶ **RESUME HERE:** device-test Phase 11 (invoice review → تأكيد → record/print, the itemised
 > message on a real phone, deleting a صنف, and groups incl. a second-device sync of one), then

@@ -40,17 +40,31 @@
     </application>
 
     <!-- Android 11+ package visibility: needed so the PDF-to-WhatsApp share
-         (ACTION_SEND with setPackage("com.whatsapp")) can resolve WhatsApp. -->
+         (ACTION_SEND with setPackage("com.whatsapp")) can resolve WhatsApp,
+         and so the phone's own messaging app can be resolved for a notice sent
+         by SMS. -->
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="smsto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="sms" />
+        </intent>
     </queries>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Auto-send customer notification SMS from the grocer's phone -->
-    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!-- NO SMS PERMISSION, deliberately. The notice used to be sent in the
+         background with SEND_SMS; Google Play restricts that permission to apps
+         whose core purpose is messaging (the default SMS handler), so holding it
+         made the app unpublishable. A notice now opens the user's own messaging
+         app pre-filled, via an `sms:` intent, which needs no permission at all
+         (see src/lib/notify.ts). Do not add it back. -->
     <!-- Pick a customer's number from the phone's saved contacts. The contacts
          plugin's "contacts" permission alias bundles READ + WRITE, and the alias
          is only GRANTED when BOTH are declared — so WRITE_CONTACTS is required

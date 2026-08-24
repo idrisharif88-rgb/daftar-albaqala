@@ -5,10 +5,16 @@ import { getBalances, type TxnType } from '../data/transactions';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
 import type { CurrencyCode } from '../data/currencies';
-import { buildMessage, sendSms, openWhatsApp, type InvoiceInfo } from './notify';
+import { buildMessage, openSms, openWhatsApp, type InvoiceInfo } from './notify';
 
-// Telling the contact what was just recorded — the SMS, then the WhatsApp
-// offer, then the "are you sure you don't want to send it" confirmation.
+// Telling the contact what was just recorded — the choice of channel, then the
+// "are you sure you don't want to send it" confirmation.
+//
+// BOTH channels are now a tap. The SMS used to go out by itself, in the
+// background, which meant the grocer only had to think about WhatsApp; that
+// relied on the SEND_SMS permission, which Google Play will not grant to an app
+// that is not the phone's messaging app (see notify.ts). So the sheet offers
+// the two channels side by side and the person picks one.
 //
 // This lives in a hook because TWO screens record entries now: the contact
 // screen and the invoice. Duplicating it would mean an invoice that quietly
@@ -38,13 +44,13 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<void> {
   const [presentSheet] = useIonActionSheet();
   const [presentAlert] = useIonAlert();
 
-  // Make sure cancelling the WhatsApp notice was intentional. «تراجع» reopens
-  // the send sheet (deferred so this alert has finished dismissing first).
+  // Make sure cancelling the notice was intentional. «تراجع» reopens the send
+  // sheet (deferred so this alert has finished dismissing first).
   const confirmCancel = useCallback((phone: string, message: string) => {
     const reopen = () => setTimeout(() => presentSendSheet(phone, message), 350);
     presentAlert({
       header: 'تأكيد الإلغاء',
-      message: 'هل أنت متأكد أنك لا تريد إرسال الإشعار عبر واتساب؟',
+      message: 'هل أنت متأكد أنك لا تريد إرسال الإشعار للجهة؟',
       buttons: [
         { text: 'تراجع', cssClass: 'alert-btn-send', handler: reopen },
         { text: 'نعم، إلغاء', role: 'cancel', cssClass: 'alert-btn-cancel' },
@@ -53,21 +59,24 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<void> {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presentAlert]);
 
-  // WhatsApp send sheet — one olive "send" button + "cancel". The chosen action
-  // runs from onDidDismiss (after the sheet has fully closed) so the cancel
-  // confirmation can present without racing the dismiss animation.
+  // The send sheet — WhatsApp, SMS, cancel. The chosen action runs from
+  // onDidDismiss (after the sheet has fully closed): both channels leave the
+  // app for another one, and the cancel confirmation needs to present without
+  // racing the dismiss animation.
   const presentSendSheet = useCallback((phone: string, message: string) => {
-    let choice: 'send' | 'cancel' | null = null;
+    let choice: 'whatsapp' | 'sms' | 'cancel' | null = null;
     presentSheet({
-      header: 'إرسال إشعار عبر واتساب',
+      header: 'إرسال إشعار للجهة',
       buttons: [
-        { text: 'إرسال عبر واتساب', cssClass: 'as-olive', handler: () => { choice = 'send'; } },
+        { text: 'إرسال عبر واتساب', cssClass: 'as-olive', handler: () => { choice = 'whatsapp'; } },
+        { text: 'إرسال برسالة نصية', cssClass: 'as-olive', handler: () => { choice = 'sms'; } },
         { text: 'إلغاء', cssClass: 'as-olive', handler: () => { choice = 'cancel'; } },
       ],
       onDidDismiss: () => {
-        // Anything other than an explicit "send" — the إلغاء button, the back
+        // Anything other than an explicit channel — the إلغاء button, the back
         // button, or a backdrop tap — is treated as a cancel and confirmed.
-        if (choice === 'send') openWhatsApp(phone, message);
+        if (choice === 'whatsapp') openWhatsApp(phone, message);
+        else if (choice === 'sms') openSms(phone, message);
         else confirmCancel(phone, message);
       },
     });
@@ -95,7 +104,6 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<void> {
       note,
       invoice,
     });
-    void sendSms(c.phone, message); // auto: one combined SMS (balance + note)
     presentSendSheet(c.phone, message);
   }, [presentSendSheet]);
 }
