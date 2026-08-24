@@ -16,11 +16,12 @@ import {
   BASE_CURRENCY, CONVERTIBLE_CURRENCIES, currencyDef, DEFAULT_RATES, type Rates,
 } from '../data/currencies';
 import { ROLES, type ContactRole } from '../data/roles';
-import { openWhatsApp } from '../lib/notify';
+import { openEmail, openUrl, openWhatsApp } from '../lib/notify';
 import {
   printingAvailable, listPrinters, getSavedPrinter, savePrinter,
 } from '../lib/print';
 import { SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
+import { INACTIVE_MESSAGE, SUPPORT_EMAIL } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
@@ -61,12 +62,38 @@ const Settings: React.FC = () => {
   // Open a WhatsApp chat to the owner with a pre-filled activation request. The
   // owner sees the sender's WhatsApp number (proving the grocer owns it) and
   // activates the account on the server. No server call — this is a direct chat.
-  const requestActivationFlow = () => {
+  // Asking to have this account's number verified. Two ways out, because the
+  // two audiences differ: the owner's people live on WhatsApp, while a Play
+  // reviewer on an emulator has no WhatsApp at all and needs a route that
+  // always exists. Email leads for that reason.
+  const verificationMessage = () => {
     const who = settings ? messageSender(settings) : '';
-    const msg =
-      `مرحباً، أرجو تفعيل حسابي في تطبيق دفتر البقالة.` +
+    return `مرحباً، أرجو التحقق من رقمي وتفعيل حسابي في تطبيق دفتر البقالة.` +
       (who ? `\nالاسم: ${who}` : '');
-    openWhatsApp(OWNER_WHATSAPP, msg);
+  };
+
+  const requestByEmail = async () => {
+    const opened = await openEmail(
+      SUPPORT_EMAIL, 'تفعيل حساب — دفتر البقالة', verificationMessage(),
+    );
+    if (!opened) {
+      await presentToast({
+        message: `لا يوجد تطبيق بريد. راسلنا على ${SUPPORT_EMAIL}`,
+        color: 'warning',
+        duration: 4000,
+      });
+    }
+  };
+
+  const requestByWhatsApp = async () => {
+    const opened = await openWhatsApp(OWNER_WHATSAPP, verificationMessage());
+    if (!opened) {
+      await presentToast({
+        message: 'واتساب غير مثبّت على هذا الجهاز',
+        color: 'warning',
+        duration: 2500,
+      });
+    }
   };
 
   const update = (patch: Partial<AppSettings>) =>
@@ -339,18 +366,28 @@ const Settings: React.FC = () => {
               {exporting ? <IonSpinner name="crescent" /> : 'تصدير الدفتر إلى Excel'}
             </IonButton>
 
+            {/* The same words the blocked screens show, so an owner who goes
+                looking in Settings finds one answer and not a second one. */}
             {!active && (
               <div className="ion-margin-top">
                 <IonNote color="warning" className="ion-padding-start">
-                  <IonText>حسابك غير مفعّل. أرسل طلباً للمالك لتفعيل المزامنة السحابية.</IonText>
+                  <IonText className="pre-line">{INACTIVE_MESSAGE}</IonText>
                 </IonNote>
                 <IonButton
                   expand="block"
                   color="warning"
-                  onClick={requestActivationFlow}
+                  onClick={() => { void requestByEmail(); }}
                   className="ion-margin-top"
                 >
-                  طلب التفعيل
+                  التواصل عبر البريد الإلكتروني
+                </IonButton>
+                <IonButton
+                  expand="block"
+                  fill="outline"
+                  color="warning"
+                  onClick={() => { void requestByWhatsApp(); }}
+                >
+                  التواصل عبر واتساب
                 </IonButton>
               </div>
             )}

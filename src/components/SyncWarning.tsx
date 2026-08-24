@@ -53,7 +53,10 @@ export const SyncWarning: React.FC<Props> = ({ onRetry, busy, label }) => (
 // indicator so the toast and the tooltip always say the same thing.
 export const SYNC_PROBLEM_TEXT: Record<string, string> = {
   offline: 'لا يوجد اتصال — البيانات محفوظة على الجهاز ولم تُرفع بعد',
-  subscription: 'المزامنة تتطلب اشتراكاً فعّالاً',
+  // Was «المزامنة تتطلب اشتراكاً فعّالاً». The gate is a check that the phone
+  // number is real, and the wording has to say that and nothing else — no
+  // price, no plan, and not the word اشتراك (see data/account.ts).
+  subscription: 'الحساب غير مفعّل — تواصل معنا للتحقق من رقمك',
   error: 'تعذّرت المزامنة، اضغط للمحاولة مرة أخرى',
   partial: 'بعض السجلات لم تُرفع — اضغط للمحاولة مرة أخرى',
 };

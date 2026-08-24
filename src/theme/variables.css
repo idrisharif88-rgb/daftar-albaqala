@@ -365,3 +365,13 @@ ion-item { --background: #ffffff; }
   background: var(--ion-color-light, #f4f5f8);
   border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
+
+/* Messages that carry their own line breaks — the activation notice is two
+   languages, one block each. Ionic renders the string as text, so without this
+   the breaks collapse and the two languages run together into one paragraph. */
+.alert-message,
+ion-toast::part(message) {
+  white-space: pre-line;
+}
+
+.pre-line { white-space: pre-line; }
