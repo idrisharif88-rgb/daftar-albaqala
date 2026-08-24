@@ -636,16 +636,32 @@ frontend unit tests pass. **Not yet device-tested.**
       deliberately **not synced** — it counts what this phone issued, the way a paper book counts
       what that book issued, so it is a reference and never an identity (the UUID is).
 - [x] **The message is now the invoice** (`buildMessage`, `src/lib/notify.ts`, + `InvoiceInfo`
-      threaded through `useContactNotifier`): sender / «فاتورة رقم N» / «التاريخ … الساعة …» /
-      a line per item / then the existing entry + balance + تفقيط block. The note is suppressed
-      when an invoice is present — it holds the same breakdown.
-      ⚠️ **The paper's four columns are NOT reproduced as columns.** «800 | 3 | 2,400» is three
-      numbers separated by neutral characters in a right-to-left paragraph, and the bidi
-      algorithm hands those neutrals the paragraph direction — the reader is shown
-      «2,400 | 3 | 800». A price list that silently swaps its own columns is worse than none, so
-      every figure is introduced by an Arabic word instead: «جبن — كمية 3 × سعر 800 — إجمالي
-      2,400». Same reason the date reads «2026-08-24 الساعة 18:47» rather than «2026-08-24 18:47»
-      (a space between two numbers reverses them). Whole-message test in `notify.test.ts`.
+      threaded through `useContactNotifier`). Layout the owner specified (2026-08-24, revised
+      once after seeing it on the phone) — the note is suppressed when an invoice is present,
+      since it holds the same breakdown:
+      ```
+      مركز أبو الليث              ← sender (store name, else owner name)
+      فاتورة رقم 12
+      التاريخ 2026-08-24 الساعة 18:47
+                                  ← (blank)
+      جبن ك:3 س:800 إج:2,400      ← name, quantity, unit price, line total
+      سكر ك:2 س:500 إج:1,000
+      الإجمالي: 3,400 ريال يمني
+                                  ← (blank)
+      تسجيل دين 3,400 ريال يمني    ← the entry, then the usual balance + تفقيط block
+      ```
+      ⚠️ **The paper's four columns are NOT aligned into columns, and cannot be.** Two reasons,
+      both unfixable in plain text: a proportional font staggers «جبن» against «معكرونة» however
+      much it is padded; and a line of nothing but numbers and punctuation («800 | 3 | 2,400»)
+      has no strong character to fix its direction, so the reader's phone may lay it out either
+      way — reversing the columns. A line that STARTS with the item name always has one, so its
+      order is safe. Hence a LABEL on each figure instead of a position: **ك** كمية, **س** سعر,
+      **إج** إجمالي. Single letters because an SMS is billed by the segment — this fits ~4 items
+      where the full words fit 2. Same reasoning behind «التاريخ 2026-08-24 الساعة 18:47»: a
+      bare «2026-08-24 18:47» is two numbers with a space between them and can come back
+      reversed. Whole-message test in `notify.test.ts`.
+      The printed receipt DOES keep real four-column alignment — it is drawn on a canvas, where
+      neither font width nor bidi is in the reader's hands (`src/lib/receipt.ts`).
 - [x] **Deleting a صنف is findable.** The swipe action was already there and invisible — nothing
       on screen said so, and an owner who cannot find it concludes the app will not allow it. The
       open item's form now also carries a plain **«حذف الصنف»** button (`src/pages/Items.tsx`).
