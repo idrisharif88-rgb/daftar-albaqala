@@ -163,12 +163,10 @@ describe('buildMessage', () => {
     );
   });
 
-  // The invoice — the owner's paper book, spelled out for the recipient: a
-  // number, a date, and one line per item carrying name, quantity, unit price
-  // and line total. The figures are LABELLED (ك / س / إج) rather than aligned
-  // into columns: a proportional font cannot align them, and a line of nothing
-  // but numbers has no direction of its own (see notify.ts).
-  it('itemises an invoice above the entry, in the paper book order', () => {
+  // The invoice — the owner's paper book, spelled out for the recipient. The
+  // third line names the SENDER by what he is to the reader: writing to a shop
+  // he buys from, he is that shop's «الزبون».
+  it('lays a basket out as an invoice', () => {
     const msg = buildMessage({
       senderName: 'إدريس',
       role: 'supplier',
@@ -189,19 +187,49 @@ describe('buildMessage', () => {
       },
     });
     expect(msg).toBe(
-      'إدريس\n' +
-      'فاتورة رقم 12\n' +
-      'التاريخ 2026-08-24 الساعة 18:47\n' +
+      '🧾 فاتورة رقم 12\n' +
+      '📅 الاثنين 2026-08-24 — 06:47 م\n' +
+      'الزبون: إدريس\n' +
+      '━━━━━━━━━━━━\n' +
+      '1) جبن\n' +
+      '   العدد 3 × 800 = 2,400 ريال\n' +
       '\n' +
-      'جبن ك:3 س:800 إج:2,400\n' +
-      'سكر ك:2 س:500 إج:1,000\n' +
-      'الإجمالي: 3,400 ريال يمني\n' +
-      '\n' +
-      'تسجيل دين 3,400 ريال يمني\n' +
-      '\n' +
-      'رصيدك الآن: 3,400 ريال يمني لك\n' +
-      'ثلاثة آلاف وأربعمائة ريال'
+      '2) سكر\n' +
+      '   العدد 2 × 500 = 1,000 ريال\n' +
+      '━━━━━━━━━━━━\n' +
+      'إجمالي الفاتورة: 3,400 ريال يمني\n' +
+      'الدفع: آجل (دين)\n' +
+      '━━━━━━━━━━━━\n' +
+      '💰 الرصيد الحالي: 3,400 ريال يمني\n' +
+      'ثلاثة آلاف وأربعمائة ريال\n' +
+      '(لكم عندنا)'
     );
+  });
+
+  // Writing to his own customer, the owner is «المتجر» — the mirror of the
+  // case above. Naming the wrong side is how an invoice ends up saying the
+  // sender is the one who owes.
+  it('names the sender by what he is to THIS contact', () => {
+    const msg = buildMessage({
+      senderName: 'بقالة الأمل',
+      role: 'customer',
+      type: 'debt',
+      amount: toMinor(500),
+      currency: 'YER',
+      balances: [yer(500)],
+      rates: RATES,
+      invoice: {
+        number: 3,
+        issuedAt: new Date(2026, 7, 24, 9, 51),
+        lines: [
+          { name: 'خبز', qty: 5, unitPrice: toMinor(100), currency: 'YER', total: toMinor(500) },
+        ],
+      },
+    });
+    expect(msg.split('\n')[2]).toBe('المتجر: بقالة الأمل');
+    // A morning entry, and the balance points the other way.
+    expect(msg.split('\n')[1]).toBe('📅 الاثنين 2026-08-24 — 09:51 ص');
+    expect(msg.split('\n').pop()).toBe('(عليكم لنا)');
   });
 
   it('appends the note last, attributed to the sender', () => {

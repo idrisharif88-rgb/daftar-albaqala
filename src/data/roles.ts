@@ -24,6 +24,13 @@ export interface RoleDef {
   role: ContactRole;
   /** Singular, for a chip on a row — «زبون». */
   labelAr: string;
+  /**
+   * What the OWNER is to a contact of this role — the mirror of `labelAr`.
+   * An invoice names the person who issued it, and to a shop the owner buys
+   * from he is that shop's «زبون», not its «صاحب متجر». Getting this backwards
+   * puts the wrong name against the wrong side of the deal.
+   */
+  senderLabelAr: string;
   /** Plural, for the filter tabs — «زبائن». */
   pluralAr: string;
   /**
@@ -50,7 +57,7 @@ export interface RoleDef {
 export const ROLES: RoleDef[] = [
   {
     // Someone who buys from the owner — the original case.
-    role: 'customer', labelAr: 'زبون', pluralAr: 'زبائن',
+    role: 'customer', labelAr: 'زبون', pluralAr: 'زبائن', senderLabelAr: 'المتجر',
     plusAr: 'تسجيل دين', minusAr: 'تسديد دفعة',
     plusContactAr: 'تسجيل دين', minusContactAr: 'تسديد دفعة',
     growsType: 'debt',
@@ -59,14 +66,14 @@ export const ROLES: RoleDef[] = [
     // A shop the owner buys FROM. Same two words as a customer — a debt is a
     // debt — but the sign is mirrored: goods taken on credit lower the balance,
     // so «تسجيل دين» is the minus direction here.
-    role: 'supplier', labelAr: 'صاحب متجر', pluralAr: 'أصحاب المتاجر',
+    role: 'supplier', labelAr: 'صاحب متجر', pluralAr: 'أصحاب المتاجر', senderLabelAr: 'الزبون',
     plusAr: 'تسديد دفعة', minusAr: 'تسجيل دين',
     plusContactAr: 'تسديد دفعة', minusContactAr: 'تسجيل دين',
     growsType: 'payment',
   },
   {
     // Peer trade — money moves both ways, so the wording is plainly personal.
-    role: 'partner', labelAr: 'شريك', pluralAr: 'شركاء',
+    role: 'partner', labelAr: 'شريك', pluralAr: 'شركاء', senderLabelAr: 'الشريك',
     plusAr: 'دفعت له', minusAr: 'أخذت منه',
     plusContactAr: 'دفعت لك', minusContactAr: 'أخذت منك',
     growsType: 'payment',
@@ -147,6 +154,17 @@ export function contactBalanceLabel(minor: number): string {
     case 'they_owe': return 'عليك';
     case 'we_owe': return 'لك';
     default: return 'مسدد';
+  }
+}
+
+/** The same, in the plural-polite form an invoice closes with — «(لكم عندنا)»
+ *  reads as a statement of account rather than a demand, which is what the
+ *  owner wanted on a document handed across a counter. */
+export function contactBalancePhrase(minor: number): string {
+  switch (balanceDirection(minor)) {
+    case 'they_owe': return 'عليكم لنا';
+    case 'we_owe': return 'لكم عندنا';
+    default: return 'الحساب مسدد';
   }
 }
 

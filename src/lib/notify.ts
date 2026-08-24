@@ -1,10 +1,12 @@
 import { Capacitor } from '@capacitor/core';
 import { formatMinor } from '../data/money';
 import {
-  BASE_CURRENCY, baseValueLine, formatAmountFull, hasRate, totalInBase,
+  BASE_CURRENCY, baseValueLine, currencyDef, formatAmountFull, hasRate, totalInBase,
   type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
-import { contactBalanceLabel, contactDirectionLabel } from '../data/roles';
+import {
+  contactBalanceLabel, contactBalancePhrase, contactDirectionLabel, roleDef,
+} from '../data/roles';
 import { tafqeetBaseMinor } from './tafqeet';
 import type { TxnType } from '../data/transactions';
 import type { InvoiceLine } from './receipt';
@@ -39,51 +41,88 @@ export function toIntlDigits(phone: string): string {
   return YEMEN_CC + d;
 }
 
-// A timestamp the way the statement and the spreadsheet write it: fixed
-// yyyy-mm-dd, Western digits, with the time introduced by an Arabic word.
+// ---- The invoice message ----
 //
-// `toLocaleString('ar')` returns Arabic-Indic digits wrapped in direction
-// marks, and «2026-08-24 18:47» as one run is worse still: the space between
-// two numbers is a neutral character with a number on either side, so the
-// bidi algorithm hands it the paragraph's right-to-left direction and the
-// reader is shown «18:47 2026-08-24». Every number below is therefore
-// introduced by an Arabic word, which is what keeps the runs apart.
+// A recorded basket goes out looking like the invoice it is — the layout the
+// owner specified from his paper book (2026-08-24):
+//
+//   🧾 فاتورة رقم 12
+//   📅 الاثنين 2026-08-24 — 09:51 ص
+//   الزبون: إدريس أحمد
+//   ━━━━━━━━━━━━
+//   1) صحة شملان صغير
+//      العدد 1 × 100 = 100 ريال
+//
+//   2) كيك أبو 50
+//      العدد 2 × 50 = 100 ريال
+//   ━━━━━━━━━━━━
+//   إجمالي الفاتورة: 200 ريال يمني
+//   الدفع: آجل (دين)
+//   ━━━━━━━━━━━━
+//   💰 الرصيد الحالي: 4,451 ريال يمني
+//   أربعة آلاف وأربعمائة وواحد وخمسون ريالاً
+//   (لكم عندنا)
+//
+// Two things are not obvious from looking at it:
+//
+//  - The third line names the SENDER by what he is to the reader — «الزبون»
+//    writing to a shop he buys from, «المتجر» writing to his own customer (see
+//    `senderLabelAr` in roles.ts). An invoice states which side of the counter
+//    issued it, and this app is used from both.
+//  - Nothing is aligned into columns and nothing tries to be. «جبن» and
+//    «معكرونة» are different widths in a proportional font, so padding gives a
+//    staggered edge rather than a table; the quantity line carries its own
+//    label instead. The printed receipt does have real columns — it is drawn on
+//    a canvas, where the font and the direction are ours to fix (receipt.ts).
+
+const DAYS_AR = [
+  'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت',
+];
+
+const RULE = '━━━━━━━━━━━━';
+
+// «الاثنين 2026-08-24 — 09:51 ص».
+//
+// Built by hand rather than with `toLocaleString('ar')`, which returns
+// Arabic-Indic digits wrapped in direction marks — those survive a screen but
+// not an SMS gateway, and the app already writes fixed yyyy-mm-dd on the
+// statement and in the spreadsheet.
 function stamp(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  return `${date} الساعة ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const hour24 = d.getHours();
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  const meridiem = hour24 < 12 ? 'ص' : 'م';
+  return `${DAYS_AR[d.getDay()]} ${date} — ${p(hour12)}:${p(d.getMinutes())} ${meridiem}`;
 }
 
-// The invoice, laid out the way the owner's paper book lays it out: the number,
-// the date, then one line per item — name, quantity, unit price, line total —
-// and the total underneath.
-//
-// The paper has four COLUMNS; an SMS has none. Two things stop a column from
-// being a column here, and both are unfixable in plain text:
-//  - Width. «جبن» and «معكرونة» are different widths in a proportional font,
-//    so padding with spaces produces a staggered edge, not a table.
-//  - Direction. A line of nothing but numbers and punctuation («800 | 3 |
-//    2,400») has no strong character to set its direction, and the reader's
-//    phone is free to lay it out left-to-right — reversing the columns. A line
-//    that STARTS with the item name always has one, so its order is fixed.
-// So the meaning is carried by a LABEL on each figure rather than by its
-// position: «ك» كمية, «س» سعر, «إج» إجمالي. Single letters because an SMS is
-// billed by the segment — this fits about four items where the full words fit
-// two.
-function invoiceLines(invoice: InvoiceInfo, total: number, currency: CurrencyCode): string[] {
-  const out = [
-    `فاتورة رقم ${invoice.number}`,
-    `التاريخ ${stamp(invoice.issuedAt)}`,
-    '',
+function invoiceHeader(
+  invoice: InvoiceInfo, senderName: string, role: string,
+): string[] {
+  const lines = [
+    `🧾 فاتورة رقم ${invoice.number}`,
+    `📅 ${stamp(invoice.issuedAt)}`,
   ];
-  for (const l of invoice.lines) {
-    out.push(
-      `${l.name} ك:${l.qty} س:${formatMinor(l.unitPrice)} إج:${formatMinor(l.total)}`,
+  // An unnamed book has nothing to sign with — better a line missing than a
+  // line reading «الزبون: ».
+  if (senderName) lines.push(`${roleDef(role).senderLabelAr}: ${senderName}`);
+  lines.push(RULE);
+  return lines;
+}
+
+function invoiceItems(invoice: InvoiceInfo): string[] {
+  const lines: string[] = [];
+  invoice.lines.forEach((l, index) => {
+    if (index > 0) lines.push('');
+    lines.push(`${index + 1}) ${l.name}`);
+    // The short currency name here, the full one on the total below: the reader
+    // needs to be told once which riyal this is, not on every line.
+    lines.push(
+      `   العدد ${l.qty} × ${formatMinor(l.unitPrice)} = ` +
+      `${formatMinor(l.total)} ${currencyDef(l.currency).shortAr}`,
     );
-  }
-  out.push(`الإجمالي: ${formatAmountFull(total, currency)}`);
-  out.push('');
-  return out;
+  });
+  return lines;
 }
 
 // The Arabic message, one fact per line, in the order the recipient reads them:
@@ -122,12 +161,26 @@ export function buildMessage(opts: {
 }): string {
   const { senderName, role, type, amount, currency, balances, rates, note, invoice } = opts;
   const sender = senderName.trim();
+
+  // A basket is a different document from a single entry, so it gets its own
+  // layout rather than a paragraph bolted onto this one.
+  if (invoice) {
+    return [
+      ...invoiceHeader(invoice, sender, role),
+      ...invoiceItems(invoice),
+      RULE,
+      `إجمالي الفاتورة: ${formatAmountFull(amount, currency)}`,
+      'الدفع: آجل (دين)',
+      RULE,
+      ...invoiceBalance(balances, rates),
+      // The note is NOT repeated: for an invoice it holds the same breakdown
+      // the items above already spell out.
+    ].join('\n');
+  }
+
   const lines: string[] = [];
 
   if (sender) lines.push(sender);
-
-  // The itemised part comes first: it explains the figure the next line states.
-  if (invoice) lines.push(...invoiceLines(invoice, amount, currency));
 
   // What just happened, in the currency it was recorded in — then its riyal
   // value, with the rate, when it wasn't riyals.
@@ -181,6 +234,42 @@ function balanceLines(balances: CurrencyBalance[], rates: Rates): string[] {
       `${contactBalanceLabel(totalMinor)}${partial}`
     );
     lines.push(tafqeetBaseMinor(Math.abs(totalMinor)));
+  }
+  return lines;
+}
+
+// How the invoice closes: the running balance, the same figure in letters, and
+// which way it points. The direction is a phrase on its own line — «(لكم
+// عندنا)» — rather than a word tacked onto the amount, because on a document
+// handed across a counter it reads as a statement of account instead of a
+// demand.
+function invoiceBalance(balances: CurrencyBalance[], rates: Rates): string[] {
+  if (balances.length === 0) return ['💰 الحساب مسدد'];
+
+  const lines: string[] = [];
+  const convertible = balances.filter((b) => hasRate(rates, b.currency));
+  const canTotal = convertible.length > 0;
+
+  // More than one currency, or one that is not the riyal: each stands on its
+  // own line first — a balance never merges across currencies (currencies.ts).
+  const perCurrency = balances.length > 1 || balances[0].currency !== BASE_CURRENCY;
+  if (perCurrency) {
+    if (!canTotal) lines.push('💰 الرصيد الحالي:');
+    for (const b of balances) {
+      lines.push(`${formatAmountFull(Math.abs(b.minor), b.currency)} ${contactBalanceLabel(b.minor)}`);
+      const inBase = baseValueLine(Math.abs(b.minor), b.currency, rates, balances.length === 1);
+      if (inBase) lines.push(inBase);
+    }
+  }
+
+  if (canTotal) {
+    const { minor: totalMinor, complete } = totalInBase(balances, rates);
+    // Say so rather than quietly understating the debt when a rate is missing.
+    const partial = complete ? '' : ' (عدا ما لم يُحدَّد سعره)';
+    const heading = perCurrency ? 'الرصيد الحالي' : '💰 الرصيد الحالي';
+    lines.push(`${heading}: ${formatAmountFull(Math.abs(totalMinor), BASE_CURRENCY)}${partial}`);
+    lines.push(tafqeetBaseMinor(Math.abs(totalMinor)));
+    lines.push(`(${contactBalancePhrase(totalMinor)})`);
   }
   return lines;
 }

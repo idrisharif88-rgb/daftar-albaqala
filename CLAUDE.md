@@ -635,33 +635,46 @@ frontend unit tests pass. **Not yet device-tested.**
       («فاتورة رقم 12: جبن ×3، …»), heads the printed receipt, and opens the message. It is
       deliberately **not synced** — it counts what this phone issued, the way a paper book counts
       what that book issued, so it is a reference and never an identity (the UUID is).
-- [x] **The message is now the invoice** (`buildMessage`, `src/lib/notify.ts`, + `InvoiceInfo`
-      threaded through `useContactNotifier`). Layout the owner specified (2026-08-24, revised
-      once after seeing it on the phone) — the note is suppressed when an invoice is present,
-      since it holds the same breakdown:
+- [x] **The message IS the invoice** (`buildMessage`, `src/lib/notify.ts`, + `InvoiceInfo`
+      threaded through `useContactNotifier`). A basket gets its own layout, not a paragraph
+      bolted onto the single-entry message — the owner drew it from his paper book and revised
+      it twice on the device (final, 2026-08-24):
       ```
-      مركز أبو الليث              ← sender (store name, else owner name)
-      فاتورة رقم 12
-      التاريخ 2026-08-24 الساعة 18:47
-                                  ← (blank)
-      جبن ك:3 س:800 إج:2,400      ← name, quantity, unit price, line total
-      سكر ك:2 س:500 إج:1,000
-      الإجمالي: 3,400 ريال يمني
-                                  ← (blank)
-      تسجيل دين 3,400 ريال يمني    ← the entry, then the usual balance + تفقيط block
+      🧾 فاتورة رقم 12
+      📅 الاثنين 2026-08-24 — 06:47 م
+      الزبون: إدريس                    ← the SENDER, named by what he is to the reader
+      ━━━━━━━━━━━━
+      1) جبن
+         العدد 3 × 800 = 2,400 ريال
+                                       ← (blank between items)
+      2) سكر
+         العدد 2 × 500 = 1,000 ريال
+      ━━━━━━━━━━━━
+      إجمالي الفاتورة: 3,400 ريال يمني  ← full currency name, once
+      الدفع: آجل (دين)
+      ━━━━━━━━━━━━
+      💰 الرصيد الحالي: 3,400 ريال يمني
+      ثلاثة آلاف وأربعمائة ريال
+      (لكم عندنا)
       ```
-      ⚠️ **The paper's four columns are NOT aligned into columns, and cannot be.** Two reasons,
-      both unfixable in plain text: a proportional font staggers «جبن» against «معكرونة» however
-      much it is padded; and a line of nothing but numbers and punctuation («800 | 3 | 2,400»)
-      has no strong character to fix its direction, so the reader's phone may lay it out either
-      way — reversing the columns. A line that STARTS with the item name always has one, so its
-      order is safe. Hence a LABEL on each figure instead of a position: **ك** كمية, **س** سعر,
-      **إج** إجمالي. Single letters because an SMS is billed by the segment — this fits ~4 items
-      where the full words fit 2. Same reasoning behind «التاريخ 2026-08-24 الساعة 18:47»: a
-      bare «2026-08-24 18:47» is two numbers with a space between them and can come back
-      reversed. Whole-message test in `notify.test.ts`.
-      The printed receipt DOES keep real four-column alignment — it is drawn on a canvas, where
-      neither font width nor bidi is in the reader's hands (`src/lib/receipt.ts`).
+      Three things that are not obvious:
+      - **The third line names the SENDER, and its label is the MIRROR of the contact's role**
+        (`senderLabelAr`, roles.ts): writing to a صاحب متجر the owner is «الزبون»; writing to a
+        زبون he is «المتجر»; to a شريك, «الشريك». An invoice states which side of the counter
+        issued it, and this book is used from both sides. Getting it backwards puts the wrong
+        name against the wrong side of the deal.
+      - **The closing direction is a phrase on its own line** — «(لكم عندنا)» / «(عليكم لنا)»
+        (`contactBalancePhrase`), not a word tacked onto the amount: on a document handed across
+        a counter it has to read as a statement of account, not a demand.
+      - **Nothing is aligned into columns, and nothing tries to be.** «جبن» and «معكرونة» are
+        different widths in a proportional font, so padding gives a staggered edge rather than a
+        table; the quantity line carries its own label instead. The date is written out by hand
+        («الاثنين 2026-08-24 — 06:47 م») because `toLocaleString('ar')` returns Arabic-Indic
+        digits wrapped in direction marks, which survive a screen but not an SMS gateway. The
+        PRINTED receipt does have real columns — it is drawn on a canvas, where the font and the
+        direction are ours to fix (`src/lib/receipt.ts`).
+      The entry's note is not repeated in an invoice message — it holds the same breakdown.
+      Single entries keep the Phase 9 layout, untouched. Whole-message tests in `notify.test.ts`.
 - [x] **Deleting a صنف is findable.** The swipe action was already there and invisible — nothing
       on screen said so, and an owner who cannot find it concludes the app will not allow it. The
       open item's form now also carries a plain **«حذف الصنف»** button (`src/pages/Items.tsx`).
