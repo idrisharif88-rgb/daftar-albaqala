@@ -25,6 +25,7 @@ import {
   ROLES, directionColor, directionLabel, orderedTypes, roleDef, type ContactRole,
 } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
+import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { runSync } from '../data/sync';
 import { useContactNotifier } from '../lib/useContactNotifier';
 import { FEATURES } from '../config';
@@ -275,8 +276,17 @@ const CustomerDetail: React.FC = () => {
         rates,
         periodLabel,
       });
-    } catch {
-      presentAlert({ header: 'خطأ', message: 'تعذّر إنشاء ملف PDF', buttons: ['حسناً'] });
+    } catch (err) {
+      // Backing out of the share sheet is not a failure and gets no dialog.
+      if (!(err instanceof ShareCancelledError)) {
+        presentAlert({
+          header: 'خطأ',
+          message: err instanceof NoShareTargetError
+            ? 'لا يوجد تطبيق يمكنه فتح هذا الملف'
+            : 'تعذّر إنشاء ملف PDF',
+          buttons: ['حسناً'],
+        });
+      }
     } finally {
       setExporting(false);
     }

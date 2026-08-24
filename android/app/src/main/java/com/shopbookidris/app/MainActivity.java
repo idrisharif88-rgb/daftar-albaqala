@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
         // only the ones installed as packages are. Registration must happen
         // BEFORE super.onCreate, which is where the bridge is built.
         registerPlugin(ContactPickerPlugin.class);
+        registerPlugin(OutboundPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

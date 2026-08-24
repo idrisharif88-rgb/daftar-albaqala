@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { formatMinor } from '../data/money';
 import {
   BASE_CURRENCY, baseValueLine, currencyDef, formatAmountFull, hasRate, totalInBase,
@@ -274,50 +274,127 @@ function invoiceBalance(balances: CurrencyBalance[], rates: Rates): string[] {
   return lines;
 }
 
-// wa.me deep link that opens a chat to this customer with the message pre-filled.
+// ---- Handing the message to another app ----
+//
+// Each of these answers whether the app was actually opened, which the WebView
+// on its own cannot do. `window.open('https://wa.me/…')` is a WEB address: on a
+// phone with no WhatsApp, Android opens a browser on WhatsApp's download page,
+// and on a bare emulator with neither, nothing happens and no error is raised.
+// The owner taps send and watches nothing occur; a Play reviewer does the same
+// and files it as broken. So on Android these go through explicit intents in
+// `OutboundPlugin.java`, which reports back.
+//
+// `*Available` exists so the app can ask BEFORE it writes: a debt is recorded
+// only once the notice is really going out (see useContactNotifier), and that
+// promise can only be kept if the question is answerable in advance.
+
+interface OutboundPlugin {
+  canOpenWhatsApp(): Promise<{ available: boolean }>;
+  openWhatsApp(options: { phone: string; text: string }): Promise<{ opened: boolean }>;
+  canOpenSms(): Promise<{ available: boolean }>;
+  openSms(options: { phone: string; text: string }): Promise<{ opened: boolean }>;
+  openEmail(options: { to: string; subject: string; body: string }): Promise<{ opened: boolean }>;
+  openUrl(options: { url: string }): Promise<{ opened: boolean }>;
+}
+
+const Outbound = registerPlugin<OutboundPlugin>('Outbound');
+
+const isAndroid = () => Capacitor.getPlatform() === 'android';
+
+/** wa.me deep link — still used on the web, where there is no intent to fire. */
 export function whatsappUrl(phone: string, message: string): string {
   return `https://wa.me/${toIntlDigits(phone)}?text=${encodeURIComponent(message)}`;
 }
 
-// Open the WhatsApp chat (system handles the app/redirect).
-export function openWhatsApp(phone: string, message: string): void {
-  window.open(whatsappUrl(phone, message), '_blank');
+export async function whatsappAvailable(): Promise<boolean> {
+  if (!isAndroid()) return true; // the browser can always open wa.me
+  try {
+    return (await Outbound.canOpenWhatsApp()).available;
+  } catch {
+    return false;
+  }
 }
 
-// Open the phone's own SMS app with the number and the message already filled
-// in. The grocer taps send.
-//
-// It used to send in the BACKGROUND, with no tap, through cordova-sms-plugin
-// and the SEND_SMS permission. That permission had to go: Google Play restricts
-// SEND_SMS to apps whose core purpose is messaging — the default SMS handler —
-// and refuses everything else, so the app could never be published while it
-// held it. There is no declaration form to fill in that changes this.
-//
-// The replacement needs NO permission at all. Handing the OS an `sms:` URI
-// starts the user's own messaging app, pre-filled; the message is sent by the
-// person, from the app they already trust, which is also why Play is happy with
-// it. The cost is one extra tap per notice, and no way to confirm delivery.
-//
-// 🧩 Server concept: capability vs. delegation. Asking for SEND_SMS is asking
-// to hold the capability yourself — the app can then message anyone, silently,
-// forever. Firing an intent DELEGATES the act to a component the user controls,
-// keeping the same outcome without ever holding the power. Least privilege is
-// the same idea as `daftar_user` having DML but not DDL on the droplet: hold
-// what the job needs, and no more.
-//
-// Android only. On web this is a no-op so the dev loop keeps working.
-export function openSms(phone: string, message: string): boolean {
-  if (Capacitor.getPlatform() !== 'android') return false;
-  try {
-    // `sms:<number>?body=<text>` is the standard URI form (RFC 5724) and is
-    // what Android's messaging apps register for. Capacitor's WebView hands a
-    // non-http scheme straight to the OS as an intent.
-    window.open(`sms:${toIntlDigits(phone)}?body=${encodeURIComponent(message)}`, '_system');
+/** Open the WhatsApp chat with the message filled in. False = not installed. */
+export async function openWhatsApp(phone: string, message: string): Promise<boolean> {
+  if (!isAndroid()) {
+    window.open(whatsappUrl(phone, message), '_blank');
     return true;
-  } catch (err) {
-    // A device with no messaging app at all. Not fatal: the entry is already
-    // recorded, and WhatsApp is offered alongside this.
-    console.warn('could not open the SMS app', err);
+  }
+  try {
+    return (await Outbound.openWhatsApp({ phone: toIntlDigits(phone), text: message })).opened;
+  } catch {
+    return false;
+  }
+}
+
+export async function smsAvailable(): Promise<boolean> {
+  if (!isAndroid()) return false; // no SMS from a browser
+  try {
+    return (await Outbound.canOpenSms()).available;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Open the phone's own messaging app with the number and the message already
+ * filled in. The owner taps send.
+ *
+ * It used to send in the BACKGROUND, with no tap, through cordova-sms-plugin
+ * and the SEND_SMS permission. That permission had to go: Google Play restricts
+ * SEND_SMS to apps whose core purpose is messaging — the default SMS handler —
+ * and refuses everything else, so the app could never be published while it
+ * held it. There is no declaration form that changes this.
+ *
+ * The replacement needs NO permission at all. An ACTION_SENDTO intent starts
+ * the user's own messaging app; the message is sent by the person, from the app
+ * they already trust, which is also why Play is happy with it. The cost is one
+ * extra tap per notice, and no way to confirm delivery.
+ *
+ * 🧩 Server concept: capability vs. delegation. Asking for SEND_SMS is asking
+ * to hold the capability yourself — the app can then message anyone, silently,
+ * forever. Firing an intent DELEGATES the act to a component the user controls,
+ * keeping the same outcome without ever holding the power. Least privilege is
+ * the same idea as `daftar_user` having DML but not DDL on the droplet: hold
+ * what the job needs, and no more.
+ */
+export async function openSms(phone: string, message: string): Promise<boolean> {
+  if (!isAndroid()) return false;
+  try {
+    return (await Outbound.openSms({ phone: toIntlDigits(phone), text: message })).opened;
+  } catch {
+    return false;
+  }
+}
+
+/** Open the mail app on a pre-filled message. False = no mail app. */
+export async function openEmail(
+  to: string, subject: string, body: string,
+): Promise<boolean> {
+  if (!isAndroid()) {
+    window.open(
+      `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+      '_blank',
+    );
+    return true;
+  }
+  try {
+    return (await Outbound.openEmail({ to, subject, body })).opened;
+  } catch {
+    return false;
+  }
+}
+
+/** Open a web address in the phone's browser. False = no browser. */
+export async function openUrl(url: string): Promise<boolean> {
+  if (!isAndroid()) {
+    window.open(url, '_blank');
+    return true;
+  }
+  try {
+    return (await Outbound.openUrl({ url })).opened;
+  } catch {
     return false;
   }
 }

@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { classifyShareError } from './shareTarget';
 // The package has no root export — the browser build is the one that produces a
 // Blob in a WebView (the /node build wants a filesystem stream).
 import writeXlsxFile, { type Row as XlsxRow, type Sheet } from 'write-excel-file/browser';
@@ -284,11 +285,17 @@ export async function exportWorkbook(o: WorkbookOptions): Promise<void> {
     data: base64,
     directory: Directory.Cache,
   });
-  await Share.share({
-    title: `دفتر ${o.storeName || 'الحسابات'}`,
-    text: `كشف كامل — ${stamp}`,
-    url: written.uri,
-  });
+  try {
+    await Share.share({
+      title: `دفتر ${o.storeName || 'الحسابات'}`,
+      text: `كشف كامل — ${stamp}`,
+      url: written.uri,
+    });
+  } catch (err) {
+    // The workbook exists; what failed is finding something to open it with —
+    // or the owner backed out of the sheet (shareTarget.ts).
+    throw classifyShareError(err);
+  }
 }
 
 // FileReader gives a data: URL; the plugin wants the payload without the prefix.

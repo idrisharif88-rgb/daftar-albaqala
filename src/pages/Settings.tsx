@@ -21,6 +21,7 @@ import {
   printingAvailable, listPrinters, getSavedPrinter, savePrinter,
 } from '../lib/print';
 import { SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
+import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -157,8 +158,17 @@ const Settings: React.FC = () => {
       // never touch, and startup on a cheap Android is the scarce resource.
       const { exportWorkbook } = await import('../lib/excel');
       await exportWorkbook({ storeName: settings ? messageSender(settings) : '', rates });
-    } catch {
-      await presentToast({ message: 'تعذّر إنشاء ملف Excel', color: 'danger', duration: 2500 });
+    } catch (err) {
+      // Backing out of the share sheet is not a failure and gets no toast.
+      if (!(err instanceof ShareCancelledError)) {
+        await presentToast({
+          message: err instanceof NoShareTargetError
+            ? 'لا يوجد تطبيق يمكنه فتح هذا الملف'
+            : 'تعذّر إنشاء ملف Excel',
+          color: 'danger',
+          duration: 2500,
+        });
+      }
     } finally {
       setExporting(false);
     }

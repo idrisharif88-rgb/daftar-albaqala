@@ -1,11 +1,13 @@
 import { useCallback } from 'react';
-import { useIonActionSheet, useIonAlert } from '@ionic/react';
+import { useIonActionSheet, useIonAlert, useIonToast } from '@ionic/react';
 import { getCustomer } from '../data/customers';
 import { getBalances, projectBalances, type TxnType } from '../data/transactions';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
 import type { CurrencyCode } from '../data/currencies';
-import { buildMessage, openSms, openWhatsApp, type InvoiceInfo } from './notify';
+import {
+  buildMessage, openSms, openWhatsApp, smsAvailable, whatsappAvailable, type InvoiceInfo,
+} from './notify';
 
 // Telling the contact what was just recorded — the choice of channel, then the
 // "are you sure you don't want to send it" confirmation.
@@ -53,6 +55,7 @@ export interface NotifyInput {
 export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   const [presentSheet] = useIonActionSheet();
   const [presentAlert] = useIonAlert();
+  const [presentToast] = useIonToast();
 
   // Make sure cancelling the notice was intentional. «تراجع» reopens the send
   // sheet (deferred so this alert has finished dismissing first).
@@ -101,6 +104,26 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
         }
         const channel = choice;
         void (async () => {
+          // Ask BEFORE writing. A phone without WhatsApp — or an emulator with
+          // no messaging app — must not end up with a debt recorded and nobody
+          // told: that is exactly the case this whole flow exists to prevent.
+          // So the missing app reopens the sheet with nothing committed, and
+          // the other channel is one tap away.
+          const available = channel === 'whatsapp'
+            ? await whatsappAvailable()
+            : await smsAvailable();
+          if (!available) {
+            presentToast({
+              message: channel === 'whatsapp'
+                ? 'واتساب غير مثبّت على هذا الجهاز'
+                : 'لا يوجد تطبيق رسائل على هذا الجهاز',
+              duration: 2500,
+              color: 'warning',
+            });
+            setTimeout(() => presentSendSheet(phone, message, commit, done), 400);
+            return;
+          }
+
           try {
             await commit();
           } catch (err) {
@@ -113,13 +136,25 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
             done(false);
             return;
           }
-          if (channel === 'whatsapp') openWhatsApp(phone, message);
-          else openSms(phone, message);
+
+          const opened = channel === 'whatsapp'
+            ? await openWhatsApp(phone, message)
+            : await openSms(phone, message);
+          // It said it was there a moment ago and then would not start. The
+          // entry IS recorded, so say so rather than leaving the owner to
+          // wonder which half happened.
+          if (!opened) {
+            presentToast({
+              message: 'تم حفظ الحركة، لكن تعذّر فتح التطبيق لإرسال الإشعار',
+              duration: 3000,
+              color: 'warning',
+            });
+          }
           done(true);
         })();
       },
     });
-  }, [presentSheet, confirmCancel, presentAlert]);
+  }, [presentSheet, confirmCancel, presentAlert, presentToast]);
 
   return useCallback(async (
     { customerId, type, amount, currency, note, invoice, commit }: NotifyInput,
