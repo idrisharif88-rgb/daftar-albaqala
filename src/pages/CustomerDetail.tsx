@@ -139,25 +139,32 @@ const CustomerDetail: React.FC = () => {
     try {
       const amountMinor = toMinor(major);
       const entryCurrency = currency;
-      await addTransaction({
-        customerId,
-        type: formType,
-        amount: amountMinor,
-        currency: entryCurrency,
-        note: note.trim() || null,
-      });
-      await load();
-      // Push it to the server straight away, but NEVER wait for it: the entry
-      // is already saved locally, and the round trip to the droplet is ~400ms
-      // on a good link and unbounded on a bad one. Offline it no-ops and the
-      // row stays dirty for the next run. `runSync` is single-flight and never
-      // throws, so a burst of entries collapses into one run.
-      void runSync();
-      await modal.current?.dismiss();
-      await notifyContact({
+      // The entry is NOT written here. It is written by the notifier, and only
+      // once the notice is on its way — no notice, no debt (the owner's rule;
+      // see useContactNotifier). Backing out of the send sheet leaves the book
+      // exactly as it was, which matters because an entry cannot be deleted.
+      const commit = async () => {
+        await addTransaction({
+          customerId,
+          type: formType,
+          amount: amountMinor,
+          currency: entryCurrency,
+          note: note.trim() || null,
+        });
+        // Push it to the server straight away, but NEVER wait for it: the entry
+        // is already saved locally, and the round trip to the droplet is ~400ms
+        // on a good link and unbounded on a bad one. Offline it no-ops and the
+        // row stays dirty for the next run. `runSync` is single-flight and never
+        // throws, so a burst of entries collapses into one run.
+        void runSync();
+      };
+      const recorded = await notifyContact({
         customerId, type: formType, amount: amountMinor,
-        currency: entryCurrency, note: note.trim(),
+        currency: entryCurrency, note: note.trim(), commit,
       });
+      if (!recorded) return; // cancelled — the form stays open with what was typed
+      await load();
+      await modal.current?.dismiss();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {

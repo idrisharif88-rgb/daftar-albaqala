@@ -1,3 +1,4 @@
+import { getDB } from './db';
 import { getMeta, setMeta } from './meta';
 
 // The invoice number — «رقم الفاتورة».
@@ -9,19 +10,50 @@ import { getMeta, setMeta } from './meta';
 // the message and in the entry's own note — the three places it can be read
 // back from.
 //
-// The counter is a plain running integer in `app_meta`, and it is deliberately
-// NOT synced (it is not on the settings allowlist). It counts what this phone
-// issued, the way a paper book counts what that book issued; a second device
-// would be a second book, starting again at 1. Two devices could therefore
-// both issue a «رقم 5» — which is why the number is a reference, never an
-// identity: the entry's UUID is the identity.
+// The next number is the higher of two things:
+//
+//   1. a counter in `app_meta`, and
+//   2. the highest number already written into an entry's note.
+//
+// (2) is what makes it survive. The counter lives in the phone's own database,
+// which a reinstall wipes — the owner reinstalled and his book started again at
+// 1, next to entries already numbered up to 12. The ENTRIES come back, because
+// they sync; so the ledger itself is asked what the last invoice was, and the
+// counter is only a cache in front of that answer.
+//
+// It is still deliberately NOT synced as a setting: it counts what this book
+// issued, and two phones issuing offline could not agree on a number anyway —
+// a number has to be handed out before it is used, and sync happens after. So
+// it is a reference, never an identity; the entry's UUID is the identity.
 
 const SEQ_KEY = 'invoice_seq';
 
+// The note an invoice writes: «فاتورة رقم 12: جبن ×3، سكر ×2» (see Invoice.tsx).
+const NOTE_PREFIX = 'فاتورة رقم ';
+const NOTE_NUMBER = /^فاتورة رقم (\d+)/;
+
+/** The highest invoice number the ledger itself can account for. Survives a
+ *  reinstall, because the entries are pulled back from the server. */
+async function highestInLedger(): Promise<number> {
+  const db = await getDB();
+  const res = await db.query(
+    `SELECT note FROM transactions WHERE note LIKE ?`,
+    [`${NOTE_PREFIX}%`],
+  );
+  let highest = 0;
+  for (const row of (res.values ?? []) as { note?: string | null }[]) {
+    const match = NOTE_NUMBER.exec(row.note ?? '');
+    if (!match) continue;
+    const n = Number(match[1]);
+    if (Number.isFinite(n) && n > highest) highest = n;
+  }
+  return highest;
+}
+
 /** The number the NEXT invoice would take, without consuming it. */
 export async function peekInvoiceNumber(): Promise<number> {
-  const raw = await getMeta(SEQ_KEY);
-  return (Number(raw ?? 0) || 0) + 1;
+  const [stored, inLedger] = await Promise.all([getMeta(SEQ_KEY), highestInLedger()]);
+  return Math.max(Number(stored ?? 0) || 0, inLedger) + 1;
 }
 
 /**

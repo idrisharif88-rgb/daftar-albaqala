@@ -18,7 +18,7 @@ import {
 } from '../data/itemGroups';
 import { addTransaction } from '../data/transactions';
 import { formatMinor } from '../data/money';
-import { nextInvoiceNumber } from '../data/invoiceNumber';
+import { nextInvoiceNumber, peekInvoiceNumber } from '../data/invoiceNumber';
 import { runSync } from '../data/sync';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
@@ -258,39 +258,54 @@ const Invoice: React.FC = () => {
     savingRef.current = true;
     setBusy('جارٍ الحفظ...');
     try {
-      // The number is taken only now: an invoice abandoned at the review step
-      // must not leave a gap in the book (see invoiceNumber.ts).
-      const number = await nextInvoiceNumber();
+      // The number the invoice WILL take. It is only consumed inside `commit`,
+      // so an invoice abandoned at the send sheet leaves no gap in the book
+      // (see invoiceNumber.ts) — but the message has to quote it, and the
+      // message is built before the entry exists.
+      const number = await peekInvoiceNumber();
       const issuedAt = new Date();
       const breakdown = lines.map((l) => `${l.name} ×${l.qty}`).join('، ');
       // The number leads the note, so the entry in the history, the receipt on
       // the counter and the message on the phone all name the same invoice.
       const note = `فاتورة رقم ${number}: ${breakdown}`;
-      await addTransaction({
-        customerId,
-        type: growthType,
-        amount: total,
-        currency: invoiceCurrency,
-        note,
-      });
-      void runSync();
+      const commit = async () => {
+        await nextInvoiceNumber(); // consume the number this invoice quoted
+        await addTransaction({
+          customerId,
+          type: growthType,
+          amount: total,
+          currency: invoiceCurrency,
+          note,
+        });
+        void runSync();
+      };
 
       // Recording WITHOUT printing goes through the ordinary notification
       // flow — the same SMS and WhatsApp offer as an entry typed by hand, so
       // the contact hears about a basket exactly as they hear about a single
-      // debt, itemised the way the paper invoice book itemises it. With a
-      // printed receipt the paper IS the notice, so it is not also sent.
+      // debt, itemised the way the paper invoice book itemises it. Nothing is
+      // written until a channel is chosen: no notice, no debt.
       if (!thenPrint) {
-        setQty({});
-        setReviewOpen(false);
-        await notifyContact({
+        // Drop the spinner first: it is a full-screen overlay and would sit on
+        // top of the send sheet it is about to wait on.
+        setBusy(null);
+        const recorded = await notifyContact({
           customerId, type: growthType, amount: total, currency: invoiceCurrency, note,
           invoice: { number, issuedAt, lines },
+          commit,
         });
+        // Cancelled: the basket is left exactly as it was, so the owner can
+        // change it and try again rather than tapping it all in a second time.
+        if (!recorded) return;
+        setQty({});
+        setReviewOpen(false);
         router.goBack();
         return;
       }
 
+      // With a printed receipt the paper IS the notice, so the entry is
+      // recorded here and no message is offered.
+      await commit();
       setBusy('جارٍ الطباعة...');
       const settings = await getSettings();
       // Loaded on demand: the printer driver and the receipt renderer are dead

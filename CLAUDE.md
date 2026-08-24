@@ -730,6 +730,39 @@ Tests 20/20. **Not yet device-tested.**
       confirmation. Also: the grocer now leaves the app to send, so a notice interrupted halfway
       is simply not sent — the entry is already recorded either way.
 
+## Status — DONE (Phase 13: no notice, no entry) ✅ (2026-08-24)
+Two device-reported items from the same session. Frontend only. Tests 20/20. **Not yet
+device-tested.**
+
+- [x] **An entry is written only once the notice is on its way.** The owner built a 50-riyal
+      invoice, backed out before choosing a channel, and found the debt recorded on the server
+      anyway — unannounced, and impossible to remove, the ledger being append-only. His rule:
+      **no notice, no debt.** So `useContactNotifier` now takes a `commit` callback and owns the
+      decision: choosing WhatsApp or SMS commits and then opens the channel; cancelling commits
+      nothing and the screen keeps what was typed, ready to retry.
+      - The commit runs BEFORE the channel opens — opening WhatsApp or the messaging app leaves
+        this app, and Android may stop it in the background, so the write must already be durable.
+      - Two paths still record immediately, and must: **record + print** (the paper IS the
+        notice) and a contact with notifications off or **no phone number** (there is no notice
+        to wait for, and holding the debt hostage to a message that was never going to be sent
+        would lose it).
+      - The message quotes a balance the ledger does not have yet, so `projectBalances`
+        (`src/data/transactions.ts`) folds the pending entry into the current balances instead of
+        reading them back after a write.
+      - The cancel confirmation now says what cancelling costs: «إلغاء الإشعار يلغي الحركة أيضاً».
+      - ⚠️ **The limit:** the app can tell that the channel was OPENED with the message filled
+        in, never that the person pressed send inside WhatsApp or the SMS app. Nothing can.
+- [x] **The invoice number survives a reinstall.** It lived only in `app_meta`, which a reinstall
+      wipes — the owner reinstalled and the book restarted at 1 beside entries already numbered
+      up to 12. The next number is now the higher of the stored counter and **the highest number
+      already written into an entry's note**, which comes back with the entries on the next sync
+      (`src/data/invoiceNumber.ts`). The counter is now a cache in front of the ledger's answer.
+      Still not synced as a setting: a number must be handed out BEFORE it is used, and sync
+      happens after, so two phones issuing offline could never agree. It is a reference; the
+      UUID is the identity.
+      The number is `peek`ed for the message and only consumed inside `commit`, so an invoice
+      abandoned at the send sheet leaves no gap.
+
 > ▶ **RESUME HERE:** device-test Phase 11 (invoice review → تأكيد → record/print, the itemised
 > message on a real phone, deleting a صنف, and groups incl. a second-device sync of one), then
 > the Play Store items above (SMS permission first — it changes code), or

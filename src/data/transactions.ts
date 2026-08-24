@@ -172,6 +172,32 @@ export async function getBalances(customerId: string): Promise<CurrencyBalance[]
     .sort(byCurrencyOrder);
 }
 
+/**
+ * The balances a contact WOULD have if this entry were recorded — the current
+ * ones with one entry folded in.
+ *
+ * Needed because the notice is now written before the entry is: the owner is
+ * shown, and the contact is told, what the balance will become, and only then
+ * is the entry committed. Reading it back after the write would be simpler but
+ * would mean writing first, which is exactly what this flow exists to avoid.
+ */
+export function projectBalances(
+  balances: CurrencyBalance[],
+  type: TxnType,
+  amount: number,
+  currency: CurrencyCode,
+): CurrencyBalance[] {
+  // Same sign convention as the stored ledger: a debt raises what they owe us,
+  // a payment lowers it.
+  const delta = type === 'debt' ? amount : -amount;
+  const out = balances.map((b) => ({ ...b }));
+  const existing = out.find((b) => b.currency === currency);
+  if (existing) existing.minor += delta;
+  else out.push({ currency, minor: delta });
+  // A currency that nets to zero drops out, exactly as getBalances filters it.
+  return out.filter((b) => b.minor !== 0).sort(byCurrencyOrder);
+}
+
 // Balances for every contact in ONE query, keyed by contact id.
 //
 // The list screen used to call getBalances() once per contact — a classic N+1:
