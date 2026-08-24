@@ -163,6 +163,46 @@ describe('buildMessage', () => {
     );
   });
 
+  // The invoice — the owner's paper book, spelled out for the recipient: a
+  // number, a date, and one line per item. Each figure is introduced by an
+  // Arabic word rather than sitting in a column, because three numbers with
+  // only punctuation between them are reordered by the bidi algorithm in a
+  // right-to-left message (see notify.ts).
+  it('itemises an invoice above the entry, in the paper book order', () => {
+    const msg = buildMessage({
+      senderName: 'إدريس',
+      role: 'supplier',
+      type: 'payment',
+      amount: toMinor(3400),
+      currency: 'YER',
+      balances: [yer(-3400)],
+      rates: RATES,
+      // The note holds the same breakdown; it must not be printed twice.
+      note: 'فاتورة رقم 12: جبن ×3، سكر ×2',
+      invoice: {
+        number: 12,
+        issuedAt: new Date(2026, 7, 24, 18, 47),
+        lines: [
+          { name: 'جبن', qty: 3, unitPrice: toMinor(800), currency: 'YER', total: toMinor(2400) },
+          { name: 'سكر', qty: 2, unitPrice: toMinor(500), currency: 'YER', total: toMinor(1000) },
+        ],
+      },
+    });
+    expect(msg).toBe(
+      'إدريس\n' +
+      'فاتورة رقم 12\n' +
+      'التاريخ 2026-08-24 الساعة 18:47\n' +
+      '\n' +
+      'جبن — كمية 3 × سعر 800 — إجمالي 2,400\n' +
+      'سكر — كمية 2 × سعر 500 — إجمالي 1,000\n' +
+      '\n' +
+      'تسجيل دين 3,400 ريال يمني\n' +
+      '\n' +
+      'رصيدك الآن: 3,400 ريال يمني لك\n' +
+      'ثلاثة آلاف وأربعمائة ريال'
+    );
+  });
+
   it('appends the note last, attributed to the sender', () => {
     const msg = buildMessage({
       senderName: 'بقالة الأمل',

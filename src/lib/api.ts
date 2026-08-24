@@ -98,6 +98,14 @@ export interface PushItem {
   id: string; customer_id: string; name: string; price: number; currency: string;
   note: string | null; created_at: string; updated_at: string; deleted_at: string | null;
 }
+/** A saved basket. `lines_json` is JSON TEXT — the server stores it without
+ *  reading inside it, since the ids it holds only mean anything against this
+ *  contact's price list on the phone. (Not `lines`: MySQL reserves that word,
+ *  and the field is named for the column.) */
+export interface PushItemGroup {
+  id: string; customer_id: string; name: string; lines_json: string;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
 
 // Why the server would not store a row. 'missing_customer' is the only one
 // worth retrying — see server/src/routes/sync.ts.
@@ -117,6 +125,8 @@ export interface PushResult {
   transactions: TableAck;
   /** Absent from a server older than the price list. */
   items?: TableAck;
+  /** Absent from a server older than saved baskets. */
+  item_groups?: TableAck;
   /** Keyed by setting NAME rather than by UUID — a setting has no id but its
    *  key is already unique per account. Absent from a server older than
    *  settings sync. */
@@ -144,11 +154,17 @@ export interface PullItem {
   currency: string | null; note: string | null;
   created_at: string; updated_at: string; deleted_at: string | null;
 }
+export interface PullItemGroup {
+  id: string; customer_id: string; name: string; lines_json: string;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
 export interface PullResult {
   customers: PullCustomer[];
   transactions: PullTransaction[];
   /** Absent from a server older than the price list. */
   items?: PullItem[];
+  /** Absent from a server older than saved baskets. */
+  item_groups?: PullItemGroup[];
   /** Opaque cursor to send as `since` next time. Do not parse it. */
   synced_at: string;
   /** More pages are waiting — call again with the new cursor. */
@@ -162,6 +178,7 @@ export function syncPush(body: {
   customers: PushCustomer[];
   transactions: PushTransaction[];
   items?: PushItem[];
+  item_groups?: PushItemGroup[];
   settings?: SettingRow[];
 }): Promise<PushResult> {
   return request<PushResult>('/sync/push', { method: 'POST', body: JSON.stringify(body) });

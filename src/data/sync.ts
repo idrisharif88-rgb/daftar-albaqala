@@ -13,8 +13,12 @@ import {
   getDirtyItems, markItemsSynced, applyServerItem, type Item,
 } from './items';
 import {
+  getDirtyGroups, markGroupsSynced, applyServerGroup, type WireGroup,
+} from './itemGroups';
+import {
   syncPush, syncPull, ApiError,
-  type PushCustomer, type PushTransaction, type PushItem, type TableAck,
+  type PushCustomer, type PushTransaction, type PushItem, type PushItemGroup,
+  type TableAck,
 } from '../lib/api';
 import { setAccountActive } from './account';
 import { getLocalSettings, applyServerSettings, type SettingRow } from './settingsSync';
@@ -188,10 +192,12 @@ async function pushChunks<T>(
     customers: PushCustomer[];
     transactions: PushTransaction[];
     items?: PushItem[];
+    item_groups?: PushItemGroup[];
     settings?: SettingRow[];
   },
   pick: (result: {
     customers: TableAck; transactions: TableAck; items?: TableAck;
+    item_groups?: TableAck;
   }) => TableAck | undefined,
   markClean: (accepted: Set<string>, batch: T[]) => Promise<void>,
 ): Promise<{ accepted: number; rejected: number }> {
@@ -220,10 +226,12 @@ async function doSync(): Promise<SyncOutcome> {
   let dirtyCustomers: Customer[] = [];
   let dirtyTxns: Transaction[] = [];
   let dirtyItems: Item[] = [];
+  let dirtyGroups: WireGroup[] = [];
   try {
     dirtyCustomers = await getDirtyCustomers();
     dirtyTxns = await getDirtyTransactions();
     dirtyItems = await getDirtyItems();
+    dirtyGroups = await getDirtyGroups();
 
     // The account settings ride along on the first push request of the run,
     // whichever one that turns out to be. They are seven short strings, so
@@ -275,6 +283,25 @@ async function doSync(): Promise<SyncOutcome> {
       },
     );
 
+    // Groups after the items they point at. Nothing on the server enforces
+    // that order — `lines` is opaque text to it — but arriving in dependency
+    // order means a device pulling right after this push never sees a basket
+    // whose items have not landed yet.
+    const groupResult = await pushChunks(
+      dirtyGroups,
+      (batch) => ({
+        customers: [], transactions: [], item_groups: batch,
+        settings: takeSettings(),
+      }),
+      (r) => r.item_groups,
+      async (acceptedIds, batch) => {
+        await markGroupsSynced(
+          batch.filter((g) => acceptedIds.has(g.id))
+            .map((g) => ({ id: g.id, updated_at: g.updated_at })),
+        );
+      },
+    );
+
     const txnResult = await pushChunks(
       dirtyTxns,
       (batch) => ({
@@ -317,6 +344,12 @@ async function doSync(): Promise<SyncOutcome> {
           created_at: i.created_at, updated_at: i.updated_at, deleted_at: i.deleted_at,
         });
       }
+      for (const g of page.item_groups ?? []) {
+        await applyServerGroup({
+          id: g.id, customer_id: g.customer_id, name: g.name, lines_json: g.lines_json,
+          created_at: g.created_at, updated_at: g.updated_at, deleted_at: g.deleted_at,
+        });
+      }
       for (const t of page.transactions) {
         await applyServerTransaction({
           id: t.id, customer_id: t.customer_id, type: t.type as TxnType,
@@ -331,7 +364,8 @@ async function doSync(): Promise<SyncOutcome> {
       // what lets a device that missed an update repair itself.
       if (page.settings) await applyServerSettings(page.settings);
 
-      pulled += page.customers.length + page.transactions.length + (page.items?.length ?? 0);
+      pulled += page.customers.length + page.transactions.length +
+        (page.items?.length ?? 0) + (page.item_groups?.length ?? 0);
 
       // Save the cursor with the page it belongs to, before asking for the
       // next one. If the app is killed mid-drain, the next run resumes here
@@ -347,14 +381,16 @@ async function doSync(): Promise<SyncOutcome> {
 
     await setAccountActive(true); // a successful sync means the owner activated us
 
-    const rejected = custResult.rejected + itemResult.rejected + txnResult.rejected;
+    const rejected = custResult.rejected + itemResult.rejected + groupResult.rejected +
+      txnResult.rejected;
     // Stopping at the page cap means data is still waiting on the server, which
     // is not a clean sync — report it as partial so the warning stays up rather
     // than telling the owner everything is fine.
     if (!drained) console.warn('sync: pull hit the page cap without draining');
     const outcome: SyncOutcome = {
       status: rejected > 0 || !drained ? 'partial' : 'ok',
-      pushed: custResult.accepted + itemResult.accepted + txnResult.accepted,
+      pushed: custResult.accepted + itemResult.accepted + groupResult.accepted +
+        txnResult.accepted,
       pulled,
       rejected,
     };
@@ -364,7 +400,7 @@ async function doSync(): Promise<SyncOutcome> {
     await persist().catch(() => {}); // keep whatever did land
     // Anything still dirty is un-backed-up data the user should know about.
     const unsynced = await countDirty(
-      dirtyCustomers.length + dirtyTxns.length + dirtyItems.length,
+      dirtyCustomers.length + dirtyTxns.length + dirtyItems.length + dirtyGroups.length,
     );
     let outcome: SyncOutcome = { status: 'error' };
     if (err instanceof ApiError) {
@@ -385,10 +421,10 @@ async function doSync(): Promise<SyncOutcome> {
 // figure if the database itself is the thing that broke.
 async function countDirty(fallback: number): Promise<number> {
   try {
-    const [customers, transactions, items] = await Promise.all([
-      getDirtyCustomers(), getDirtyTransactions(), getDirtyItems(),
+    const [customers, transactions, items, groups] = await Promise.all([
+      getDirtyCustomers(), getDirtyTransactions(), getDirtyItems(), getDirtyGroups(),
     ]);
-    return customers.length + transactions.length + items.length;
+    return customers.length + transactions.length + items.length + groups.length;
   } catch {
     return fallback;
   }

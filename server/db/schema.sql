@@ -128,3 +128,30 @@ CREATE TABLE IF NOT EXISTS items (
   KEY idx_item_user_cust (user_id, customer_id),
   KEY idx_item_sync (user_id, server_updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- المجموعات — سلة محفوظة من أصناف جهة واحدة
+-- ما يُشترى عادةً كل أسبوع، يُسجَّل بضغطة واحدة.
+-- `lines` = JSON: [{"item_id":"…","qty":3}, …] — الخادم يخزّنها ولا يقرأ داخلها.
+-- الدمج كالأصناف: upsert بالـ UUID، آخر تعديل يفوز، حذف ناعم.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS item_groups (
+  id           CHAR(36)      NOT NULL,
+  user_id      CHAR(36)      NOT NULL,               -- مالك السجل (عزل المستأجرين)
+  customer_id  CHAR(36)      NOT NULL,               -- الجهة صاحبة المجموعة
+  name         VARCHAR(128)  NOT NULL,
+  lines_json   TEXT          NOT NULL,               -- أعضاء المجموعة (JSON)
+                                                    -- ليس `lines`: كلمة محجوزة في MySQL
+  created_at   DATETIME      NOT NULL,
+  updated_at   DATETIME      NOT NULL,
+  deleted_at   DATETIME      NULL,                   -- شاهدة حذف (تُزامَن)
+
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+  PRIMARY KEY (id),
+  CONSTRAINT fk_group_user FOREIGN KEY (user_id)     REFERENCES users(id),
+  CONSTRAINT fk_group_cust FOREIGN KEY (customer_id) REFERENCES customers(id),
+  KEY idx_group_user_cust (user_id, customer_id),
+  KEY idx_group_sync (user_id, server_updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

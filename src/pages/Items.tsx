@@ -95,7 +95,12 @@ const Items: React.FC = () => {
     }
   };
 
-  const confirmDelete = (item: Item) => {
+  // Deleting is offered in TWO places on purpose. The swipe action is the
+  // tidy one, but a swipe is invisible: nothing on the screen says it is
+  // there, and an owner who cannot find it concludes the app will not let him
+  // remove a صنف at all. So the open item also carries a plain delete button,
+  // where someone looking for it will look.
+  const confirmDelete = (item: Item, closeForm = false) => {
     presentAlert({
       header: 'حذف الصنف',
       message: `حذف «${item.name}» من قائمة الأسعار؟ الحركات المسجّلة سابقاً لا تتأثر.`,
@@ -107,6 +112,7 @@ const Items: React.FC = () => {
           handler: () => {
             void (async () => {
               await deleteItem(item.id);
+              if (closeForm) await modal.current?.dismiss();
               await load();
               void runSync();
             })();
@@ -246,6 +252,19 @@ const Items: React.FC = () => {
             <IonButton expand="block" onClick={save} disabled={saving} className="ion-margin-top">
               {saving ? <IonSpinner name="crescent" /> : 'حفظ'}
             </IonButton>
+
+            {editing && (
+              <IonButton
+                expand="block"
+                fill="clear"
+                color="danger"
+                className="ion-margin-top"
+                onClick={() => confirmDelete(editing, true)}
+              >
+                <IonIcon slot="start" icon={trashOutline} />
+                حذف الصنف
+              </IonButton>
+            )}
           </IonContent>
         </IonModal>
       </IonContent>

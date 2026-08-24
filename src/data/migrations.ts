@@ -111,6 +111,38 @@ CREATE INDEX IF NOT EXISTS idx_items_synced ON items (synced);`,
       );
     },
   },
+  {
+    version: 4,
+    name: 'item_groups (saved baskets)',
+    async run(db) {
+      // A named basket of this contact's items — see itemGroups.ts. Membership
+      // is JSON text in one column rather than a child table: the ids only
+      // travel together, and a second synced entity would bring its own
+      // tombstones and its own way to arrive half-applied.
+      //
+      // `lines_json`, not `lines`: SQLite would take either, but the column is
+      // called `lines_json` on the server because MySQL reserves `lines`, and
+      // one name for one thing is worth more than the nicer spelling.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS item_groups (
+  id           TEXT PRIMARY KEY NOT NULL,
+  customer_id  TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  lines_json   TEXT NOT NULL DEFAULT '[]',
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  deleted_at   TEXT,
+  synced       INTEGER NOT NULL DEFAULT 0
+);
+`);
+      // One statement per line — the Android plugin splits a batch on ";\n"
+      // and would otherwise run only the first (see owner.ts).
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_groups_customer ON item_groups (customer_id, name);
+CREATE INDEX IF NOT EXISTS idx_groups_synced ON item_groups (synced);`,
+      );
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

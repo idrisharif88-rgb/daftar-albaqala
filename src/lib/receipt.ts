@@ -30,6 +30,8 @@ export interface ReceiptOptions {
   roleLabel: string;
   /** What this entry is called for that role, e.g. «تسجيل دين». */
   entryLabel: string;
+  /** «رقم الفاتورة» — how the two sides refer to this basket afterwards. */
+  number: number;
   lines: InvoiceLine[];
   total: number;
   currency: string;
@@ -111,7 +113,7 @@ function rule(ctx: CanvasRenderingContext2D, y: number, dashed = false): void {
 /** How tall the receipt will be, so the canvas is allocated once at the right
  *  size — a thermal receipt is a single continuous strip, never paged. */
 function measure(o: ReceiptOptions): number {
-  const base = 60 + LINE_H * 4 + GAP * 4 + ROW_H + 24; // header + column heads
+  const base = 60 + LINE_H * 5 + GAP * 4 + ROW_H + 24; // header + column heads
   const rows = o.lines.length * ROW_H;
   const totals = GAP + ROW_H + LINE_H * 2 + GAP * 2 + 70; // total, words, footer
   return base + rows + totals;
@@ -147,6 +149,8 @@ export async function renderReceipt(o: ReceiptOptions): Promise<HTMLCanvasElemen
   y += GAP + 6;
 
   text(ctx, `${o.roleLabel}: ${o.contactName}`, right, y, { size: 22, maxWidth: PAPER_DOTS - 40 });
+  y += LINE_H;
+  text(ctx, `رقم الفاتورة: ${o.number}`, right, y, { size: 22 });
   y += LINE_H;
   text(ctx, `التاريخ: ${stamp(o.issuedAt)}`, right, y, { size: 22 });
   y += LINE_H;

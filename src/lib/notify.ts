@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { formatMinor } from '../data/money';
 import {
   BASE_CURRENCY, baseValueLine, formatAmountFull, hasRate, totalInBase,
   type CurrencyBalance, type CurrencyCode, type Rates,
@@ -6,6 +7,7 @@ import {
 import { contactBalanceLabel, contactDirectionLabel } from '../data/roles';
 import { tafqeetBaseMinor } from './tafqeet';
 import type { TxnType } from '../data/transactions';
+import type { InvoiceLine } from './receipt';
 
 // Customer notifications: when the shopkeeper records a debt/payment we tell the
 // customer. Two channels, both sent FROM the shopkeeper's own phone/number:
@@ -16,6 +18,16 @@ import type { TxnType } from '../data/transactions';
 
 const YEMEN_CC = '967';
 
+/** An invoice, as the recipient is told about it — the paper invoice book the
+ *  owner used to fill in by hand: a number, a date, and a line per item with
+ *  its price, quantity and total. */
+export interface InvoiceInfo {
+  /** «رقم الفاتورة» — see data/invoiceNumber.ts. */
+  number: number;
+  issuedAt: Date;
+  lines: InvoiceLine[];
+}
+
 // Normalize a stored local number to full international digits for wa.me, e.g.
 // "07XXXXXXXX" / "7XXXXXXXX" -> "9677XXXXXXXX". Strips spaces/-/+ and a 00 or 0
 // trunk prefix; leaves an already-967 number alone.
@@ -25,6 +37,47 @@ export function toIntlDigits(phone: string): string {
   if (d.startsWith(YEMEN_CC)) return d;
   if (d.startsWith('0')) d = d.slice(1);
   return YEMEN_CC + d;
+}
+
+// A timestamp the way the statement and the spreadsheet write it: fixed
+// yyyy-mm-dd, Western digits, with the time introduced by an Arabic word.
+//
+// `toLocaleString('ar')` returns Arabic-Indic digits wrapped in direction
+// marks, and «2026-08-24 18:47» as one run is worse still: the space between
+// two numbers is a neutral character with a number on either side, so the
+// bidi algorithm hands it the paragraph's right-to-left direction and the
+// reader is shown «18:47 2026-08-24». Every number below is therefore
+// introduced by an Arabic word, which is what keeps the runs apart.
+function stamp(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${date} الساعة ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// The invoice, laid out the way the owner's paper book lays it out: the number,
+// the date, then one line per item carrying its price, its quantity and its
+// total.
+//
+// The paper has four COLUMNS; an SMS has none. Pipe-separated columns look
+// like a table right up until the moment the reader's phone applies the bidi
+// algorithm to «800 | 3 | 2,400» — three numbers separated by neutrals, in a
+// right-to-left paragraph — and reverses them into «2,400 | 3 | 800». A price
+// list that silently swaps its own columns is worse than no columns at all, so
+// each figure is LABELLED and follows an Arabic word instead.
+function invoiceLines(invoice: InvoiceInfo): string[] {
+  const out = [
+    `فاتورة رقم ${invoice.number}`,
+    `التاريخ ${stamp(invoice.issuedAt)}`,
+    '',
+  ];
+  for (const l of invoice.lines) {
+    out.push(
+      `${l.name} — كمية ${l.qty} × سعر ${formatMinor(l.unitPrice)}` +
+      ` — إجمالي ${formatMinor(l.total)}`,
+    );
+  }
+  out.push('');
+  return out;
 }
 
 // The Arabic message, one fact per line, in the order the recipient reads them:
@@ -57,12 +110,18 @@ export function buildMessage(opts: {
   balances: CurrencyBalance[]; // running balance per currency (+ = they owe us)
   rates: Rates;
   note?: string;
+  /** Present when this entry is a basket recorded from the price list. Its
+   *  breakdown then stands in for the note, which holds the same list. */
+  invoice?: InvoiceInfo;
 }): string {
-  const { senderName, role, type, amount, currency, balances, rates, note } = opts;
+  const { senderName, role, type, amount, currency, balances, rates, note, invoice } = opts;
   const sender = senderName.trim();
   const lines: string[] = [];
 
   if (sender) lines.push(sender);
+
+  // The itemised part comes first: it explains the figure the next line states.
+  if (invoice) lines.push(...invoiceLines(invoice));
 
   // What just happened, in the currency it was recorded in — then its riyal
   // value, with the rate, when it wasn't riyals.
@@ -73,7 +132,9 @@ export function buildMessage(opts: {
   lines.push(''); // the balance is a separate thought
   lines.push(...balanceLines(balances, rates));
 
-  if (note && note.trim()) {
+  // An invoice's note IS its item list, already spelled out above — repeating
+  // it would print the same basket twice.
+  if (!invoice && note && note.trim()) {
     lines.push(sender ? `ملاحظة من ${sender}: ${note.trim()}` : `ملاحظة: ${note.trim()}`);
   }
   return lines.join('\n');

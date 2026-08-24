@@ -3,8 +3,8 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import {
-  DEFAULT_CURRENCY, DEFAULT_ROLE, MAX_SETTING_VALUE_LENGTH, SYNCABLE_SETTING_KEYS,
-  VALID_CURRENCIES, VALID_ROLES, VALID_TXN_TYPES,
+  DEFAULT_CURRENCY, DEFAULT_ROLE, MAX_GROUP_LINES_LENGTH, MAX_SETTING_VALUE_LENGTH,
+  SYNCABLE_SETTING_KEYS, VALID_CURRENCIES, VALID_ROLES, VALID_TXN_TYPES,
 } from '../domain';
 
 const router = Router();
@@ -76,17 +76,20 @@ router.post(
     // Absent on APKs older than settings sync — an empty list, not an error.
     const settings: Row[] = Array.isArray(req.body?.settings) ? req.body.settings : [];
     const items: Row[] = Array.isArray(req.body?.items) ? req.body.items : [];
+    const itemGroups: Row[] = Array.isArray(req.body?.item_groups) ? req.body.item_groups : [];
 
     const result: {
       customers: TableResult;
       transactions: TableResult;
       settings: TableResult;
       items: TableResult;
+      item_groups: TableResult;
     } = {
       customers: { accepted: [], rejected: [] },
       transactions: { accepted: [], rejected: [] },
       settings: { accepted: [], rejected: [] },
       items: { accepted: [], rejected: [] },
+      item_groups: { accepted: [], rejected: [] },
     };
 
     // Run the whole batch in one DB transaction: either the merge commits as a
@@ -225,6 +228,74 @@ router.post(
         result.items.accepted.push(id);
       }
 
+      // ---- item_groups: upsert, last-write-wins by updated_at ----
+      // A saved basket, merged the same way its items are. `lines_json` is
+      // opaque here: the ids inside it only mean anything against the price
+      // list of the contact this group belongs to, which the client already
+      // holds, so the server stores the text and checks the OWNER — never the
+      // contents. (The column cannot be called `lines`: reserved word.)
+      for (const g of itemGroups) {
+        const id = g.id ? String(g.id) : '';
+        const customerId = g.customer_id ? String(g.customer_id) : '';
+        const name = g.name !== undefined && g.name !== null ? String(g.name).trim() : '';
+        const linesJson = g.lines_json === undefined || g.lines_json === null
+          ? ''
+          : String(g.lines_json);
+        if (!id) continue;
+        if (!customerId || !name || linesJson.length > MAX_GROUP_LINES_LENGTH) {
+          result.item_groups.rejected.push({ id, reason: 'invalid' });
+          continue;
+        }
+        const updatedAt = g.updated_at ? new Date(g.updated_at as string) : new Date();
+        const createdAt = g.created_at ? new Date(g.created_at as string) : updatedAt;
+        const deletedAt = g.deleted_at ? new Date(g.deleted_at as string) : null;
+        if (Number.isNaN(updatedAt.getTime()) || Number.isNaN(createdAt.getTime())) {
+          result.item_groups.rejected.push({ id, reason: 'invalid' });
+          continue;
+        }
+
+        const [existingRows] = await conn.query(
+          'SELECT user_id, updated_at FROM item_groups WHERE id = ?',
+          [id]
+        );
+        const existing = (existingRows as Row[])[0];
+
+        if (existing && existing.user_id !== req.userId) {
+          result.item_groups.rejected.push({ id, reason: 'foreign_owner' });
+          continue;
+        }
+
+        // Same tenant check the items merge does: a valid FK pointing at
+        // ANOTHER owner's contact is still a leak.
+        const [custRows] = await conn.query(
+          'SELECT id FROM customers WHERE id = ? AND user_id = ?',
+          [customerId, req.userId]
+        );
+        if ((custRows as Row[]).length === 0) {
+          result.item_groups.rejected.push({ id, reason: 'missing_customer' });
+          continue;
+        }
+
+        if (!existing) {
+          await conn.query(
+            `INSERT INTO item_groups
+               (id, user_id, customer_id, name, lines_json, created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.userId, customerId, name, linesJson, createdAt, updatedAt, deletedAt]
+          );
+        } else if (updatedAt >= new Date(existing.updated_at as string)) {
+          await conn.query(
+            `UPDATE item_groups
+               SET customer_id = ?, name = ?, lines_json = ?, updated_at = ?, deleted_at = ?
+             WHERE id = ? AND user_id = ?`,
+            [customerId, name, linesJson, updatedAt, deletedAt, id, req.userId]
+          );
+        }
+        // A stale edit still counts as accepted — the server's copy won, so
+        // the client should stop resending it.
+        result.item_groups.accepted.push(id);
+      }
+
       // ---- transactions: append-only, insert if the UUID is new ----
       // Processed AFTER customers in the same DB transaction, so a contact and
       // the debts recorded against it can land in a single push.
@@ -348,6 +419,7 @@ interface PullCursor {
   customers: TableCursor;
   transactions: TableCursor;
   items: TableCursor;
+  itemGroups: TableCursor;
 }
 
 const CURSOR_VERSION = 'v1';
@@ -355,22 +427,48 @@ const CURSOR_VERSION = 'v1';
 // is RECOGNISED rather than mis-parsed: a v1 cursor has no items position, and
 // guessing one would either replay the whole list or skip it entirely.
 const CURSOR_VERSION_V2 = 'v2';
+// v3 adds the saved baskets. Same rule: a v2 cursor says nothing about that
+// table, so a client arriving with one starts it from zero and receives the
+// groups it has never seen.
+const CURSOR_VERSION_V3 = 'v3';
 const EPOCH = () => new Date(0);
 
 function encodeCursor(c: PullCursor): string {
   return [
-    CURSOR_VERSION_V2,
+    CURSOR_VERSION_V3,
     c.customers.ts.toISOString(), c.customers.id,
     c.transactions.ts.toISOString(), c.transactions.id,
     c.items.ts.toISOString(), c.items.id,
+    c.itemGroups.ts.toISOString(), c.itemGroups.id,
   ].join('|');
 }
 
-// Accepts the v2 keyset form, the v1 form (no items), or a bare ISO timestamp —
-// the format the oldest installed APKs still send. Returns null if it is none.
+// Accepts the v3 keyset form, the v2 form (no groups), the v1 form (no items
+// either), or a bare ISO timestamp — the format the oldest installed APKs still
+// send. Returns null if it is none.
 function decodeCursor(raw: string | undefined): PullCursor | null {
   const fresh = (): TableCursor => ({ ts: EPOCH(), id: '' });
-  if (!raw) return { customers: fresh(), transactions: fresh(), items: fresh() };
+  if (!raw) {
+    return { customers: fresh(), transactions: fresh(), items: fresh(), itemGroups: fresh() };
+  }
+
+  if (raw.startsWith(`${CURSOR_VERSION_V3}|`)) {
+    const [, cts, cid, tts, tid, its, iid, gts, gid] = raw.split('|');
+    const customersTs = new Date(cts);
+    const transactionsTs = new Date(tts);
+    const itemsTs = new Date(its);
+    const groupsTs = new Date(gts);
+    if (Number.isNaN(customersTs.getTime()) || Number.isNaN(transactionsTs.getTime()) ||
+        Number.isNaN(itemsTs.getTime()) || Number.isNaN(groupsTs.getTime())) {
+      return null;
+    }
+    return {
+      customers: { ts: customersTs, id: cid ?? '' },
+      transactions: { ts: transactionsTs, id: tid ?? '' },
+      items: { ts: itemsTs, id: iid ?? '' },
+      itemGroups: { ts: groupsTs, id: gid ?? '' },
+    };
+  }
 
   if (raw.startsWith(`${CURSOR_VERSION_V2}|`)) {
     const [, cts, cid, tts, tid, its, iid] = raw.split('|');
@@ -385,6 +483,9 @@ function decodeCursor(raw: string | undefined): PullCursor | null {
       customers: { ts: customersTs, id: cid ?? '' },
       transactions: { ts: transactionsTs, id: tid ?? '' },
       items: { ts: itemsTs, id: iid ?? '' },
+      // Nothing in a v2 cursor says where this client stands on the saved
+      // baskets, so it starts at the beginning of that table.
+      itemGroups: fresh(),
     };
   }
 
@@ -399,13 +500,17 @@ function decodeCursor(raw: string | undefined): PullCursor | null {
       // A client upgrading from v1 has never pulled an item, so it starts from
       // the beginning of that table rather than from the contacts' position.
       items: fresh(),
+      itemGroups: fresh(),
     };
   }
 
   const ts = new Date(raw);
   if (Number.isNaN(ts.getTime())) return null;
   // Legacy clients sent a plain timestamp and expected `>=` semantics.
-  return { customers: { ts, id: '' }, transactions: { ts, id: '' }, items: fresh() };
+  return {
+    customers: { ts, id: '' }, transactions: { ts, id: '' },
+    items: fresh(), itemGroups: fresh(),
+  };
 }
 
 // mysql2 hands DATETIME back as a Date, but a raw function result can arrive as
@@ -479,6 +584,18 @@ router.get(
       [req.userId, cursor.items.ts, cursor.items.ts, cursor.items.id, limit + 1]
     );
 
+    // Groups carry their tombstones too — a basket the owner deleted on one
+    // phone has to disappear from the other, not come back on its next pull.
+    const [groupRows] = await pool.query(
+      `SELECT id, customer_id, name, lines_json,
+              created_at, updated_at, deleted_at, server_updated_at
+         FROM item_groups
+        WHERE user_id = ? AND ${after}
+        ORDER BY server_updated_at ASC, id ASC
+        LIMIT ?`,
+      [req.userId, cursor.itemGroups.ts, cursor.itemGroups.ts, cursor.itemGroups.id, limit + 1]
+    );
+
     // Settings ride along OUTSIDE the keyset cursor: the whole set is returned
     // on every pull, page or no page. It is a dozen short strings, so there is
     // nothing to page, and sending them unconditionally means a device that
@@ -492,13 +609,16 @@ router.get(
     const allCustomers = customerRows as Row[];
     const allTransactions = transactionRows as Row[];
     const allItems = itemRows as Row[];
+    const allGroups = groupRows as Row[];
     const moreCustomers = allCustomers.length > limit;
     const moreTransactions = allTransactions.length > limit;
     const moreItems = allItems.length > limit;
+    const moreGroups = allGroups.length > limit;
     const customers = moreCustomers ? allCustomers.slice(0, limit) : allCustomers;
     const transactions = moreTransactions ? allTransactions.slice(0, limit) : allTransactions;
     const items = moreItems ? allItems.slice(0, limit) : allItems;
-    const hasMore = moreCustomers || moreTransactions || moreItems;
+    const itemGroups = moreGroups ? allGroups.slice(0, limit) : allGroups;
+    const hasMore = moreCustomers || moreTransactions || moreItems || moreGroups;
 
     // Advance each table's cursor to its own last delivered row.
     const advance = (rows: Row[], previous: TableCursor): TableCursor => {
@@ -510,6 +630,7 @@ router.get(
       customers: advance(customers, cursor.customers),
       transactions: advance(transactions, cursor.transactions),
       items: advance(items, cursor.items),
+      itemGroups: advance(itemGroups, cursor.itemGroups),
     };
 
     // Once fully drained, rewind to a moment safely in the past.
@@ -522,13 +643,17 @@ router.get(
     // one row is permanent.
     if (!hasMore) {
       const safe = { ts: new Date(serverNow.getTime() - CURSOR_REWIND_MS), id: '' };
-      next = { customers: safe, transactions: { ...safe }, items: { ...safe } };
+      next = {
+        customers: safe, transactions: { ...safe },
+        items: { ...safe }, itemGroups: { ...safe },
+      };
     }
 
     return res.json({
       customers,
       transactions,
       items,
+      item_groups: itemGroups,
       settings: settingRows as Row[],
       synced_at: encodeCursor(next),
       has_more: hasMore,

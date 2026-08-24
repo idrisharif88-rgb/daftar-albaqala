@@ -40,3 +40,10 @@ export const SYNCABLE_SETTING_KEYS = new Set([
 // oversized value is REPORTED to the client rather than silently truncated by
 // MySQL into a different value than the one the owner typed.
 export const MAX_SETTING_VALUE_LENGTH = 512;
+
+// A saved basket's membership travels as JSON text (see migration 004). The
+// server stores it without reading inside it, so the only thing it can
+// meaningfully check is the size — a TEXT column would silently truncate a
+// larger value, and a truncated JSON array is not a shorter group, it is a
+// broken one.
+export const MAX_GROUP_LINES_LENGTH = 8000;

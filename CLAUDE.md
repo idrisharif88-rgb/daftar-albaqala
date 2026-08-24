@@ -192,7 +192,7 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
 
 ### Automated tests (sync)
 - `server/src/test/` — integration tests for `/sync/push` + `/sync/pull` + subscription gate
-  + settings + items (**52 cases**) using
+  + settings + items + item groups (**62 cases**) using
   Node's built-in test runner + `supertest`, driving the real Express app (`src/app.ts`, split
   out of `index.ts` so it has no `listen()`). Run with **`npm test`** in `server/`.
 - They hit a **real MySQL** `daftar_test` DB — **never** production `daftar_db` (a guard refuses
@@ -204,7 +204,9 @@ The full backend can now be run + tested **locally** (no droplet needed for dev)
   subscription gate (active allowed; none/expired/past-expiry → 402; future-expiry allowed),
   and (Phase 8) per-row accept/reject, clock skew, keyset paging incl. tied timestamps,
   contact role + transaction currency; (Phase 10) settings allowlist + per-key LWW + whole-set
-  pull, and items LWW/tombstones/tenant isolation/`v1`→`v2` cursor upgrade.
+  pull, and items LWW/tombstones/tenant isolation/`v1`→`v2` cursor upgrade;
+  (Phase 11) item_groups LWW/tombstones/tenant isolation/oversized `lines_json`/`v2`→`v3` cursor
+  upgrade.
   ⚠️ A test that builds a cursor by hand must read the clock from **MySQL** (`SELECT NOW(3)`),
   not from Node — `DATETIME` carries no timezone and the driver reads it back through the
   connection's, so a Node-built "one minute from now" can still be in the column's past.
@@ -612,7 +614,72 @@ device-verified except the printer (no hardware yet). **Server tests 52/52**, fr
 > snap cannot move it) and setting it as the Gradle JDK. The other project (`quran-fives-react`)
 > still points at a surviving snap revision and will break the same way when it is cleaned up.
 
-> ▶ **RESUME HERE:** the Play Store items above (SMS permission first — it changes code), or
+## Status — DONE (Phase 11: invoice review, invoice-shaped message, groups) ✅ (2026-08-24)
+Owner round of 2026-08-24 (three items). Typechecks + builds clean; server tests and the
+frontend unit tests pass. **Not yet device-tested.**
+
+- [x] **The invoice is reviewed before it is recorded.** `src/pages/Invoice.tsx`: the footer's
+      two record buttons are gone; it now carries one **«مراجعة الفاتورة»**. That opens a sheet
+      showing the basket as the owner's paper invoice lays it out — الصنف | السعر | الكمية |
+      الإجمالي with a total row — where quantities are still editable (± on each row), plus
+      «تفريغ الفاتورة» and «حفظ كمجموعة». Two choices: **«تأكيد»** or **«إلغاء»**, and إلغاء
+      closes the sheet WITHOUT emptying the basket (cancelling a confirmation must not destroy
+      the thing being confirmed). تأكيد opens the second step, which is where the original two
+      buttons now live: **«تسجيل دين»** / **«تسجيل دين وطباعة»** (named from the role), plus
+      «رجوع». WHY: the picking screen cannot show the basket, so eight taps down a long list
+      produced a total with nothing to check it against — and the entry that follows is
+      append-only, correctable only by a reversing entry made in front of the other person.
+- [x] **Invoice numbers.** `src/data/invoiceNumber.ts` — a running counter in `app_meta`
+      (`invoice_seq`), consumed only when the basket is actually recorded (a number burnt by an
+      abandoned invoice is a missing page in a numbered book). The number leads the entry's note
+      («فاتورة رقم 12: جبن ×3، …»), heads the printed receipt, and opens the message. It is
+      deliberately **not synced** — it counts what this phone issued, the way a paper book counts
+      what that book issued, so it is a reference and never an identity (the UUID is).
+- [x] **The message is now the invoice** (`buildMessage`, `src/lib/notify.ts`, + `InvoiceInfo`
+      threaded through `useContactNotifier`): sender / «فاتورة رقم N» / «التاريخ … الساعة …» /
+      a line per item / then the existing entry + balance + تفقيط block. The note is suppressed
+      when an invoice is present — it holds the same breakdown.
+      ⚠️ **The paper's four columns are NOT reproduced as columns.** «800 | 3 | 2,400» is three
+      numbers separated by neutral characters in a right-to-left paragraph, and the bidi
+      algorithm hands those neutrals the paragraph direction — the reader is shown
+      «2,400 | 3 | 800». A price list that silently swaps its own columns is worse than none, so
+      every figure is introduced by an Arabic word instead: «جبن — كمية 3 × سعر 800 — إجمالي
+      2,400». Same reason the date reads «2026-08-24 الساعة 18:47» rather than «2026-08-24 18:47»
+      (a space between two numbers reverses them). Whole-message test in `notify.test.ts`.
+- [x] **Deleting a صنف is findable.** The swipe action was already there and invisible — nothing
+      on screen said so, and an owner who cannot find it concludes the app will not allow it. The
+      open item's form now also carries a plain **«حذف الصنف»** button (`src/pages/Items.tsx`).
+      Both paths go through the same confirm + `deleteItem` (soft-delete, syncs as a tombstone).
+- [x] **Groups — a saved basket per contact.** `src/data/itemGroups.ts` + `item_groups` (local
+      migration 4, server migration `004_item_groups.sql`). Chips above the price list apply one
+      («الطلب الأسبوعي» → the whole basket in one tap); a bookmarks button in the header opens
+      the manage sheet (apply / swipe-delete / save the current basket under a name). Applying
+      ADDS to the basket rather than replacing it, and reports what it had to skip — an item
+      deleted from the price list since, or one whose currency no longer matches this invoice.
+      Membership is stored as **JSON text in one column**, `lines_json`
+      (`[{"item_id":…,"qty":…}]` — NOT called `lines`: MySQL reserves that word and the CREATE
+      fails outright): the ids
+      only travel together, and a child table would add a second synced entity with its own
+      tombstones and its own way to arrive half-applied. The server stores that text without
+      reading inside it — it checks only the owner, the contact, and the size (a TEXT truncation
+      turns a long basket into broken JSON, not a shorter one).
+      **Sync cursor is now `v3`** (four tables); `v2`, `v1` and a bare ISO timestamp still decode,
+      each starting the tables they never knew about from zero.
+- [x] **Bug found in passing: `ensureLocalOwner` never wiped `items`.** An account switch dropped
+      the previous grocer's contacts and transactions but left their price list — the same class
+      of leak as the Phase 6.6 one. `items` and `item_groups` are now in the wipe (`src/data/
+      owner.ts`), each `DELETE` on its own line as that file's note requires.
+
+> ⚠️ **MIGRATION REQUIRED before this runs against an existing DB** (DDL — `daftar_user` is
+> DML-only, so run as root). Droplet:
+> `sudo mysql -u root -p daftar_db < server/db/migrations/004_item_groups.sql`
+> Local dev + test: the same file against `daftar_db` AND `daftar_test` (or
+> `sudo bash server/db/local-reset.sh` to reload both from `schema.sql`).
+> Phones migrate themselves on next launch via `migrations.ts` (`user_version` 4).
+
+> ▶ **RESUME HERE:** device-test Phase 11 (invoice review → تأكيد → record/print, the itemised
+> message on a real phone, deleting a صنف, and groups incl. a second-device sync of one), then
+> the Play Store items above (SMS permission first — it changes code), or
 > Phase 7 (WhatsApp OTP). The owner build (`VITE_OWNER_BUILD=1`) is the other open thread: contact
 > editing lives behind it, and account activation + granting access are meant to join it.
 > The **printer is untested** — first real 80mm unit is the next verification.
@@ -626,6 +693,7 @@ device-verified except the printer (no hardware yet). **Server tests 52/52**, fr
 > There is **no delete button in the app**; `softDeleteCustomer` exists in `src/data/customers.ts`
 > but nothing calls it. Any hand-written SQL on `customers` MUST bump `updated_at=UTC_TIMESTAMP()`
 > or the phone discards the pulled row as stale.
+
 
 ## Status — PLANNED (Phase 7: phone verification via WhatsApp OTP)
 **Decided 2026-06-27 (owner):** verify the phone at registration so only the real owner of a

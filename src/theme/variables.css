@@ -279,3 +279,89 @@ ion-item { --background: #ffffff; }
 .invoice-bar__total { font-size: 1.02rem; }
 .invoice-bar__count { font-size: 0.8rem; }
 .invoice-bar__actions { display: flex; gap: 6px; }
+
+/* The saved baskets, above the price list. A row of chips rather than a menu:
+   the whole value of a group is that it is one tap away. */
+.group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+
+/* The invoice as the owner's paper book lays it out:
+   الصنف | السعر | الكمية | الإجمالي, right to left. */
+.inv-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.inv-table__row {
+  display: grid;
+  grid-template-columns: 1fr 4.5rem 5.5rem 5rem;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 0.95rem;
+}
+
+.inv-table__row > span:not(.inv-table__name) {
+  text-align: center;
+}
+
+.inv-table__row--head {
+  font-weight: 700;
+  background: var(--ion-color-light, #f4f5f8);
+}
+
+.inv-table__row--total {
+  font-weight: 700;
+  border-bottom: 0;
+  background: var(--ion-color-light, #f4f5f8);
+}
+
+.inv-table__name { font-weight: 600; }
+
+.inv-table__qty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.inv-table__qty ion-button {
+  --padding-start: 0;
+  --padding-end: 0;
+  height: 28px;
+  margin: 0;
+}
+
+.inv-table__qty ion-icon { font-size: 1.5rem; }
+
+.inv-review__extras {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.inv-review__hint {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.85rem;
+}
+
+.inv-review__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px calc(8px + var(--ion-safe-area-bottom, 0px));
+  background: var(--ion-color-light, #f4f5f8);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}

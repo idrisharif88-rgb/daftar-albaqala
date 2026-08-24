@@ -3,14 +3,22 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonIcon,
-  IonSearchbar, IonNote, IonFooter, IonLoading,
-  useIonViewWillEnter, useIonAlert, useIonRouter,
+  IonSearchbar, IonNote, IonFooter, IonLoading, IonModal, IonChip,
+  IonItemSliding, IonItemOptions, IonItemOption,
+  useIonViewWillEnter, useIonAlert, useIonRouter, useIonToast,
 } from '@ionic/react';
-import { addCircle, removeCircle, printOutline } from 'ionicons/icons';
+import {
+  addCircle, removeCircle, printOutline, trashOutline, bookmarksOutline,
+  bookmarkOutline, closeCircleOutline,
+} from 'ionicons/icons';
 import { getCustomer, type Customer } from '../data/customers';
 import { listItems, type Item } from '../data/items';
+import {
+  listGroups, createGroup, deleteGroup, type ItemGroup,
+} from '../data/itemGroups';
 import { addTransaction } from '../data/transactions';
 import { formatMinor } from '../data/money';
+import { nextInvoiceNumber } from '../data/invoiceNumber';
 import { runSync } from '../data/sync';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
@@ -34,17 +42,27 @@ import type { InvoiceLine } from '../lib/receipt';
 // Everything on one invoice must share a CURRENCY: a total is only meaningful
 // within one, and the debt of record is the native amount (see currencies.ts).
 // Picking an item in another currency swaps the invoice rather than mixing it.
+//
+// Recording is a THREE-step act — pick, review, record — because the picking
+// screen cannot show the basket. Tapping ＋ four times down a long list leaves
+// the owner with a total and no way to check what produced it, and the entry
+// that follows is append-only: a wrong basket is corrected by a reversing
+// entry, in front of the person it was rung up for. So the basket is laid out
+// in full first, as an invoice, and only «تأكيد» opens the two ways of
+// recording it.
 
 const Invoice: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const router = useIonRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  const [groups, setGroups] = useState<ItemGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [presentAlert] = useIonAlert();
+  const [presentToast] = useIonToast();
   // Same SMS + WhatsApp flow the contact screen uses.
   const notifyContact = useContactNotifier();
   // Synchronous guard — `busy` lands a render late, and a double tap on «حفظ»
@@ -55,27 +73,38 @@ const Invoice: React.FC = () => {
   // say "three of these" without entering the same item three times.
   const [qty, setQty] = useState<Record<string, number>>({});
 
+  // The review sheet, and which of its two steps is showing. 'review' is the
+  // basket laid out as an invoice; 'confirm' is the two ways to record it.
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [step, setStep] = useState<'review' | 'confirm'>('review');
+  const [groupsOpen, setGroupsOpen] = useState(false);
+
   const load = useCallback(async () => {
-    const [c, list, currentRates] = await Promise.all([
-      getCustomer(customerId), listItems(customerId), getRates(),
+    const [c, list, savedGroups, currentRates] = await Promise.all([
+      getCustomer(customerId), listItems(customerId), listGroups(customerId), getRates(),
     ]);
     setCustomer(c);
     setItems(list);
+    setGroups(savedGroups);
     setRates(currentRates);
     setLoading(false);
   }, [customerId]);
 
   useIonViewWillEnter(() => { void load(); });
 
-  const lines: InvoiceLine[] = items
+  const itemById = new Map(items.map((i) => [i.id, i]));
+
+  const basket = items
     .filter((i) => (qty[i.id] ?? 0) > 0)
-    .map((i) => ({
-      name: i.name,
-      qty: qty[i.id],
-      unitPrice: i.price,
-      currency: i.currency,
-      total: i.price * qty[i.id],
-    }));
+    .map((i) => ({ item: i, qty: qty[i.id] }));
+
+  const lines: InvoiceLine[] = basket.map(({ item, qty: count }) => ({
+    name: item.name,
+    qty: count,
+    unitPrice: item.price,
+    currency: item.currency,
+    total: item.price * count,
+  }));
 
   // The invoice's currency is whatever its first line is in; everything else
   // is filtered against it.
@@ -106,12 +135,118 @@ const Invoice: React.FC = () => {
     });
   };
 
+  const clearBasket = () => {
+    setQty({});
+    setReviewOpen(false);
+  };
+
+  // ---- Saved baskets ----
+  //
+  // Applying a group ADDS to what is already on the invoice rather than
+  // replacing it: the usual week's basket plus the one extra thing is the
+  // common case, and a group that wiped the two items just picked would be a
+  // trap. Two things can be missing by the time a group is used, and both are
+  // reported rather than quietly dropped: an item deleted from the price list
+  // since the group was saved, and an item whose currency no longer matches
+  // this invoice.
+  const applyGroup = (group: ItemGroup) => {
+    let missing = 0;
+    let wrongCurrency = 0;
+    // Worked out here rather than inside a setQty updater: the updater runs
+    // when React gets round to it, so the two counters below would still be
+    // zero by the time the toast reports them.
+    const next = { ...qty };
+    // The currency in force: what the basket already is, or — for an empty
+    // basket — whatever the group's first surviving item is in.
+    let currency: CurrencyCode | null = lines.length > 0 ? invoiceCurrency : null;
+    for (const line of group.lines) {
+      const item = itemById.get(line.item_id);
+      if (!item) { missing++; continue; }
+      if (currency === null) currency = item.currency;
+      if (item.currency !== currency) { wrongCurrency++; continue; }
+      next[item.id] = (next[item.id] ?? 0) + line.qty;
+    }
+    setQty(next);
+
+    const problems: string[] = [];
+    if (missing > 0) problems.push(`${missing} صنف محذوف`);
+    if (wrongCurrency > 0) problems.push(`${wrongCurrency} صنف بعملة مختلفة`);
+    presentToast({
+      message: problems.length > 0
+        ? `أُضيفت «${group.name}» — تم تخطي ${problems.join(' و')}`
+        : `أُضيفت «${group.name}»`,
+      duration: problems.length > 0 ? 3000 : 1500,
+      position: 'bottom',
+    });
+    setGroupsOpen(false);
+  };
+
+  const saveAsGroup = () => {
+    if (lines.length === 0) return;
+    presentAlert({
+      header: 'حفظ كمجموعة',
+      message: 'اسم المجموعة، مثل: الطلب الأسبوعي',
+      inputs: [{ name: 'name', type: 'text', placeholder: 'اسم المجموعة' }],
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        {
+          text: 'حفظ',
+          handler: (data: { name?: string }) => {
+            void (async () => {
+              try {
+                await createGroup({
+                  customerId,
+                  name: data.name ?? '',
+                  lines: basket.map(({ item, qty: count }) => ({
+                    item_id: item.id, qty: count,
+                  })),
+                });
+                setGroups(await listGroups(customerId));
+                void runSync(); // fire-and-forget; the group belongs to the account
+                presentToast({ message: 'تم حفظ المجموعة', duration: 1500, position: 'bottom' });
+              } catch (err) {
+                presentAlert({
+                  header: 'تعذّر الحفظ',
+                  message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
+                  buttons: ['حسناً'],
+                });
+              }
+            })();
+          },
+        },
+      ],
+    });
+  };
+
+  const confirmDeleteGroup = (group: ItemGroup) => {
+    presentAlert({
+      header: 'حذف المجموعة',
+      // Worth saying plainly: a group holds no money, so nothing is lost with it.
+      message: `حذف «${group.name}»؟ الأصناف وأسعارها والحركات المسجّلة لا تتأثر.`,
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        {
+          text: 'حذف',
+          role: 'destructive',
+          handler: () => {
+            void (async () => {
+              await deleteGroup(group.id);
+              setGroups(await listGroups(customerId));
+              void runSync();
+            })();
+          },
+        },
+      ],
+    });
+  };
+
   // The role decides which of the two stored types GROWS what is owed. Against
   // a صاحب متجر — a shop the owner buys from — the entry that grows the debt is
   // the one stored as 'payment'. Buying on credit is always the growing one,
   // whichever name and sign that role gives it.
   const role = customer?.role ?? 'customer';
   const [growthType] = orderedTypes(role);
+  const entryLabel = directionLabel(role, growthType);
 
   const save = async (thenPrint: boolean) => {
     if (!customer || lines.length === 0) return;
@@ -123,7 +258,14 @@ const Invoice: React.FC = () => {
     savingRef.current = true;
     setBusy('جارٍ الحفظ...');
     try {
-      const note = lines.map((l) => `${l.name} ×${l.qty}`).join('، ');
+      // The number is taken only now: an invoice abandoned at the review step
+      // must not leave a gap in the book (see invoiceNumber.ts).
+      const number = await nextInvoiceNumber();
+      const issuedAt = new Date();
+      const breakdown = lines.map((l) => `${l.name} ×${l.qty}`).join('، ');
+      // The number leads the note, so the entry in the history, the receipt on
+      // the counter and the message on the phone all name the same invoice.
+      const note = `فاتورة رقم ${number}: ${breakdown}`;
       await addTransaction({
         customerId,
         type: growthType,
@@ -136,12 +278,14 @@ const Invoice: React.FC = () => {
       // Recording WITHOUT printing goes through the ordinary notification
       // flow — the same SMS and WhatsApp offer as an entry typed by hand, so
       // the contact hears about a basket exactly as they hear about a single
-      // debt. With a printed receipt the paper IS the notice, so it is not
-      // also sent as a message.
+      // debt, itemised the way the paper invoice book itemises it. With a
+      // printed receipt the paper IS the notice, so it is not also sent.
       if (!thenPrint) {
         setQty({});
+        setReviewOpen(false);
         await notifyContact({
           customerId, type: growthType, amount: total, currency: invoiceCurrency, note,
+          invoice: { number, issuedAt, lines },
         });
         router.goBack();
         return;
@@ -156,15 +300,17 @@ const Invoice: React.FC = () => {
         storeName: messageSender(settings),
         contactName: customer.name,
         roleLabel: roleDef(role).labelAr,
-        entryLabel: directionLabel(role, growthType),
+        entryLabel,
+        number,
         lines,
         total,
         currency: invoiceCurrency,
-        issuedAt: new Date(),
+        issuedAt,
         rates,
       });
 
       setQty({});
+      setReviewOpen(false);
       router.goBack();
     } catch (err) {
       presentAlert({
@@ -182,8 +328,14 @@ const Invoice: React.FC = () => {
     }
   };
 
+  const openReview = () => {
+    setStep('review');
+    setReviewOpen(true);
+  };
+
   const term = search.trim().toLowerCase();
   const visible = term ? items.filter((i) => i.name.toLowerCase().includes(term)) : items;
+  const short = currencyDef(invoiceCurrency).shortAr;
 
   return (
     <IonPage>
@@ -193,6 +345,11 @@ const Invoice: React.FC = () => {
             <IonBackButton defaultHref={`/customers/${customerId}`} text="رجوع" />
           </IonButtons>
           <IonTitle>فاتورة {customer?.name ?? ''}</IonTitle>
+          <IonButtons slot="end">
+            <IonButton onClick={() => setGroupsOpen(true)} aria-label="المجموعات">
+              <IonIcon slot="icon-only" icon={bookmarksOutline} />
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
         <IonToolbar>
           <IonSearchbar
@@ -204,6 +361,19 @@ const Invoice: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        {/* The saved baskets, one tap from the top of the list — the whole
+            point of a group is not having to go looking for it. */}
+        {groups.length > 0 && (
+          <div className="group-chips">
+            {groups.map((g) => (
+              <IonChip key={g.id} onClick={() => applyGroup(g)}>
+                <IonIcon icon={bookmarkOutline} />
+                <IonLabel>{g.name}</IonLabel>
+              </IonChip>
+            ))}
+          </div>
+        )}
+
         {loading ? (
           <div className="ion-text-center ion-padding">
             <IonSpinner name="crescent" />
@@ -254,29 +424,198 @@ const Invoice: React.FC = () => {
         )}
 
         <IonLoading isOpen={busy !== null} message={busy ?? ''} />
+
+        {/* ---- Review, then confirm ---- */}
+        <IonModal isOpen={reviewOpen} onDidDismiss={() => setReviewOpen(false)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>
+                {step === 'review' ? 'مراجعة الفاتورة' : `تأكيد ${entryLabel}`}
+              </IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => setReviewOpen(false)}>إغلاق</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+
+          <IonContent className="ion-padding">
+            {/* The paper invoice's four columns, in the same order the owner
+                writes them by hand: الصنف | السعر | الكمية | الإجمالي. */}
+            <div className="inv-table">
+              <div className="inv-table__row inv-table__row--head">
+                <span>الصنف</span>
+                <span>السعر</span>
+                <span>الكمية</span>
+                <span>الإجمالي</span>
+              </div>
+              {basket.map(({ item, qty: count }) => (
+                <div className="inv-table__row" key={item.id}>
+                  <span className="inv-table__name">{item.name}</span>
+                  <span>{formatMinor(item.price)}</span>
+                  <span>
+                    {step === 'review' ? (
+                      // Editable while reviewing: the mistake this screen
+                      // exists to catch is a quantity, so fixing it must not
+                      // mean going back and hunting the row down again.
+                      <span className="inv-table__qty">
+                        <IonButton
+                          fill="clear"
+                          size="small"
+                          onClick={() => bump(item, -1)}
+                          aria-label="إنقاص"
+                        >
+                          <IonIcon slot="icon-only" icon={removeCircle} />
+                        </IonButton>
+                        <b>{count}</b>
+                        <IonButton
+                          fill="clear"
+                          size="small"
+                          onClick={() => bump(item, 1)}
+                          aria-label="زيادة"
+                        >
+                          <IonIcon slot="icon-only" icon={addCircle} />
+                        </IonButton>
+                      </span>
+                    ) : (
+                      count
+                    )}
+                  </span>
+                  <span>{formatMinor(item.price * count)}</span>
+                </div>
+              ))}
+              <div className="inv-table__row inv-table__row--total">
+                <span>الإجمالي</span>
+                <span />
+                <span />
+                <span>{formatMinor(total)} {short}</span>
+              </div>
+            </div>
+
+            {step === 'review' && (
+              <div className="inv-review__extras">
+                <IonButton fill="clear" size="small" onClick={saveAsGroup}>
+                  <IonIcon slot="start" icon={bookmarkOutline} />
+                  حفظ كمجموعة
+                </IonButton>
+                <IonButton fill="clear" size="small" color="medium" onClick={clearBasket}>
+                  <IonIcon slot="start" icon={closeCircleOutline} />
+                  تفريغ الفاتورة
+                </IonButton>
+              </div>
+            )}
+
+            {step === 'confirm' && (
+              <IonNote className="inv-review__hint">
+                بعد التسجيل لا يمكن تعديل الحركة — التصحيح يكون بحركة عكسية.
+              </IonNote>
+            )}
+          </IonContent>
+
+          <IonFooter>
+            <div className="inv-review__actions">
+              {step === 'review' ? (
+                <>
+                  {/* «إلغاء» closes the review and leaves the basket as it is —
+                      cancelling a confirmation must not destroy the work that
+                      was being confirmed. «تفريغ الفاتورة» above is the way to
+                      actually empty it. */}
+                  <IonButton fill="outline" onClick={() => setReviewOpen(false)}>
+                    إلغاء
+                  </IonButton>
+                  <IonButton onClick={() => setStep('confirm')} disabled={lines.length === 0}>
+                    تأكيد
+                  </IonButton>
+                </>
+              ) : (
+                <>
+                  {/* Both buttons record the SAME entry; they differ only in
+                      what happens afterwards. Named from the role, so a
+                      صاحب متجر reads «تسجيل دين» — the label must match the
+                      button the owner presses on the contact screen for the
+                      same act. */}
+                  <IonButton fill="clear" color="medium" onClick={() => setStep('review')}>
+                    رجوع
+                  </IonButton>
+                  <IonButton onClick={() => { void save(false); }}>{entryLabel}</IonButton>
+                  <IonButton fill="outline" onClick={() => { void save(true); }}>
+                    <IonIcon slot="start" icon={printOutline} />
+                    {entryLabel} وطباعة
+                  </IonButton>
+                </>
+              )}
+            </div>
+          </IonFooter>
+        </IonModal>
+
+        {/* ---- Saved baskets ---- */}
+        <IonModal isOpen={groupsOpen} onDidDismiss={() => setGroupsOpen(false)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>المجموعات</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => setGroupsOpen(false)}>إغلاق</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            {groups.length === 0 ? (
+              <IonText color="medium">
+                <p className="ion-text-center ion-padding">
+                  لا توجد مجموعات. اختر الأصناف التي تشتريها عادةً ثم احفظها كمجموعة
+                  لتسجّلها لاحقاً بضغطة واحدة.
+                </p>
+              </IonText>
+            ) : (
+              <IonList>
+                {groups.map((g) => (
+                  <IonItemSliding key={g.id}>
+                    <IonItem button onClick={() => applyGroup(g)}>
+                      <IonIcon slot="start" icon={bookmarkOutline} />
+                      <IonLabel>
+                        <h2>{g.name}</h2>
+                        <p>{g.lines.length} صنف</p>
+                      </IonLabel>
+                    </IonItem>
+                    <IonItemOptions side="end">
+                      <IonItemOption color="danger" onClick={() => confirmDeleteGroup(g)}>
+                        <IonIcon slot="icon-only" icon={trashOutline} />
+                      </IonItemOption>
+                    </IonItemOptions>
+                  </IonItemSliding>
+                ))}
+              </IonList>
+            )}
+            <div className="ion-padding">
+              <IonButton
+                expand="block"
+                fill="outline"
+                onClick={saveAsGroup}
+                disabled={lines.length === 0}
+              >
+                <IonIcon slot="start" icon={bookmarkOutline} />
+                حفظ الأصناف المختارة كمجموعة
+              </IonButton>
+              {lines.length === 0 && (
+                <IonNote className="inv-review__hint">
+                  اختر أصنافاً أولاً لتتمكن من حفظها كمجموعة.
+                </IonNote>
+              )}
+            </div>
+          </IonContent>
+        </IonModal>
       </IonContent>
 
       {lines.length > 0 && (
         <IonFooter>
           <div className="invoice-bar">
             <div className="invoice-bar__total">
-              الإجمالي: <strong>{formatMinor(total)} {currencyDef(invoiceCurrency).shortAr}</strong>
+              الإجمالي: <strong>{formatMinor(total)} {short}</strong>
               <IonNote className="invoice-bar__count">
                 {' '}({lines.length} صنف)
               </IonNote>
             </div>
-            {/* Both buttons record the SAME entry; they differ only in what
-                happens afterwards. Named from the role, so a صاحب متجر reads
-                «تسجيل دين» — the label must match the button the owner presses
-                on the contact screen for the same act. */}
             <div className="invoice-bar__actions">
-              <IonButton onClick={() => { void save(false); }}>
-                {directionLabel(role, growthType)}
-              </IonButton>
-              <IonButton fill="outline" onClick={() => { void save(true); }}>
-                <IonIcon slot="start" icon={printOutline} />
-                {directionLabel(role, growthType)} وطباعة
-              </IonButton>
+              <IonButton onClick={openReview}>مراجعة الفاتورة</IonButton>
             </div>
           </div>
         </IonFooter>

@@ -29,6 +29,8 @@ export async function ensureLocalOwner(userId: string): Promise<void> {
     // (balances reset to zero) while `customers` leak across accounts.
     await db.execute(
       `DELETE FROM transactions;
+DELETE FROM item_groups;
+DELETE FROM items;
 DELETE FROM customers;
 DELETE FROM app_meta;`,
     );

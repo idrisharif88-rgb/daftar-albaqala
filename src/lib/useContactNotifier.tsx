@@ -5,7 +5,7 @@ import { getBalances, type TxnType } from '../data/transactions';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
 import type { CurrencyCode } from '../data/currencies';
-import { buildMessage, sendSms, openWhatsApp } from './notify';
+import { buildMessage, sendSms, openWhatsApp, type InvoiceInfo } from './notify';
 
 // Telling the contact what was just recorded — the SMS, then the WhatsApp
 // offer, then the "are you sure you don't want to send it" confirmation.
@@ -28,6 +28,10 @@ export interface NotifyInput {
   currency: CurrencyCode;
   /** Folded into the message on its own line. */
   note: string;
+  /** Set when the entry is a basket built from the price list: the message
+   *  then opens with the invoice — number, date and a line per item — the way
+   *  the owner's paper invoice book reads. */
+  invoice?: InvoiceInfo;
 }
 
 export function useContactNotifier(): (input: NotifyInput) => Promise<void> {
@@ -69,7 +73,9 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<void> {
     });
   }, [presentSheet, confirmCancel]);
 
-  return useCallback(async ({ customerId, type, amount, currency, note }: NotifyInput) => {
+  return useCallback(async (
+    { customerId, type, amount, currency, note, invoice }: NotifyInput,
+  ) => {
     const c = await getCustomer(customerId);
     if (!c) return;
     const [settings, newBalances, currentRates] = await Promise.all([
@@ -87,6 +93,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<void> {
       balances: newBalances,
       rates: currentRates,
       note,
+      invoice,
     });
     void sendSms(c.phone, message); // auto: one combined SMS (balance + note)
     presentSendSheet(c.phone, message);
