@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -59,12 +60,14 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- NO SMS PERMISSION, deliberately. The notice used to be sent in the
          background with SEND_SMS; Google Play restricts that permission to apps
          whose core purpose is messaging (the default SMS handler), so holding it
          made the app unpublishable. A notice now opens the user's own messaging
          app pre-filled, via an `sms:` intent, which needs no permission at all
          (see src/lib/notify.ts). Do not add it back. -->
+
     <!-- NO CONTACTS PERMISSION, deliberately. Picking a customer's number goes
          through Android's own picker (ACTION_PICK, see ContactPickerPlugin.java),
          which hands back the ONE contact the user chose with a temporary read
@@ -90,4 +93,21 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
         android:usesPermissionFlags="neverForLocation" />
+
+    <!-- STRIPPED — injected by plugins, never used by this app.
+         Location comes from cordova-plugin-bluetooth-serial's discovery path;
+         we only ever read the PAIRED device list, which needs no location on any
+         API level. Storage comes from cordova-plugin-x-socialsharing; PDFs are
+         shared through the FileProvider above, which needs no storage permission.
+         Leaving either in place makes Play treat this as a location/storage app
+         and pulls both into the Data Safety form for nothing. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        tools:node="remove" />
+
 </manifest>
