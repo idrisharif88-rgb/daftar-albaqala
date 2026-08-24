@@ -55,16 +55,22 @@ function stamp(d: Date): string {
 }
 
 // The invoice, laid out the way the owner's paper book lays it out: the number,
-// the date, then one line per item carrying its price, its quantity and its
-// total.
+// the date, then one line per item — name, quantity, unit price, line total —
+// and the total underneath.
 //
-// The paper has four COLUMNS; an SMS has none. Pipe-separated columns look
-// like a table right up until the moment the reader's phone applies the bidi
-// algorithm to «800 | 3 | 2,400» — three numbers separated by neutrals, in a
-// right-to-left paragraph — and reverses them into «2,400 | 3 | 800». A price
-// list that silently swaps its own columns is worse than no columns at all, so
-// each figure is LABELLED and follows an Arabic word instead.
-function invoiceLines(invoice: InvoiceInfo): string[] {
+// The paper has four COLUMNS; an SMS has none. Two things stop a column from
+// being a column here, and both are unfixable in plain text:
+//  - Width. «جبن» and «معكرونة» are different widths in a proportional font,
+//    so padding with spaces produces a staggered edge, not a table.
+//  - Direction. A line of nothing but numbers and punctuation («800 | 3 |
+//    2,400») has no strong character to set its direction, and the reader's
+//    phone is free to lay it out left-to-right — reversing the columns. A line
+//    that STARTS with the item name always has one, so its order is fixed.
+// So the meaning is carried by a LABEL on each figure rather than by its
+// position: «ك» كمية, «س» سعر, «إج» إجمالي. Single letters because an SMS is
+// billed by the segment — this fits about four items where the full words fit
+// two.
+function invoiceLines(invoice: InvoiceInfo, total: number, currency: CurrencyCode): string[] {
   const out = [
     `فاتورة رقم ${invoice.number}`,
     `التاريخ ${stamp(invoice.issuedAt)}`,
@@ -72,10 +78,10 @@ function invoiceLines(invoice: InvoiceInfo): string[] {
   ];
   for (const l of invoice.lines) {
     out.push(
-      `${l.name} — كمية ${l.qty} × سعر ${formatMinor(l.unitPrice)}` +
-      ` — إجمالي ${formatMinor(l.total)}`,
+      `${l.name} ك:${l.qty} س:${formatMinor(l.unitPrice)} إج:${formatMinor(l.total)}`,
     );
   }
+  out.push(`الإجمالي: ${formatAmountFull(total, currency)}`);
   out.push('');
   return out;
 }
@@ -121,7 +127,7 @@ export function buildMessage(opts: {
   if (sender) lines.push(sender);
 
   // The itemised part comes first: it explains the figure the next line states.
-  if (invoice) lines.push(...invoiceLines(invoice));
+  if (invoice) lines.push(...invoiceLines(invoice, amount, currency));
 
   // What just happened, in the currency it was recorded in — then its riyal
   // value, with the rate, when it wasn't riyals.

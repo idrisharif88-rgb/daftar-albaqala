@@ -164,10 +164,10 @@ describe('buildMessage', () => {
   });
 
   // The invoice — the owner's paper book, spelled out for the recipient: a
-  // number, a date, and one line per item. Each figure is introduced by an
-  // Arabic word rather than sitting in a column, because three numbers with
-  // only punctuation between them are reordered by the bidi algorithm in a
-  // right-to-left message (see notify.ts).
+  // number, a date, and one line per item carrying name, quantity, unit price
+  // and line total. The figures are LABELLED (ك / س / إج) rather than aligned
+  // into columns: a proportional font cannot align them, and a line of nothing
+  // but numbers has no direction of its own (see notify.ts).
   it('itemises an invoice above the entry, in the paper book order', () => {
     const msg = buildMessage({
       senderName: 'إدريس',
@@ -193,8 +193,9 @@ describe('buildMessage', () => {
       'فاتورة رقم 12\n' +
       'التاريخ 2026-08-24 الساعة 18:47\n' +
       '\n' +
-      'جبن — كمية 3 × سعر 800 — إجمالي 2,400\n' +
-      'سكر — كمية 2 × سعر 500 — إجمالي 1,000\n' +
+      'جبن ك:3 س:800 إج:2,400\n' +
+      'سكر ك:2 س:500 إج:1,000\n' +
+      'الإجمالي: 3,400 ريال يمني\n' +
       '\n' +
       'تسجيل دين 3,400 ريال يمني\n' +
       '\n' +
