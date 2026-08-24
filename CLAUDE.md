@@ -326,8 +326,10 @@ Seven fixes/features from owner testing, each built + device-tested one at a tim
       popover left orphaned after navigating — else navigates back.
 - [x] **Double-tap back to exit at the root.** At home/login, first back toasts «اضغط مرة أخرى
       للخروج»; a second press within 2s calls `CapacitorApp.exitApp()` (`@capacitor/app`).
-- [x] **Pick phone from contacts.** `@capacitor-community/contacts` (7.2.0; built for Cap 7 but
-      syncs/works on Cap 8) + `READ_CONTACTS`. `src/lib/contacts.ts` opens the native picker (Android
+- [x] **Pick phone from contacts.** ⚠️ **SUPERSEDED 2026-08-24 (Phase 14): the plugin and BOTH
+      contacts permissions are gone** — Android's own picker is used instead. Original:
+      `@capacitor-community/contacts` (7.2.0; built for Cap 7 but syncs/works on Cap 8) +
+      `READ_CONTACTS`. `src/lib/contacts.ts` opens the native picker (Android
       only; web no-op) → fills name + first phone in the add-customer modal («اختيار من جهات الاتصال»).
 - [x] **Sync-success toast polished.** «تمت المزامنة» now a checkmark icon on a dark-green
       `.toast-sync-ok` (Home + Settings).
@@ -600,8 +602,8 @@ device-verified except the printer (no hardware yet). **Server tests 52/52**, fr
 > (2) **Paid activation outside Play** — cloud sync is sold and activated manually over WhatsApp;
 > Play requires Play Billing for digital purchases and forbids steering users to outside payment.
 > Play billing is unavailable in Yemen, so the defensible position is that the app sells nothing
-> (no prices, no "subscribe" wording in-app). (3) `WRITE_CONTACTS` is declared but never used (only
-> to satisfy the contacts plugin's permission alias) — reviewers ask. (4) Data Safety requires an
+> (no prices, no "subscribe" wording in-app). (3) `WRITE_CONTACTS` declared but never used — ✅ **FIXED
+> 2026-08-24, see Phase 14**: both contacts permissions removed. (4) Data Safety requires an
 > **account-deletion** route; there is no delete-account endpoint. (5) Play needs a signed **AAB**
 > and demo login credentials whose account is `subscription_status='active'`.
 
@@ -762,6 +764,52 @@ device-tested.**
       UUID is the identity.
       The number is `peek`ed for the message and only consumed inside `commit`, so an invoice
       abandoned at the send sheet leaves no gap.
+
+## Status — DONE (Phase 14: contacts by picker, not by permission) ✅ (2026-08-24)
+Closes Play Store blocker (3), and removes the disclosure/Data-Safety burden that came with it.
+Android + frontend only. **Not yet device-tested.**
+
+- [x] **`READ_CONTACTS` and `WRITE_CONTACTS` are gone, and must not come back.** READ_CONTACTS
+      means "read the whole address book, at any time", and Play prices it accordingly: a
+      prominent in-app disclosure, a privacy-policy section and a Data Safety declaration — all
+      to fill in two fields on a form. WRITE_CONTACTS was never used at all; it was there only
+      because `@capacitor-community/contacts` bundles READ+WRITE under one permission alias and
+      the alias is denied unless both are declared (the Phase 6.6 fix). The plugin is uninstalled
+      — it injects the permission into the merged manifest whatever the app manifest says.
+- [x] **Android's own picker instead** — `android/app/src/main/java/com/shopbookidris/app/
+      ContactPickerPlugin.java`, a small Capacitor plugin: `ACTION_PICK` on `Phone.CONTENT_URI`,
+      the result read back through the one-shot URI grant Android attaches to the chosen row.
+      **No permission, and no permission dialog ever shown.**
+      - `Phone.CONTENT_URI`, not `Contacts.CONTENT_URI`: it lists one entry per NUMBER, so a
+        contact with three numbers lets the owner say which one instead of the app taking the
+        first — which is what the old code did.
+      - Registered in `MainActivity.onCreate` **before `super.onCreate`** (the bridge is built
+        there). A plugin living in the app module is not auto-discovered; only installed
+        packages are.
+      - Web side: `src/lib/contacts.ts` now uses `registerPlugin('ContactPicker')`. Cancelling
+        returns null, and so does any failure — the manual fields still work, so this must never
+        raise a dialog the owner has to dismiss.
+      🧩 Server concept: least privilege. Holding READ_CONTACTS is holding a key to the whole
+      address book because you need one row from it. The picker is the difference between
+      granting SELECT on a table and being handed a single row — the same reason `daftar_user`
+      has DML but not DDL on the droplet.
+- [x] **Verified against the MERGED manifest, not the source one.** `./gradlew assembleDebug` +
+      `processReleaseManifest`, then grepping
+      `app/build/intermediates/merged_manifests/*/AndroidManifest.xml` for
+      `uses-permission.*CONTACTS` → no matches in either variant. That is the check that matters:
+      a plugin can inject a permission the app's own manifest never mentions. ⚠️ Those merged
+      manifests are build artifacts and go STALE — the release one still showed the old
+      permission until it was regenerated. Rebuild before believing a grep.
+
+> ⚠️ **Other permissions the merged manifest still carries, all injected by plugins, none
+> declared by us — Play reviewers will ask** (found while verifying the above, NOT yet
+> addressed): `ACCESS_COARSE_LOCATION` (cordova-plugin-bluetooth-serial, for discovery — we only
+> use the paired list), `READ_EXTERNAL_STORAGE` + `WRITE_EXTERNAL_STORAGE`
+> (cordova-plugin-x-socialsharing), `USE_BIOMETRIC` + `USE_FINGERPRINT`
+> (@capacitor-community/sqlite's encryption support, unused), `VIBRATE` (@capacitor/haptics).
+> Each can be stripped with `tools:node="remove"` in the app manifest if the feature that needs
+> it is genuinely unused — verify against the merged manifest afterwards, and test the printer
+> and the WhatsApp share, the two that might actually need theirs.
 
 > ▶ **RESUME HERE:** device-test Phase 11 (invoice review → تأكيد → record/print, the itemised
 > message on a real phone, deleting a صنف, and groups incl. a second-device sync of one), then

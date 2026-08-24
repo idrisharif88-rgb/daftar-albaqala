@@ -65,12 +65,14 @@
          made the app unpublishable. A notice now opens the user's own messaging
          app pre-filled, via an `sms:` intent, which needs no permission at all
          (see src/lib/notify.ts). Do not add it back. -->
-    <!-- Pick a customer's number from the phone's saved contacts. The contacts
-         plugin's "contacts" permission alias bundles READ + WRITE, and the alias
-         is only GRANTED when BOTH are declared — so WRITE_CONTACTS is required
-         for the picker to open even though we never write contacts. -->
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <!-- NO CONTACTS PERMISSION, deliberately. Picking a customer's number goes
+         through Android's own picker (ACTION_PICK, see ContactPickerPlugin.java),
+         which hands back the ONE contact the user chose with a temporary read
+         grant for it. READ_CONTACTS would mean access to the whole address book
+         at any time, and Play charges for that in prominent disclosure, a
+         privacy-policy section and a Data Safety declaration. Do not add it back.
+         WRITE_CONTACTS went with it — it was only ever there because the old
+         plugin's permission alias refused to work without it. -->
 
     <!-- Bluetooth receipt printer (ESC/POS over the classic serial profile).
          Android 12 SPLIT the old permissions: BLUETOOTH / BLUETOOTH_ADMIN are
