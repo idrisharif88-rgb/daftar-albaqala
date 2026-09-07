@@ -19,6 +19,7 @@ import { pickContact } from '../lib/contacts';
 import BalanceSummary from '../components/BalanceSummary';
 import BookTotals from '../components/BookTotals';
 import { SyncWarning, SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
+import { phoneInput } from '../lib/digits';
 
 // A contact plus its locally-computed running balances (one per currency).
 interface Row {
@@ -295,7 +296,7 @@ const Home: React.FC = () => {
                 type="tel"
                 inputmode="tel"
                 value={phone}
-                onIonInput={(e) => setPhone(e.detail.value ?? '')}
+                onIonInput={(e) => setPhone(phoneInput(e.detail.value ?? ''))}
                 placeholder="7XXXXXXXX"
               />
             </IonItem>

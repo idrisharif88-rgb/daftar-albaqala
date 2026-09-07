@@ -148,6 +148,22 @@ export function ownerBalanceLabel(minor: number): string {
   }
 }
 
+/**
+ * Whether a single entry goes out as a numbered «إشعار حركة» — a headed,
+ * sectioned document — rather than the bare four-line notice.
+ *
+ * The owner asked for it (2026-09-07) after comparing the two: the invoice he
+ * sends his صاحب متجر reads as a document, and the payment he makes the same
+ * shop read as a text message. A شريك had nothing but the bare form at all.
+ *
+ * A زبون is deliberately left out FOR NOW — that side of the book is not in
+ * use yet, and the owner would rather shape its wording when he starts selling
+ * than guess at it now.
+ */
+export function usesMovementNotice(role: string): boolean {
+  return role === 'supplier' || role === 'partner';
+}
+
 /** Contact-facing, for notifications: what it means for the recipient. */
 export function contactBalanceLabel(minor: number): string {
   switch (balanceDirection(minor)) {

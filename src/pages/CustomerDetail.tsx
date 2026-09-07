@@ -22,14 +22,17 @@ import {
   formatAmount, DEFAULT_RATES, type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
 import {
-  ROLES, directionColor, directionLabel, orderedTypes, roleDef, type ContactRole,
+  ROLES, directionColor, directionLabel, orderedTypes, roleDef, usesMovementNotice,
+  type ContactRole,
 } from '../data/roles';
+import { peekNoticeNumber, nextNoticeNumber, noticeNote } from '../data/docNumber';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { runSync } from '../data/sync';
 import { useContactNotifier } from '../lib/useContactNotifier';
 import { FEATURES } from '../config';
 import BalanceSummary from '../components/BalanceSummary';
+import { numericInput, phoneInput } from '../lib/digits';
 
 // Contact detail — transaction history + record an entry in either direction.
 // Append-only (CLAUDE.md): a transaction is never edited or deleted; a
@@ -140,17 +143,28 @@ const CustomerDetail: React.FC = () => {
     try {
       const amountMinor = toMinor(major);
       const entryCurrency = currency;
+      // A numbered «إشعار حركة» for the roles that send one. The number is only
+      // PEEKED here — it is consumed inside commit, so backing out of the send
+      // sheet does not burn one and leave a gap in the series (docNumber.ts).
+      const numbered = usesMovementNotice(role);
+      const notice = numbered
+        ? { number: await peekNoticeNumber(), issuedAt: new Date() }
+        : undefined;
       // The entry is NOT written here. It is written by the notifier, and only
       // once the notice is on its way — no notice, no debt (the owner's rule;
       // see useContactNotifier). Backing out of the send sheet leaves the book
       // exactly as it was, which matters because an entry cannot be deleted.
       const commit = async () => {
+        // The number goes into the ledger too, not only into the message: it is
+        // what the counter reads back after a reinstall, and what the two sides
+        // point at when they ask which payment is being talked about.
+        const number = numbered ? await nextNoticeNumber() : null;
         await addTransaction({
           customerId,
           type: formType,
           amount: amountMinor,
           currency: entryCurrency,
-          note: note.trim() || null,
+          note: number !== null ? noticeNote(number, note) : (note.trim() || null),
         });
         // Push it to the server straight away, but NEVER wait for it: the entry
         // is already saved locally, and the round trip to the droplet is ~400ms
@@ -161,7 +175,7 @@ const CustomerDetail: React.FC = () => {
       };
       const recorded = await notifyContact({
         customerId, type: formType, amount: amountMinor,
-        currency: entryCurrency, note: note.trim(), commit,
+        currency: entryCurrency, note: note.trim(), notice, commit,
       });
       if (!recorded) return; // cancelled — the form stays open with what was typed
       await load();
@@ -449,10 +463,10 @@ const CustomerDetail: React.FC = () => {
                 {currencyDef(currency).isWeight ? 'الوزن بالجرام' : `المبلغ (${currencyDef(currency).shortAr})`}
               </IonLabel>
               <IonInput
-                type="number"
+                type="text"
                 inputmode="decimal"
                 value={amount}
-                onIonInput={(e) => setAmount(e.detail.value ?? '')}
+                onIonInput={(e) => setAmount(numericInput(e.detail.value ?? ''))}
                 placeholder="0"
               />
             </IonItem>
@@ -518,7 +532,7 @@ const CustomerDetail: React.FC = () => {
                 type="tel"
                 inputmode="tel"
                 value={editPhone}
-                onIonInput={(e) => setEditPhone(e.detail.value ?? '')}
+                onIonInput={(e) => setEditPhone(phoneInput(e.detail.value ?? ''))}
               />
             </IonItem>
             <IonItem>

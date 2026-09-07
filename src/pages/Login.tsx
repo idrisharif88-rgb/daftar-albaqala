@@ -5,6 +5,7 @@ import {
 } from '@ionic/react';
 import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
+import { phoneInput } from '../lib/digits';
 
 type Mode = 'login' | 'register';
 
@@ -90,7 +91,7 @@ const Login: React.FC = () => {
               type="tel"
               inputmode="tel"
               value={phone}
-              onIonInput={(e) => setPhone(e.detail.value ?? '')}
+              onIonInput={(e) => setPhone(phoneInput(e.detail.value ?? ''))}
               placeholder="7XXXXXXXX"
             />
           </IonItem>

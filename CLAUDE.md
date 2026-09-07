@@ -811,7 +811,118 @@ Android + frontend only. **Not yet device-tested.**
 > it is genuinely unused — verify against the merged manifest afterwards, and test the printer
 > and the WhatsApp share, the two that might actually need theirs.
 
-> ▶ **RESUME HERE:** device-test Phase 11 (invoice review → تأكيد → record/print, the itemised
+## Status — DONE (Phase 15: the SMS fits in an SMS) ✅ (2026-09-07)
+Owner-reported: a 9-item invoice arrived as an **MMS**, which he will not send — the recipient
+needs data switched on to fetch one, it can land as an unreadable attachment, and it costs more.
+He was deleting the message by hand, character by character, until his phone's counter flipped
+back to SMS: the date, his own name, every label, the تفقيط line, «الدفع: آجل». Frontend only —
+no server change, no migration. Tests 27/27, build clean. **Not yet device-tested.**
+
+- [x] **The budget is measured, not guessed.** Arabic falls outside GSM-7, so an SMS is encoded
+      **UCS-2: 70 characters alone, 67 per part** once chained. His phone converts above **seven
+      parts**, and the message he pared down by hand came to **468** characters — one under
+      7 × 67 = **469**. `SMS_BUDGET = 469` in `src/lib/notify.ts`.
+- [x] **A compact layout, for SMS only** (`buildSmsMessage`). WhatsApp and the printed receipt
+      still get the full invoice from `buildMessage` — WhatsApp has no length limit, and paying
+      for brevity there would be paying for nothing. The compact one drops the three `━━━` rules
+      (36 characters), the emoji, the blank line between items, and the per-currency ≈-in-riyals
+      lines; each item becomes **one** line, `1) بطاطس نعمان أبو 50: 4×50 = 200`, with the
+      currency named once on the total instead of on every row. The owner's real 9-item invoice:
+      **625 characters (10 parts) → 401 (6 parts)**.
+- [x] **A trim ladder, in the order the owner cut things himself.** It sheds one thing at a time
+      and stops the moment the message fits, so a short invoice keeps everything: date → sender
+      line → تفقيط → and only then the item list. What he KEPT is what the ladder protects: every
+      item, the total, the balance. At the last level it still keeps as many items as the budget
+      holds and closes with «و7 أصناف أخرى» rather than collapsing to a bare total — a reader who
+      can check most of the invoice against what he received is better served than one handed a
+      number. 12 items fit untouched; 20 items list 13 and name the rest.
+- [x] **A single entry is left alone** — it was never near the limit — except that an overlong
+      **note** is truncated with «…» rather than letting the phone decide where the message ends.
+- [x] `useContactNotifier` builds **both** texts up front and picks by channel, because the
+      channel is chosen after the message is built and the sheet can be reopened.
+- ⚠️ **The limit:** 469 is HIS phone's threshold. Another phone may convert earlier; there is no
+      way to ask Android what the setting is. If a different device turns out to convert at 4 or 5
+      parts, lower the constant — everything else follows from it.
+
+## Status — DONE (Phase 16: Arabic name, English digits, a count) ✅ (2026-09-07)
+Three owner items from the same session. Frontend + Android resources only — no server change,
+no migration. Tests 35/35, build clean. **Not yet device-tested.**
+
+- [x] **The launcher says «دفتر البقالة».** `android/app/src/main/res/values/strings.xml`
+      (`app_name` + `title_activity_main`), which is what `android:label` in the manifest already
+      points at. `appName` in `capacitor.config.ts` was changed to match, but that value only
+      SEEDS a new native project — it does not rename an existing one, so editing it alone would
+      have changed nothing on the phone. The package id (`com.shopbookidris.app`) is untouched:
+      it is the app's identity to Android and to Play, and changing it makes a different app.
+- [x] **Numbers are Latin, wherever they are typed** (`src/lib/digits.ts`). An Arabic keyboard
+      produces ٠١٢٣, and `Number('١٢٣')` is NaN — as it is to MySQL, to the spreadsheet and to
+      the SMS gateway. `toLatinDigits` converts both the Arabic-Indic (U+0660–0669) and the
+      Persian/Urdu (U+06F0–06F9) shapes; `numericInput` also takes ٫ and «,» as the decimal point
+      and drops everything else as it is typed; `phoneInput` does the same for a number.
+      Applied to the amount (CustomerDetail), the item price (Items), the exchange rates
+      (Settings) and every phone field (Home, CustomerDetail, Login).
+      ⚠️ **The money fields had to stop being `type="number"`.** A number input SANITISES what it
+      cannot parse: «١٢٣» left the field empty, so there was nothing for the app to convert. They
+      are `type="text"` with `inputmode="decimal"` now — same numeric keypad, but the characters
+      actually arrive. Display was already Latin (`formatMinor` formats with `en-US`).
+- [x] **The price list says how big it is** — «عدد الأصناف: 47» at the top of `Items.tsx`, and
+      «النتائج: 3 من 47 صنف» while a search is running, so the number never quietly changes
+      meaning under the same label. It counts ROWS, not stock: this is a price list, not
+      inventory (nothing in the app knows how many of anything is on a shelf).
+
+## Status — DONE (Phase 17: «إشعار حركة» — the single entry as a document) ✅ (2026-09-07)
+The owner compared the two things he sends the same shop: the invoice built from the price list
+reads as a document, and the **payment he then makes against it** read as a text message. A شريك
+had only the bare four-line form at all. What makes the invoice formal is not the item lines — it
+is the **head, the sections and the closing**, and a single entry can have all three without
+pretending to be an invoice. Frontend only — no server change, no migration. Tests 45/45, build
+clean. **Not yet device-tested.**
+
+- [x] **A third layout, `notice` in `buildMessage`** (`src/lib/notify.ts`):
+      ```
+      🧾 إشعار حركة رقم 5
+      📅 الاثنين 2026-09-07 — 02:47 م
+      الشريك: إدريس أحمد          ← the SENDER, named by what he is to the reader
+      ━━━━━━━━━━━━
+      أخذت منك: 5,000 ريال يمني    ← ≈-in-riyals line follows when it isn't riyals
+      ━━━━━━━━━━━━
+      ملاحظة: كيس دقيق             ← the section is absent when there is no note
+      ━━━━━━━━━━━━
+      💰 الرصيد الحالي: 20,000 ريال يمني
+      عشرون ألف ريال
+      (لكم عندنا)
+      ```
+      It is **«إشعار حركة», not «فاتورة»** — an invoice is a demand for payment for goods, and
+      between شركاء, or from a buyer to his shop, this is a confirmation of a movement. The wrong
+      word at the top changes what the document IS. Balance block and wording are the invoice's
+      own (`invoiceBalance`, `contactDirectionLabel`), so the two documents cannot drift apart.
+- [x] **Which roles send one: `usesMovementNotice` (roles.ts) — صاحب متجر and شريك.** Both
+      directions each: paying the shop AND taking goods on credit outside the invoice screen. The
+      invoice message itself is UNTOUCHED — the owner likes it. **زبون is deliberately left out**
+      until that side of the book is in use; he would rather shape its wording than guess at it.
+- [x] **Its own number series** (`src/data/docNumber.ts`, which replaces `invoiceNumber.ts` and
+      now holds BOTH series). «إشعار رقم 5» and «فاتورة رقم 47» count separately: they are
+      different documents, and one shared counter would leave each series full of gaps — a gap in
+      a numbered book looks like a missing page. Same survival mechanism as the invoice number:
+      the next number is the higher of the `app_meta` counter and the highest one already written
+      into an entry's note, so a reinstall (which wipes `app_meta` but not the entries, since
+      those sync back) does not restart the series.
+- [x] **The number is in the LEDGER, not only in the message** — `noticeNote()` writes
+      «إشعار رقم 5: كيس دقيق» into the entry's note, exactly as an invoice does. That is what the
+      counter reads back after a reinstall, and what the two sides point at when they ask which
+      payment is meant. ⚠️ **Consequence, accepted by the owner:** those notes now show that
+      prefix in the history, the PDF statement and the Excel export.
+- [x] **Peeked for the message, consumed in `commit`** (Phase 13's rule) — backing out of the send
+      sheet burns no number. Note that an entry recorded with notifications OFF still takes a
+      number: it belongs to the document, not to the channel, which is what the invoice already
+      does.
+- [x] **SMS form of it too** (`compactNotice`), or we would have built something that arrives as
+      an MMS. ~135–150 characters against the 469 budget; only an overlong note trims.
+
+> ▶ **RESUME HERE:** device-test Phase 15 (send a long invoice by SMS and confirm the phone's
+> counter says SMS, not MMS), Phase 16 (the Arabic launcher name, typing an amount on the
+> Arabic keyboard, the أصناف count) and Phase 17 (a payment to صاحب متجر and an entry against a
+> شريك, both channels, and that the number keeps counting), then Phase 11 (invoice review → تأكيد → record/print, the itemised
 > message on a real phone, deleting a صنف, and groups incl. a second-device sync of one), then
 > the Play Store items above (SMS permission first — it changes code), or
 > Phase 7 (WhatsApp OTP). The owner build (`VITE_OWNER_BUILD=1`) is the other open thread: contact

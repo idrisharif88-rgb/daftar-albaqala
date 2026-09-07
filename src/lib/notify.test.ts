@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMessage, toIntlDigits } from './notify';
+import { buildMessage, buildSmsMessage, SMS_BUDGET, toIntlDigits, type InvoiceInfo } from './notify';
 import { toMinor } from '../data/money';
 import { DEFAULT_RATES, type Rates } from '../data/currencies';
 
@@ -244,6 +244,232 @@ describe('buildMessage', () => {
       note: 'كيس دقيق',
     });
     expect(msg.split('\n').pop()).toBe('ملاحظة من بقالة الأمل: كيس دقيق');
+  });
+});
+
+// ---- The SMS version ----
+//
+// Arabic is UCS-2: 67 characters per chained SMS part, and the owner's phone
+// turns anything past seven parts into an MMS. He was deleting characters by
+// hand to get back under that line, so these assert the budget itself, not just
+// the wording.
+
+const item = (name: string, qty: number, unit: number) => ({
+  name, qty, unitPrice: toMinor(unit), currency: 'YER', total: toMinor(qty * unit),
+});
+
+function basket(count: number): InvoiceInfo {
+  const source = [
+    item('بطاطس نعمان أبو 50', 4, 50), item('بيض - حبة', 4, 50), item('جبن مزاز', 2, 100),
+    item('روتي', 10, 20), item('زبادي كبير', 1, 300), item('شوكولاته أبو 50', 4, 50),
+    item('عصير أبو 50', 2, 50), item('عصير ابو 100', 1, 100), item('كيك أبو 50', 4, 50),
+  ];
+  return {
+    number: 47,
+    issuedAt: new Date(2026, 8, 7, 14, 47),
+    lines: Array.from({ length: count }, (_, i) => source[i % source.length]),
+  };
+}
+
+const invoiceInput = (count: number) => ({
+  senderName: 'إدريس أحمد',
+  role: 'supplier' as const,
+  type: 'payment' as const, // goods taken on credit — see the زبون/صاحب متجر cases above
+  amount: basket(count).lines.reduce((sum, l) => sum + l.total, 0),
+  currency: 'YER' as const,
+  balances: [yer(-8950)],
+  rates: RATES,
+  invoice: basket(count),
+});
+
+describe('buildSmsMessage', () => {
+  // The real invoice from the owner's screenshot (2026-09-07): nine items, and
+  // the full layout came to 625 characters — ten parts, an MMS every time.
+  it('fits the nine-item invoice that used to become an MMS', () => {
+    const input = invoiceInput(9);
+    expect(buildMessage(input).length).toBeGreaterThan(SMS_BUDGET);
+
+    const sms = buildSmsMessage(input);
+    expect(sms.length).toBeLessThanOrEqual(SMS_BUDGET);
+    expect(sms).toBe(
+      'فاتورة رقم 47 - 2026-09-07 02:47 م\n' +
+      'الزبون: إدريس أحمد\n' +
+      '1) بطاطس نعمان أبو 50: 4×50 = 200\n' +
+      '2) بيض - حبة: 4×50 = 200\n' +
+      '3) جبن مزاز: 2×100 = 200\n' +
+      '4) روتي: 10×20 = 200\n' +
+      '5) زبادي كبير: 1×300 = 300\n' +
+      '6) شوكولاته أبو 50: 4×50 = 200\n' +
+      '7) عصير أبو 50: 2×50 = 100\n' +
+      '8) عصير ابو 100: 1×100 = 100\n' +
+      '9) كيك أبو 50: 4×50 = 200\n' +
+      'الإجمالي: 1,700 ريال يمني (دين)\n' +
+      'الرصيد: 8,950 ريال يمني\n' +
+      'ثمانية آلاف وتسعمائة وخمسون ريالاً\n' +
+      '(لكم عندنا)'
+    );
+  });
+
+  // The decoration is what the owner was deleting by hand.
+  it('drops the rules and the emoji the full layout carries', () => {
+    const sms = buildSmsMessage(invoiceInput(9));
+    expect(sms).not.toContain('━');
+    expect(sms).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+    // …and the full layout keeps them, for WhatsApp and the printed receipt.
+    expect(buildMessage(invoiceInput(9))).toContain('━');
+  });
+
+  it('leaves a short invoice alone', () => {
+    const sms = buildSmsMessage(invoiceInput(2));
+    expect(sms).toContain('2026-09-07'); // the date is the first thing to go
+    expect(sms).toContain('الزبون: إدريس أحمد');
+    expect(sms).toContain('ثمانية آلاف'); // …and the amount in letters the third
+  });
+
+  // Sheds one thing at a time, in the order the owner shed them himself.
+  it('sheds the date, then the name, then the letters — before touching an item', () => {
+    const sms = buildSmsMessage(invoiceInput(14));
+    expect(sms.length).toBeLessThanOrEqual(SMS_BUDGET);
+    expect(sms).not.toContain('2026-09-07');
+    expect(sms).not.toContain('و1 أصناف'); // every item is still listed
+    expect(sms.split('\n').filter((l) => /^\d+\) /.test(l))).toHaveLength(14);
+  });
+
+  // Only a basket that fits no other way loses items, and even then it loses as
+  // few as possible and says how many are missing.
+  it('keeps as many items as fit and names the remainder', () => {
+    const sms = buildSmsMessage(invoiceInput(20));
+    expect(sms.length).toBeLessThanOrEqual(SMS_BUDGET);
+    const listed = sms.split('\n').filter((l) => /^\d+\) /.test(l)).length;
+    expect(listed).toBeGreaterThan(10);
+    expect(sms).toContain(`و${20 - listed} أصناف أخرى`);
+    expect(sms).toContain('الإجمالي: 3,800 ريال يمني (دين)'); // the total is of ALL of them
+  });
+
+  it('a single entry keeps its own layout', () => {
+    const input = {
+      senderName: 'بقالة الأمل',
+      role: 'customer',
+      type: 'debt' as const,
+      amount: toMinor(5000),
+      currency: 'YER' as const,
+      balances: [yer(20000)],
+      rates: RATES,
+    };
+    expect(buildSmsMessage(input)).toBe(buildMessage(input));
+  });
+
+  it('trims a note long enough to overrun rather than let the phone cut it', () => {
+    const sms = buildSmsMessage({
+      senderName: 'بقالة الأمل',
+      role: 'customer',
+      type: 'debt',
+      amount: toMinor(5000),
+      currency: 'YER',
+      balances: [yer(20000)],
+      rates: RATES,
+      note: 'ك'.repeat(600),
+    });
+    expect(sms.length).toBeLessThanOrEqual(SMS_BUDGET);
+    expect(sms).toContain('…');
+  });
+});
+
+// ---- The numbered movement notice ----
+//
+// The owner compared the two documents he sends the same shop: the invoice from
+// the price list reads as a document, and the payment he makes against it read
+// as a text message. A شريك had only the bare form at all. So a single entry
+// now goes out with the same head, sections and closing as the invoice — for
+// the two roles that send one (زبون waits until that side of the book is used).
+
+const notice = { number: 5, issuedAt: new Date(2026, 8, 7, 14, 47) };
+
+const single = (role: string, type: 'debt' | 'payment', note = '') => ({
+  senderName: 'إدريس أحمد',
+  role,
+  type,
+  amount: toMinor(5000),
+  currency: 'YER' as const,
+  balances: [yer(-20000)],
+  rates: RATES,
+  note,
+  notice,
+});
+
+describe('buildMessage — «إشعار حركة»', () => {
+  it('goods taken from a شريك, with a note', () => {
+    expect(buildMessage(single('partner', 'payment', 'كيس دقيق'))).toBe(
+      '🧾 إشعار حركة رقم 5\n' +
+      '📅 الاثنين 2026-09-07 — 02:47 م\n' +
+      'الشريك: إدريس أحمد\n' +
+      '━━━━━━━━━━━━\n' +
+      'أخذت منك: 5,000 ريال يمني\n' +
+      '━━━━━━━━━━━━\n' +
+      'ملاحظة: كيس دقيق\n' +
+      '━━━━━━━━━━━━\n' +
+      '💰 الرصيد الحالي: 20,000 ريال يمني\n' +
+      'عشرون ألف ريال\n' +
+      '(لكم عندنا)'
+    );
+  });
+
+  // The one the owner asked for by name: paying the shop he buys from. Stored
+  // as a 'debt' — for a صاحب متجر that is the settling direction — and he is
+  // «الزبون» to the person reading it.
+  it('a payment to a صاحب متجر is the one that used to be bare', () => {
+    const msg = buildMessage(single('supplier', 'debt'));
+    expect(msg.split('\n')).toEqual([
+      '🧾 إشعار حركة رقم 5',
+      '📅 الاثنين 2026-09-07 — 02:47 م',
+      'الزبون: إدريس أحمد',
+      '━━━━━━━━━━━━',
+      'تسديد دفعة: 5,000 ريال يمني',
+      '━━━━━━━━━━━━',
+      '💰 الرصيد الحالي: 20,000 ريال يمني',
+      'عشرون ألف ريال',
+      '(لكم عندنا)',
+    ]);
+  });
+
+  it('the note section is absent when there is no note', () => {
+    expect(buildMessage(single('partner', 'debt'))).not.toContain('ملاحظة');
+  });
+
+  // The wording still comes from the role, and it is written from the
+  // recipient's side — the whole point of contactDirectionLabel.
+  it('names the direction from the reader’s side, per role', () => {
+    expect(buildMessage(single('partner', 'debt'))).toContain('دفعت لك: 5,000 ريال يمني');
+    expect(buildMessage(single('supplier', 'payment'))).toContain('تسجيل دين: 5,000 ريال يمني');
+  });
+
+  // Left out on purpose: that side of the book is not in use yet, and its
+  // wording should be shaped when it is, not guessed at now.
+  it('a زبون keeps the bare layout', () => {
+    const msg = buildMessage({ ...single('customer', 'debt'), notice: undefined });
+    expect(msg).not.toContain('━');
+    expect(msg.split('\n')[0]).toBe('إدريس أحمد');
+  });
+
+  it('the SMS form drops the rules and the emoji and still fits', () => {
+    const sms = buildSmsMessage(single('partner', 'payment', 'كيس دقيق'));
+    expect(sms.length).toBeLessThanOrEqual(SMS_BUDGET);
+    expect(sms).toBe(
+      'إشعار حركة رقم 5 - 2026-09-07 02:47 م\n' +
+      'الشريك: إدريس أحمد\n' +
+      'أخذت منك: 5,000 ريال يمني\n' +
+      'ملاحظة: كيس دقيق\n' +
+      'الرصيد: 20,000 ريال يمني\n' +
+      'عشرون ألف ريال\n' +
+      '(لكم عندنا)'
+    );
+  });
+
+  it('trims an overlong note rather than let the phone cut the SMS', () => {
+    const sms = buildSmsMessage(single('partner', 'payment', 'ك'.repeat(600)));
+    expect(sms.length).toBeLessThanOrEqual(SMS_BUDGET);
+    expect(sms).toContain('…');
+    expect(sms).toContain('(لكم عندنا)'); // the closing survives the cut
   });
 });
 

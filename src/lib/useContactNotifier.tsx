@@ -6,8 +6,17 @@ import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
 import type { CurrencyCode } from '../data/currencies';
 import {
-  buildMessage, openSms, openWhatsApp, smsAvailable, whatsappAvailable, type InvoiceInfo,
+  buildMessage, buildSmsMessage, openSms, openWhatsApp, smsAvailable, whatsappAvailable,
+  type InvoiceInfo, type NoticeInfo,
 } from './notify';
+
+// The two channels do not carry the same text. WhatsApp takes the full invoice;
+// an SMS is measured in 67-character parts and becomes an MMS past seven of
+// them, so it gets the compact layout (see buildSmsMessage in notify.ts).
+interface Messages {
+  whatsapp: string;
+  sms: string;
+}
 
 // Telling the contact what was just recorded — the choice of channel, then the
 // "are you sure you don't want to send it" confirmation.
@@ -42,6 +51,10 @@ export interface NotifyInput {
    *  then opens with the invoice — number, date and a line per item — the way
    *  the owner's paper invoice book reads. */
   invoice?: InvoiceInfo;
+  /** Set when this single entry goes out as a numbered «إشعار حركة» — the
+   *  caller peeks the number and consumes it inside `commit`, so an abandoned
+   *  entry leaves no gap in the series (see data/docNumber.ts). */
+  notice?: NoticeInfo;
   /**
    * Writes the entry. Called at most once, and only when the notice is
    * actually going out — or immediately when there is no notice to send
@@ -60,9 +73,9 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   // Make sure cancelling the notice was intentional. «تراجع» reopens the send
   // sheet (deferred so this alert has finished dismissing first).
   const confirmCancel = useCallback((
-    phone: string, message: string, commit: () => Promise<void>, done: (ok: boolean) => void,
+    phone: string, texts: Messages, commit: () => Promise<void>, done: (ok: boolean) => void,
   ) => {
-    const reopen = () => setTimeout(() => presentSendSheet(phone, message, commit, done), 350);
+    const reopen = () => setTimeout(() => presentSendSheet(phone, texts, commit, done), 350);
     presentAlert({
       header: 'تأكيد الإلغاء',
       // Says what cancelling costs now: the entry goes with it.
@@ -85,7 +98,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   // app for another one, and the cancel confirmation needs to present without
   // racing the dismiss animation.
   const presentSendSheet = useCallback((
-    phone: string, message: string, commit: () => Promise<void>, done: (ok: boolean) => void,
+    phone: string, texts: Messages, commit: () => Promise<void>, done: (ok: boolean) => void,
   ) => {
     let choice: 'whatsapp' | 'sms' | 'cancel' | null = null;
     presentSheet({
@@ -99,7 +112,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
         // Anything other than an explicit channel — the إلغاء button, the back
         // button, or a backdrop tap — is treated as a cancel and confirmed.
         if (choice !== 'whatsapp' && choice !== 'sms') {
-          confirmCancel(phone, message, commit, done);
+          confirmCancel(phone, texts, commit, done);
           return;
         }
         const channel = choice;
@@ -120,7 +133,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
               duration: 2500,
               color: 'warning',
             });
-            setTimeout(() => presentSendSheet(phone, message, commit, done), 400);
+            setTimeout(() => presentSendSheet(phone, texts, commit, done), 400);
             return;
           }
 
@@ -138,8 +151,8 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
           }
 
           const opened = channel === 'whatsapp'
-            ? await openWhatsApp(phone, message)
-            : await openSms(phone, message);
+            ? await openWhatsApp(phone, texts.whatsapp)
+            : await openSms(phone, texts.sms);
           // It said it was there a moment ago and then would not start. The
           // entry IS recorded, so say so rather than leaving the owner to
           // wonder which half happened.
@@ -157,7 +170,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   }, [presentSheet, confirmCancel, presentAlert, presentToast]);
 
   return useCallback(async (
-    { customerId, type, amount, currency, note, invoice, commit }: NotifyInput,
+    { customerId, type, amount, currency, note, invoice, notice, commit }: NotifyInput,
   ): Promise<boolean> => {
     const c = await getCustomer(customerId);
     if (!c) return false;
@@ -175,7 +188,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
       return true;
     }
 
-    const message = buildMessage({
+    const input = {
       senderName: messageSender(settings),
       role: c.role, // the wording of the whole message follows the contact's role
       type,
@@ -186,10 +199,17 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
       rates: currentRates,
       note,
       invoice,
-    });
+      notice,
+    };
+    // Both are built up front: the channel is chosen after this returns, and
+    // the sheet may be reopened, so neither may depend on that choice.
+    const texts: Messages = {
+      whatsapp: buildMessage(input),
+      sms: buildSmsMessage(input),
+    };
 
     return new Promise<boolean>((resolve) => {
-      presentSendSheet(c.phone, message, commit, resolve);
+      presentSendSheet(c.phone, texts, commit, resolve);
     });
   }, [presentSendSheet]);
 }

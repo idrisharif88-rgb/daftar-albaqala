@@ -18,6 +18,7 @@ import {
   BASE_CURRENCY, CURRENCIES, formatAmount, type CurrencyCode,
 } from '../data/currencies';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
+import { numericInput } from '../lib/digits';
 
 // The price list for ONE contact — «أصناف متجر ماجد».
 //
@@ -146,6 +147,18 @@ const Items: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        {/* How many kinds of goods this shop's list holds. It counts ROWS, not
+            stock — nothing here knows how many of anything is on a shelf (see
+            CLAUDE.md: this is a price list, not inventory). While a search is
+            running it says how many of them matched as well, so the number
+            never quietly changes meaning under the same label. */}
+        {!loading && items.length > 0 && (
+          <div className="items-count">
+            {term
+              ? `النتائج: ${visible.length} من ${items.length} صنف`
+              : `عدد الأصناف: ${items.length}`}
+          </div>
+        )}
         {loading ? (
           <div className="ion-text-center ion-padding">
             <IonSpinner name="crescent" />
@@ -219,10 +232,10 @@ const Items: React.FC = () => {
             <IonItem>
               <IonLabel position="stacked">السعر</IonLabel>
               <IonInput
-                type="number"
+                type="text"
                 inputmode="decimal"
                 value={price}
-                onIonInput={(e) => setPrice(e.detail.value ?? '')}
+                onIonInput={(e) => setPrice(numericInput(e.detail.value ?? ''))}
                 placeholder="0"
               />
             </IonItem>

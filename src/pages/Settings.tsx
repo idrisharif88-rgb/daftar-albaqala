@@ -27,6 +27,7 @@ import { deleteAccount, ApiError } from '../lib/api';
 import { wipeLocalStore } from '../data/owner';
 import { INACTIVE_MESSAGE, SUPPORT_EMAIL } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
+import { numericInput } from '../lib/digits';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -394,10 +395,10 @@ const Settings: React.FC = () => {
                     {c.isWeight ? `سعر الجرام (${c.longAr})` : `سعر ${c.longAr}`}
                   </IonLabel>
                   <IonInput
-                    type="number"
+                    type="text"
                     inputmode="decimal"
                     value={rates[c.code] > 0 ? String(rates[c.code]) : ''}
-                    onIonInput={(e) => updateRate(c.code, e.detail.value ?? '')}
+                    onIonInput={(e) => updateRate(c.code, numericInput(e.detail.value ?? ''))}
                     placeholder="غير محدد"
                   />
                 </IonItem>

@@ -18,7 +18,7 @@ import {
 } from '../data/itemGroups';
 import { addTransaction } from '../data/transactions';
 import { formatMinor } from '../data/money';
-import { nextInvoiceNumber, peekInvoiceNumber } from '../data/invoiceNumber';
+import { nextInvoiceNumber, peekInvoiceNumber } from '../data/docNumber';
 import { runSync } from '../data/sync';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
@@ -260,7 +260,7 @@ const Invoice: React.FC = () => {
     try {
       // The number the invoice WILL take. It is only consumed inside `commit`,
       // so an invoice abandoned at the send sheet leaves no gap in the book
-      // (see invoiceNumber.ts) — but the message has to quote it, and the
+      // (see docNumber.ts) — but the message has to quote it, and the
       // message is built before the entry exists.
       const number = await peekInvoiceNumber();
       const issuedAt = new Date();

@@ -236,6 +236,17 @@ ion-item { --background: #ffffff; }
   font-size: 0.72rem;
 }
 
+/* «عدد الأصناف: 47» — the size of a shop's price list, at the top of it. Quiet
+   by design: it is a fact about the list, not a heading for it. */
+.items-count {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ion-color-medium, #92949c);
+  background: var(--ion-color-light, #f4f5f8);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
 /* Quantity stepper on the invoice screen — −  n  + on one line.
    The circles are deliberately large: this is the control the owner taps most,
    often several times in a row while standing at a counter holding shopping,

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.shopbookidris.app',
-  appName: 'daftar-albaqala',
+  appName: 'دفتر البقالة',
   webDir: 'dist',
   plugins: {
     // Route fetch/XHR through native HTTP instead of the WebView, so calls to
