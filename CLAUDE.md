@@ -56,7 +56,7 @@ daftar-albaqala/
 - **MySQL 8.0.46** — was crash-looping after a failed 8.0.45→46 system-table upgrade (SDI
   corruption); on 2026-06-18 it was **fully reinitialized to a clean 8.0.46** (fresh datadir,
   Ghost data re-imported). Admin login: `sudo mysql -u root -p`. Ghost connects **as root**; the
-  root password is currently **weak and pending rotation** (it lives in
+  root password was **rotated to a strong value on 2026-09-09** (it lives in
   `/var/www/ghost/config.production.json` — do not commit it).
 - **App database:** `daftar_db` (utf8mb4). **App user:** `daftar_user@localhost`, granted
   **DML only** (SELECT/INSERT/UPDATE/DELETE) on `daftar_db`. Its password is chosen by the owner
