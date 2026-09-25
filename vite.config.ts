@@ -35,5 +35,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
+    // App unit tests live under src/. The server has its own suite that runs on
+    // the node:test runner against MySQL, so keep Vitest from collecting it.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   }
 })

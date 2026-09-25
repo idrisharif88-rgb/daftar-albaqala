@@ -1,5 +1,7 @@
 # Daftar al-Baqala (دفتر البقالة)
 
+[![CI](https://github.com/idrisharif88-rgb/daftar-albaqala/actions/workflows/ci.yml/badge.svg)](https://github.com/idrisharif88-rgb/daftar-albaqala/actions/workflows/ci.yml)
+
 An offline-first, multi-tenant mobile app for grocery store owners to track customer
 debts and payments. Arabic-first, RTL. **In real-world use** — the backend is live in
 production on a private server and the Android app is used daily.
