@@ -149,12 +149,13 @@ export async function readyPrintTarget(): Promise<PrintTarget> {
  * one, and a failure here must never be a reason to lose the debt.
  */
 export async function printReceipt(o: ReceiptOptions, target: PrintTarget): Promise<void> {
-  const canvas = await renderReceipt(o);
   if (target === 'system') {
+    const canvas = await renderReceipt(o, SYSTEM_SCALE);
     await printPdf(await receiptPdfBase64(canvas), `فاتورة-${o.number}`);
     return;
   }
-  await printThermal(canvas);
+  // The thermal head is exactly PAPER_DOTS wide — never scaled.
+  await printThermal(await renderReceipt(o));
 }
 
 async function printThermal(canvas: HTMLCanvasElement): Promise<void> {
@@ -186,17 +187,21 @@ async function printThermal(canvas: HTMLCanvasElement): Promise<void> {
 
 // ---- The receipt on A4, for the system print dialog ----
 //
-// The strip keeps its REAL receipt size — 72mm, the printable width of 80mm
-// thermal paper — whatever paper it lands on. The owner's call: on an A4 laser
-// it comes out exactly as the thermal printer would print it, and he cuts it
-// out with scissors. Stretched to the page, a five-line receipt would become a
-// poster. A long receipt continues onto further pages.
+// On an ordinary printer the receipt prints at ONE AND A HALF times the
+// thermal size — 108mm wide instead of 72mm — and is drawn at that resolution
+// to match, so the letters stay sharp rather than being an enlarged 576-dot
+// image. The owner's call, over two papers: at thermal size on A4 the text was
+// too small to read, and at double size (144mm) the receipt was too big; he
+// cuts it out with scissors either way. It is still a receipt, not a page: a
+// five-line invoice does not get stretched into a poster. A long receipt
+// continues onto further pages.
 
+const SYSTEM_SCALE = 1.5;
 const A4_W = 210;
 const A4_H = 297;
-const STRIP_W_MM = 72;
+const STRIP_W_MM = 72 * SYSTEM_SCALE;
 const PAGE_MARGIN_MM = 10;
-const PX_PER_MM = PAPER_DOTS / STRIP_W_MM;
+const PX_PER_MM = (PAPER_DOTS * SYSTEM_SCALE) / STRIP_W_MM;
 
 async function receiptPdfBase64(canvas: HTMLCanvasElement): Promise<string> {
   // Loaded on demand: Settings imports this module for the printer picker, and
