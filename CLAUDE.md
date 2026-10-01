@@ -957,7 +957,24 @@ Frontend + one native plugin — no server change, no migration, **no new permis
       instance (`presentDeliverySheet`), or defer like `useContactNotifier` does. Reproduced and the
       fix proven in Chromium with a throwaway harness.
 
-> ▶ **RESUME HERE:** device-test Phase 18 round 2 (owner confirmed the password eye and invoice
+### Phase 18 follow-up — a receipt you can read (2026-10-01)
+Owner printed one on the HP: the store name, the column heads and the total (all bold) read fine,
+everything else (regular weight, 20–24px) was too faint. **Not yet device-tested.**
+- [x] **Every line of the receipt is bold** (`text()` in `src/lib/receipt.ts` always draws 700;
+      the `bold` option is gone) and the small sizes went up (body 22→26, words/footer 20→24,
+      total 28→32). A thermal head prints one bit per dot, where a thin stroke breaks up — bold is
+      the weight that survives both printers. Line heights grew to match (`LINE_H` 38, `ROW_H` 42).
+- [x] **Ordinary printer = 1.5× size, 108mm wide on A4** (`SYSTEM_SCALE = 1.5` in print.ts),
+      drawn at that RESOLUTION (`renderReceipt(o, scale)` + `ctx.scale`, canvas sized with
+      `Math.ceil`) so the letters stay sharp instead of being an enlarged 576-dot image. Owner
+      tried 72mm (too small to read) and 2× / 144mm (too big) on paper and chose 1.5×. **Thermal
+      stays exactly `PAPER_DOTS`** — never scaled.
+- [x] **Item names shrink to fit, THEN wrap** (`fitName`): 26px down to `ITEM_MIN_SIZE` 21, a
+      point at a time; only a name too long even at 21 gets a second line (between words). Owner's
+      call: «بطاطس نعمان أبو 50» stays on one line in slightly smaller letters — wrapping it was
+      rejected.
+
+> ▶ **RESUME HERE:** device-test the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
 > printing on the HP; still to confirm: statement → «طباعة», and Settings → «اختيار الطابعة» with
 > both kinds), then Phase 15 (send a long invoice by SMS and confirm the phone's
 > counter says SMS, not MMS), Phase 16 (the Arabic launcher name, typing an amount on the
