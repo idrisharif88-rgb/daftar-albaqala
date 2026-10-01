@@ -3,7 +3,7 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonInput, IonSelect, IonSelectOption,
   IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
-  useIonAlert,
+  useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import { checkmarkCircle } from 'ionicons/icons';
 import {
@@ -18,8 +18,10 @@ import {
 import { ROLES, type ContactRole } from '../data/roles';
 import { openEmail, openUrl, openWhatsApp } from '../lib/notify';
 import {
-  printingAvailable, listPrinters, getSavedPrinter, savePrinter,
+  thermalPrintingAvailable, listPrinters, getSavedPrinter, getSavedPrinterName, savePrinter,
+  getPrintMode, setPrintMode, type PrintTarget,
 } from '../lib/print';
+import { systemPrintAvailable } from '../lib/systemPrint';
 import { SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
 import { useAuth } from '../lib/auth';
 import { PRIVACY_URL } from '../config';
@@ -51,10 +53,15 @@ const Settings: React.FC = () => {
   const { logout } = useAuth();
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
-  // The remembered receipt printer — chosen once, used for every invoice.
+  // The printer invoices go to — chosen once here, used for every invoice:
+  // 'system' = Android's print dialog (any ordinary printer), 'thermal' = the
+  // remembered Bluetooth receipt printer.
+  const [printMode, setPrintModeState] = useState<PrintTarget>('system');
   const [printer, setPrinter] = useState<string | null>(null);
+  const [printerName, setPrinterName] = useState<string | null>(null);
   const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
+  const [presentSheet] = useIonActionSheet();
 
   useIonViewWillEnter(() => {
     void getSettings().then(setSettings);
@@ -64,6 +71,8 @@ const Settings: React.FC = () => {
       setRatesUpdatedAt(state.updatedAt);
     });
     void getSavedPrinter().then(setPrinter);
+    void getSavedPrinterName().then(setPrinterName);
+    void getPrintMode().then(setPrintModeState);
   });
 
   // Open a WhatsApp chat to the owner with a pre-filled activation request. The
@@ -217,6 +226,33 @@ const Settings: React.FC = () => {
     }
   };
 
+  // «اختيار الطابعة»: which KIND of printer invoices go to. An ordinary
+  // printer needs no setup here — Android's print dialog finds it, and
+  // remembers the last one used. A thermal printer goes on to the paired-device
+  // list below. The two lists are different controllers (sheet, then alert),
+  // so the second one is not swallowed while the first is still closing.
+  const choosePrinterKind = () => {
+    const buttons: { text: string; role?: string; handler?: () => void }[] = [];
+    if (systemPrintAvailable()) {
+      buttons.push({ text: 'طابعة عادية (واي فاي)', handler: () => { void selectSystemPrinter(); } });
+    }
+    if (thermalPrintingAvailable()) {
+      buttons.push({ text: 'طابعة حرارية (بلوتوث)', handler: () => { void choosePrinter(); } });
+    }
+    buttons.push({ text: 'إلغاء', role: 'cancel' });
+    void presentSheet({ header: 'اختيار الطابعة', buttons });
+  };
+
+  const selectSystemPrinter = async () => {
+    await setPrintMode('system');
+    setPrintModeState('system');
+    await presentToast({
+      message: 'تم اختيار الطابعة العادية. ستظهر نافذة الطباعة عند كل طباعة لتختار منها الطابعة.',
+      duration: 3000,
+      color: 'success',
+    });
+  };
+
   // Pick the receipt printer from Android's PAIRED devices. Pairing itself
   // happens in Android's own Bluetooth settings — it needs a PIN and a system
   // dialog, neither of which an app can stand in for.
@@ -246,9 +282,13 @@ const Settings: React.FC = () => {
             handler: (address: string) => {
               if (!address) return;
               void (async () => {
-                await savePrinter(address);
+                const name = devices.find((d) => d.address === address)?.name ?? '';
+                await savePrinter(address, name);
+                await setPrintMode('thermal');
                 setPrinter(address);
-                await presentToast({ message: 'تم اختيار الطابعة', duration: 1500, color: 'success' });
+                setPrinterName(name);
+                setPrintModeState('thermal');
+                await presentToast({ message: 'تم اختيار الطابعة الحرارية', duration: 1500, color: 'success' });
               })();
             },
           },
@@ -434,18 +474,25 @@ const Settings: React.FC = () => {
               {syncing ? <IonSpinner name="crescent" /> : 'مزامنة الآن'}
             </IonButton>
 
-            {/* Receipt printer. Only offered on a build that can actually
-                print — on the web the plugin does not exist and the button
-                would be a promise the app cannot keep. */}
-            {printingAvailable() && (
-              <IonButton
-                expand="block"
-                fill="outline"
-                onClick={choosePrinter}
-                className="ion-margin-top"
-              >
-                {printer ? 'تغيير طابعة الفواتير' : 'اختيار طابعة الفواتير'}
-              </IonButton>
+            {/* The invoice printer. Offered only where the phone can print at
+                all — on the web neither path exists, and the button would be a
+                promise the app cannot keep. */}
+            {(systemPrintAvailable() || thermalPrintingAvailable()) && (
+              <>
+                <IonButton
+                  expand="block"
+                  fill="outline"
+                  onClick={choosePrinterKind}
+                  className="ion-margin-top"
+                >
+                  اختيار الطابعة
+                </IonButton>
+                <IonNote className="ion-padding-start" style={{ display: 'block', marginTop: 6 }}>
+                  {printMode === 'thermal' && printer
+                    ? `الطابعة الحالية: حرارية (بلوتوث) — ${printerName || printer}`
+                    : 'الطابعة الحالية: طابعة عادية (تُختار من نافذة الطباعة)'}
+                </IonNote>
+              </>
             )}
 
             <IonButton
