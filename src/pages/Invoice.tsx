@@ -29,6 +29,7 @@ import { directionLabel, orderedTypes, roleDef } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { useContactNotifier } from '../lib/useContactNotifier';
 import type { InvoiceLine } from '../lib/receipt';
+import type { PrintTarget } from '../lib/print';
 
 // Build one purchase out of the contact's price list, record it as a SINGLE
 // entry, and print it.
@@ -248,6 +249,25 @@ const Invoice: React.FC = () => {
   const [growthType] = orderedTypes(role);
   const entryLabel = directionLabel(role, growthType);
 
+  // The printer chosen in Settings, checked BEFORE anything is recorded: with
+  // a printed receipt the entry is written the moment printing starts, so a
+  // printer that is not set up has to stop the act here — not leave a recorded
+  // debt with no receipt. No question is asked: the owner prints from the same
+  // counter every day, and the choice lives in Settings.
+  const choosePrintTarget = async (): Promise<PrintTarget | null> => {
+    try {
+      const { readyPrintTarget } = await import('../lib/print');
+      return await readyPrintTarget();
+    } catch (err) {
+      presentAlert({
+        header: 'تعذّرت الطباعة',
+        message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
+        buttons: ['حسناً'],
+      });
+      return null;
+    }
+  };
+
   const save = async (thenPrint: boolean) => {
     if (!customer || lines.length === 0) return;
     if (!(await isAccountActive())) {
@@ -256,6 +276,14 @@ const Invoice: React.FC = () => {
     }
     if (savingRef.current) return;
     savingRef.current = true;
+    let target: PrintTarget | null = null;
+    if (thenPrint) {
+      target = await choosePrintTarget();
+      if (!target) {
+        savingRef.current = false;
+        return;
+      }
+    }
     setBusy('جارٍ الحفظ...');
     try {
       // The number the invoice WILL take. It is only consumed inside `commit`,
@@ -322,7 +350,7 @@ const Invoice: React.FC = () => {
         currency: invoiceCurrency,
         issuedAt,
         rates,
-      });
+      }, target ?? 'system');
 
       setQty({});
       setReviewOpen(false);

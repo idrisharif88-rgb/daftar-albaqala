@@ -919,7 +919,47 @@ clean. **Not yet device-tested.**
 - [x] **SMS form of it too** (`compactNotice`), or we would have built something that arrives as
       an MMS. ~135–150 characters against the 469 budget; only an overlong note trims.
 
-> ▶ **RESUME HERE:** device-test Phase 15 (send a long invoice by SMS and confirm the phone's
+## Status — DONE (Phase 18: show-password + print on ANY printer) ✅ (2026-10-01)
+Owner round of 2026-10-01 (the «مراقب البقالة» admin app was discussed and **deferred**).
+Frontend + one native plugin — no server change, no migration, **no new permission**. Tests
+42/42, `assembleDebug` clean. **Not yet device-tested — owner asked to test before merging.**
+
+- [x] **Eye on the password field** (`Login.tsx`, Ionic's `IonInputPasswordToggle`), login and
+      register alike. (This Ionic version has no `showLabel`/`hideLabel` props — don't add them.)
+- [x] **Printing through Android's own print dialog** — `SystemPrintPlugin.java` (registered in
+      `MainActivity`) + `src/lib/systemPrint.ts`. The app hands over a finished PDF; `PrintManager`
+      shows the system dialog where the owner picks ANY printer the phone reaches (his HP LaserJet
+      over WiFi via Mopria/HP's print service, «Save as PDF», …), copies and paper. A file per job
+      in the cache dir, deleted in the adapter's `onFinish`. `print()` resolves when the dialog is
+      SHOWN — whether paper came out is never reported to the app.
+- [x] **Two printer kinds, chosen ONCE in Settings** (`src/lib/print.ts`, `PrintTarget =
+      'thermal' | 'system'`, per-device `print_mode` in `app_meta`, NOT synced). Settings →
+      «اختيار الطابعة» → «طابعة عادية (واي فاي)» / «طابعة حرارية (بلوتوث)» (the latter goes on to
+      the paired-device list, and the device NAME is saved too for display), with «الطابعة الحالية:
+      …» shown under the button. «تسجيل دين وطباعة» prints to that choice with no question;
+      `readyPrintTarget()` runs BEFORE the entry is recorded, so a printer that is not set up stops
+      the act instead of leaving a debt with no receipt. The Bluetooth ESC/POS path stays (a BT
+      thermal printer usually does NOT appear in Android's dialog without its maker's app). No
+      `print_mode` yet → a phone with a saved thermal printer keeps it, else the system dialog.
+      The statement always prints via the system dialog (it is an A4 document).
+- [x] **The receipt on A4 keeps its REAL size — 72mm wide**, top-centred (owner's call: he cuts it
+      out with scissors; do not enlarge it). A long receipt continues onto further pages, cut on a
+      fully white pixel row so no line of text is sliced (`sliceAtBlankRows`). Verified in Chromium:
+      3 items → 1 page, 80 items → 2 pages, cut cleanly between rows.
+- [x] **Statement can be printed too.** After choosing the period, CustomerDetail asks
+      «إرسال عبر واتساب / طباعة» (Android only; web still downloads). `pdf.ts` split into
+      `buildStatement` + `exportCustomerStatement` / `printCustomerStatement` — same document both ways.
+- ⚠️ **Ionic overlay trap (cost a device-test round):** `useIonActionSheet` / `useIonAlert` keep
+      ONE overlay per hook instance, and `present()` **silently returns** while the previous one is
+      still animating out (`@ionic/react` `useController`: `if (overlayRef.current) return;`). So a
+      sheet opened from another sheet's handler on the SAME hook never appears — the statement's
+      «إرسال / طباعة» did exactly that and the export button did nothing. Use a SECOND hook
+      instance (`presentDeliverySheet`), or defer like `useContactNotifier` does. Reproduced and the
+      fix proven in Chromium with a throwaway harness.
+
+> ▶ **RESUME HERE:** device-test Phase 18 round 2 (owner confirmed the password eye and invoice
+> printing on the HP; still to confirm: statement → «طباعة», and Settings → «اختيار الطابعة» with
+> both kinds), then Phase 15 (send a long invoice by SMS and confirm the phone's
 > counter says SMS, not MMS), Phase 16 (the Arabic launcher name, typing an amount on the
 > Arabic keyboard, the أصناف count) and Phase 17 (a payment to صاحب متجر and an entry against a
 > شريك, both channels, and that the number keeps counting), then Phase 11 (invoice review → تأكيد → record/print, the itemised

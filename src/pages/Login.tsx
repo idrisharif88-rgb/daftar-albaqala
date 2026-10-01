@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonItem, IonLabel,
-  IonInput, IonButton, IonText, IonSegment, IonSegmentButton, IonNote, IonSpinner,
+  IonInput, IonInputPasswordToggle, IonButton, IonText, IonSegment, IonSegmentButton,
+  IonNote, IonSpinner,
 } from '@ionic/react';
 import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
@@ -101,7 +102,12 @@ const Login: React.FC = () => {
               type="password"
               value={password}
               onIonInput={(e) => setPassword(e.detail.value ?? '')}
-            />
+            >
+              {/* The eye: a password typed on a phone keyboard is easy to get
+                  wrong and impossible to check while it stays dotted — and a
+                  wrong one at registration locks the owner out of his own book. */}
+              <IonInputPasswordToggle slot="end" />
+            </IonInput>
           </IonItem>
 
           {error && (

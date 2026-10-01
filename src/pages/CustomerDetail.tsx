@@ -28,6 +28,7 @@ import {
 import { peekNoticeNumber, nextNoticeNumber, noticeNote } from '../data/docNumber';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
+import { systemPrintAvailable } from '../lib/systemPrint';
 import { runSync } from '../data/sync';
 import { useContactNotifier } from '../lib/useContactNotifier';
 import { FEATURES } from '../config';
@@ -93,6 +94,11 @@ const CustomerDetail: React.FC = () => {
   const savingRef = useRef(false);
   const [presentAlert] = useIonAlert();
   const [presentSheet] = useIonActionSheet();
+  // A SECOND sheet controller, for «إرسال / طباعة». It opens right after the
+  // period sheet closes, and Ionic's hook silently ignores present() while its
+  // previous overlay is still animating out — sharing one controller made the
+  // export button do nothing at all.
+  const [presentDeliverySheet] = useIonActionSheet();
   // The SMS + WhatsApp flow, shared with the invoice screen so both tell the
   // contact exactly the same thing.
   const notifyContact = useContactNotifier();
@@ -257,6 +263,21 @@ const CustomerDetail: React.FC = () => {
     await doExport({ from, to });
   };
 
+  // The second question of an export: where the statement goes. Resolved on
+  // dismiss, so the back button or a tap outside answers «nowhere».
+  const chooseDelivery = () => new Promise<'share' | 'print' | null>((resolve) => {
+    let picked: 'share' | 'print' | null = null;
+    void presentDeliverySheet({
+      header: 'كشف الحساب',
+      buttons: [
+        { text: 'إرسال عبر واتساب', handler: () => { picked = 'share'; } },
+        { text: 'طباعة', handler: () => { picked = 'print'; } },
+        { text: 'إلغاء', role: 'cancel' },
+      ],
+      onDidDismiss: () => resolve(picked),
+    });
+  });
+
   const doExport = async (period: ExportPeriod) => {
     if (!customer) return;
     const now = new Date();
@@ -277,27 +298,35 @@ const CustomerDetail: React.FC = () => {
       : period === 'month' ? 'هذا الشهر'
       : period === 'full' ? 'كل الحركات'
       : `من ${period.from} إلى ${period.to}`;
+    // Send it, or print it. Only asked where printing exists — on the web the
+    // statement simply downloads, as before.
+    const delivery = systemPrintAvailable() ? await chooseDelivery() : 'share';
+    if (!delivery) return;
     setExporting(true);
     try {
       // Loaded on demand — jspdf is a large dependency, and a session that
       // never exports a statement shouldn't pay to parse it at startup.
-      const { exportCustomerStatement } = await import('../lib/pdf');
-      await exportCustomerStatement({
+      const { exportCustomerStatement, printCustomerStatement } = await import('../lib/pdf');
+      const statement = {
         customer,
         transactions: filtered,
         storeName: messageSender(settings),
         ownerName: settings.ownerName,
         rates,
         periodLabel,
-      });
+      };
+      if (delivery === 'print') await printCustomerStatement(statement);
+      else await exportCustomerStatement(statement);
     } catch (err) {
       // Backing out of the share sheet is not a failure and gets no dialog.
       if (!(err instanceof ShareCancelledError)) {
         presentAlert({
-          header: 'خطأ',
+          header: delivery === 'print' ? 'تعذّرت الطباعة' : 'خطأ',
           message: err instanceof NoShareTargetError
             ? 'لا يوجد تطبيق يمكنه فتح هذا الملف'
-            : 'تعذّر إنشاء ملف PDF',
+            : delivery === 'print' && err instanceof Error
+              ? err.message
+              : 'تعذّر إنشاء ملف PDF',
           buttons: ['حسناً'],
         });
       }

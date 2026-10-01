@@ -12,6 +12,7 @@ public class MainActivity extends BridgeActivity {
         // BEFORE super.onCreate, which is where the bridge is built.
         registerPlugin(ContactPickerPlugin.class);
         registerPlugin(OutboundPlugin.class);
+        registerPlugin(SystemPrintPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
