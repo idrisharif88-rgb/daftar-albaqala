@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildMessage, buildSmsMessage, SMS_BUDGET, toIntlDigits, type InvoiceInfo } from './notify';
+import {
+  buildMessage, buildSmsMessage, printedBalanceLines, SMS_BUDGET, toIntlDigits, type InvoiceInfo,
+} from './notify';
 import { toMinor } from '../data/money';
 import { DEFAULT_RATES, type Rates } from '../data/currencies';
 
@@ -395,6 +397,17 @@ const single = (role: string, type: 'debt' | 'payment', note = '') => ({
   rates: RATES,
   note,
   notice,
+});
+
+// The printed receipt carries the SMS's own balance block (2026-10-02), so
+// the paper and the message can never state the balance differently.
+describe('printedBalanceLines', () => {
+  it('is the SMS balance block, word for word', () => {
+    const input = invoiceInput(2);
+    const lines = printedBalanceLines(input.balances, input.rates);
+    expect(buildSmsMessage(input).endsWith(lines.join('\n'))).toBe(true);
+    expect(lines[lines.length - 1]).toBe('(لكم عندنا)');
+  });
 });
 
 describe('buildMessage — «إشعار حركة»', () => {

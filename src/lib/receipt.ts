@@ -37,6 +37,10 @@ export interface ReceiptOptions {
   currency: string;
   issuedAt: Date;
   rates: Rates;
+  /** The contact's balance AFTER this invoice, as the SMS states it
+   *  (`printedBalanceLines` in notify.ts) — printed under the total so the
+   *  paper and the message agree. Omitted, the receipt ends at the total. */
+  balanceLines?: string[];
 }
 
 // 80mm paper prints 576 dots wide on essentially every ESC/POS unit (72mm of
@@ -161,7 +165,10 @@ function measure(o: ReceiptOptions, wrappedRows: number): number {
   const base = 60 + LINE_H * 5 + GAP * 4 + ROW_H + 30; // header + column heads
   const rows = o.lines.length * ROW_H + wrappedRows * WRAP_H;
   const totals = GAP + ROW_H + LINE_H * 2 + GAP * 2 + 70; // total, words, footer
-  return base + rows + totals;
+  const balance = o.balanceLines?.length
+    ? GAP * 2 + 10 + o.balanceLines.length * LINE_H // rule + the balance block
+    : 0;
+  return base + rows + totals + balance;
 }
 
 /** Draw the receipt and hand back the canvas. Exported for the preview on the
@@ -261,6 +268,18 @@ export async function renderReceipt(o: ReceiptOptions, scale = 1): Promise<HTMLC
       size: 24, maxWidth: PAPER_DOTS - 24,
     });
     y += LINE_H;
+  }
+
+  // The balance after this invoice, in the SMS's own words (owner's choice,
+  // 2026-10-02: the old layout, plus the balance the message carries).
+  if (o.balanceLines?.length) {
+    y += GAP;
+    rule(ctx, y, true);
+    y += GAP + 10;
+    for (const line of o.balanceLines) {
+      text(ctx, line, right, y, { size: 26, maxWidth: PAPER_DOTS - 24 });
+      y += LINE_H;
+    }
   }
 
   y += GAP;
