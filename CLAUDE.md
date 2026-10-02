@@ -974,7 +974,29 @@ everything else (regular weight, 20–24px) was too faint. **Not yet device-test
       call: «بطاطس نعمان أبو 50» stays on one line in slightly smaller letters — wrapping it was
       rejected.
 
-> ▶ **RESUME HERE:** device-test the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
+## Status — DONE (Phase 19: «تسجيل دين وطباعة» notifies first, prints the SMS) (2026-10-02)
+Owner-reported: he recorded a 400-riyal invoice with «تسجيل دين وطباعة», it printed, and the shop
+never heard of the debt — that path treated the paper as the notice, but he prints at HOME.
+Agreed with the owner step by step (he asked to be consulted before every change). Frontend only.
+Tests 44/44. **Not yet device-tested.**
+- [x] **Both record buttons go through the same send sheet** (`save` in `src/pages/Invoice.tsx`):
+      WhatsApp / SMS, entry written only when a channel is chosen (Phase 13's «no notice, no debt»
+      now holds on the print path too). Cancel → nothing recorded, nothing printed.
+- [x] **Then «طباعة الفاتورة؟» — «طباعة» / «لا»**, presented after the notifier resolves, so it
+      waits in the app while WhatsApp/SMS is open and the owner finds it on coming back (no
+      split-screen needed — owner asked, and it was not built). The printer check
+      (`readyPrintTarget`) now runs at print time; a print failure is an alert that says the entry
+      is recorded and the notice sent.
+- [x] **The paper = the usual column receipt + the SMS's balance block.** A first build printed
+      the SMS text itself (`buildPrintedInvoice`), from a misreading of two contradicting owner
+      messages; he tested it and chose «old layout plus the balance». `printedBalanceLines` (notify.ts,
+      = `compactBalance` with words) feeds `ReceiptOptions.balanceLines`, drawn under the total
+      between dashed rules: «الرصيد: …» / words / «(لكم عندنا)». Balance is read back AFTER the commit
+      (not projected). Test: the lines are word-for-word the end of the SMS.
+      ⚠️ Lesson: when two owner instructions conflict, ASK which one — don't pick the later one.
+
+> ▶ **RESUME HERE:** device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
+> paper = columns + balance), then the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
 > printing on the HP; still to confirm: statement → «طباعة», and Settings → «اختيار الطابعة» with
 > both kinds), then Phase 15 (send a long invoice by SMS and confirm the phone's
 > counter says SMS, not MMS), Phase 16 (the Arabic launcher name, typing an amount on the

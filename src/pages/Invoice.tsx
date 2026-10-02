@@ -16,7 +16,7 @@ import { listItems, type Item } from '../data/items';
 import {
   listGroups, createGroup, deleteGroup, type ItemGroup,
 } from '../data/itemGroups';
-import { addTransaction } from '../data/transactions';
+import { addTransaction, getBalances } from '../data/transactions';
 import { formatMinor } from '../data/money';
 import { nextInvoiceNumber, peekInvoiceNumber } from '../data/docNumber';
 import { runSync } from '../data/sync';
@@ -28,8 +28,8 @@ import {
 import { directionLabel, orderedTypes, roleDef } from '../data/roles';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { useContactNotifier } from '../lib/useContactNotifier';
+import { printedBalanceLines } from '../lib/notify';
 import type { InvoiceLine } from '../lib/receipt';
-import type { PrintTarget } from '../lib/print';
 
 // Build one purchase out of the contact's price list, record it as a SINGLE
 // entry, and print it.
@@ -249,25 +249,65 @@ const Invoice: React.FC = () => {
   const [growthType] = orderedTypes(role);
   const entryLabel = directionLabel(role, growthType);
 
-  // The printer chosen in Settings, checked BEFORE anything is recorded: with
-  // a printed receipt the entry is written the moment printing starts, so a
-  // printer that is not set up has to stop the act here — not leave a recorded
-  // debt with no receipt. No question is asked: the owner prints from the same
-  // counter every day, and the choice lives in Settings.
-  const choosePrintTarget = async (): Promise<PrintTarget | null> => {
+  // «طباعة الفاتورة؟» — asked AFTER the entry is recorded and its message has
+  // gone out. Resolves true only for «طباعة»; the back button and a tap
+  // outside count as «لا».
+  const askToPrint = () => new Promise<boolean>((resolve) => {
+    let wanted = false;
+    void presentAlert({
+      header: 'طباعة الفاتورة؟',
+      buttons: [
+        { text: 'لا', role: 'cancel' },
+        { text: 'طباعة', handler: () => { wanted = true; } },
+      ],
+      onDidDismiss: () => resolve(wanted),
+    });
+  });
+
+  // Print the usual column receipt, plus the balance block exactly as the SMS
+  // states it (owner's choice, 2026-10-02). The entry is already recorded, so
+  // the balance is read back, not projected. Failure is reported, never thrown: the debt is in the book and
+  // its message has gone, so printing is the one step that may fail alone.
+  const printInvoice = async (number: number, issuedAt: Date) => {
+    setBusy('جارٍ الطباعة...');
     try {
-      const { readyPrintTarget } = await import('../lib/print');
-      return await readyPrintTarget();
+      const [settings, balances] = await Promise.all([
+        getSettings(), getBalances(customerId),
+      ]);
+      // Loaded on demand: the printer driver and the renderer are dead weight
+      // in a session that never prints.
+      const { readyPrintTarget, printReceipt } = await import('../lib/print');
+      const target = await readyPrintTarget();
+      await printReceipt({
+        storeName: messageSender(settings),
+        contactName: customer?.name ?? '',
+        roleLabel: roleDef(role).labelAr,
+        entryLabel,
+        number,
+        lines,
+        total,
+        currency: invoiceCurrency,
+        issuedAt,
+        rates,
+        balanceLines: printedBalanceLines(balances, rates),
+      }, target);
     } catch (err) {
       presentAlert({
         header: 'تعذّرت الطباعة',
-        message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
+        message: `${err instanceof Error ? err.message : 'حدث خطأ غير متوقع'}\n\nالحركة مسجّلة والإشعار أُرسل.`,
         buttons: ['حسناً'],
       });
-      return null;
+    } finally {
+      setBusy(null);
     }
   };
 
+  // Both buttons record the SAME way (the owner's rule, 2026-10-02): the send
+  // sheet, WhatsApp or SMS, and the entry is written only when a channel is
+  // chosen — no notice, no debt. «… وطباعة» then offers to print once the
+  // message has gone. It used to print INSTEAD of notifying, on the theory that
+  // the paper is the notice; but the owner prints at home, so the shop never
+  // heard of the debt.
   const save = async (thenPrint: boolean) => {
     if (!customer || lines.length === 0) return;
     if (!(await isAccountActive())) {
@@ -276,15 +316,6 @@ const Invoice: React.FC = () => {
     }
     if (savingRef.current) return;
     savingRef.current = true;
-    let target: PrintTarget | null = null;
-    if (thenPrint) {
-      target = await choosePrintTarget();
-      if (!target) {
-        savingRef.current = false;
-        return;
-      }
-    }
-    setBusy('جارٍ الحفظ...');
     try {
       // The number the invoice WILL take. It is only consumed inside `commit`,
       // so an invoice abandoned at the send sheet leaves no gap in the book
@@ -293,8 +324,8 @@ const Invoice: React.FC = () => {
       const number = await peekInvoiceNumber();
       const issuedAt = new Date();
       const breakdown = lines.map((l) => `${l.name} ×${l.qty}`).join('، ');
-      // The number leads the note, so the entry in the history, the receipt on
-      // the counter and the message on the phone all name the same invoice.
+      // The number leads the note, so the entry in the history, the printed
+      // paper and the message on the phone all name the same invoice.
       const note = `فاتورة رقم ${number}: ${breakdown}`;
       const commit = async () => {
         await nextInvoiceNumber(); // consume the number this invoice quoted
@@ -308,61 +339,28 @@ const Invoice: React.FC = () => {
         void runSync();
       };
 
-      // Recording WITHOUT printing goes through the ordinary notification
-      // flow — the same SMS and WhatsApp offer as an entry typed by hand, so
-      // the contact hears about a basket exactly as they hear about a single
-      // debt, itemised the way the paper invoice book itemises it. Nothing is
-      // written until a channel is chosen: no notice, no debt.
-      if (!thenPrint) {
-        // Drop the spinner first: it is a full-screen overlay and would sit on
-        // top of the send sheet it is about to wait on.
-        setBusy(null);
-        const recorded = await notifyContact({
-          customerId, type: growthType, amount: total, currency: invoiceCurrency, note,
-          invoice: { number, issuedAt, lines },
-          commit,
-        });
-        // Cancelled: the basket is left exactly as it was, so the owner can
-        // change it and try again rather than tapping it all in a second time.
-        if (!recorded) return;
-        setQty({});
-        setReviewOpen(false);
-        router.goBack();
-        return;
-      }
+      const recorded = await notifyContact({
+        customerId, type: growthType, amount: total, currency: invoiceCurrency, note,
+        invoice: { number, issuedAt, lines },
+        commit,
+      });
+      // Cancelled: nothing was recorded, and the basket is left exactly as it
+      // was, so the owner can change it and try again.
+      if (!recorded) return;
 
-      // With a printed receipt the paper IS the notice, so the entry is
-      // recorded here and no message is offered.
-      await commit();
-      setBusy('جارٍ الطباعة...');
-      const settings = await getSettings();
-      // Loaded on demand: the printer driver and the receipt renderer are dead
-      // weight in a session that never prints.
-      const { printReceipt } = await import('../lib/print');
-      await printReceipt({
-        storeName: messageSender(settings),
-        contactName: customer.name,
-        roleLabel: roleDef(role).labelAr,
-        entryLabel,
-        number,
-        lines,
-        total,
-        currency: invoiceCurrency,
-        issuedAt,
-        rates,
-      }, target ?? 'system');
+      // The question waits in the app while the messaging app is open; the
+      // owner finds it on coming back.
+      if (thenPrint && await askToPrint()) {
+        await printInvoice(number, issuedAt);
+      }
 
       setQty({});
       setReviewOpen(false);
       router.goBack();
     } catch (err) {
       presentAlert({
-        header: thenPrint ? 'تعذّرت الطباعة' : 'خطأ',
-        // The entry is already saved when printing fails — say so, or the owner
-        // records the same basket a second time.
-        message: `${err instanceof Error ? err.message : 'حدث خطأ غير متوقع'}${
-          thenPrint ? '\n\nالحركة محفوظة. يمكنك الطباعة لاحقاً.' : ''
-        }`,
+        header: 'خطأ',
+        message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
         buttons: ['حسناً'],
       });
     } finally {

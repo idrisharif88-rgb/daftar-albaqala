@@ -429,6 +429,15 @@ function compactInvoice(o: MessageInput, invoice: InvoiceInfo, level: number): s
   return [...lines, ...kept, ...(left > 0 ? [remainingItemsAr(left)] : []), ...foot].join('\n');
 }
 
+/**
+ * The balance block exactly as the SMS states it — «الرصيد: …», the amount in
+ * words, «(لكم عندنا)» — for the printed receipt, so paper and message agree.
+ * `balances` must already include the entry being printed.
+ */
+export function printedBalanceLines(balances: CurrencyBalance[], rates: Rates): string[] {
+  return compactBalance(balances, rates, true);
+}
+
 /** «و3 أصناف أخرى» — the items the SMS had no room for. */
 function remainingItemsAr(n: number): string {
   if (n === 1) return 'وصنف واحد آخر';
