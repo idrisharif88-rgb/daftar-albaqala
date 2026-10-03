@@ -38,6 +38,7 @@ owner's cloud server.
 daftar-albaqala/
 ├── src/              # the React/Ionic app (default starter so far — no app code yet)
 ├── capacitor.config.ts
+├── watcher/          # «مراقب البقالة» — the owner's admin app (own package.json + android/)
 ├── server/           # the backend
 │   ├── db/schema.sql # daftar_db tables: users, customers, transactions, items, user_settings
 │   ├── db/migrations/ # numbered DDL, run as root on the droplet (daftar_user is DML-only)
@@ -995,7 +996,44 @@ Tests 44/44. **Not yet device-tested.**
       (not projected). Test: the lines are word-for-word the end of the SMS.
       ⚠️ Lesson: when two owner instructions conflict, ASK which one — don't pick the later one.
 
-> ▶ **RESUME HERE:** device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
+## Status — BUILT (Phase 20: «مراقب البقالة» — the Watcher, slice 1) (2026-10-03)
+The owner's own Android app over EVERY account (all grocers, whatever role their contacts
+are). Built in small slices on purpose. **Slice 1 = admin login + list all accounts + activate /
+suspend.** Server tests: 12 new (`admin.test.ts`) pass. **Not yet deployed or device-tested.**
+- **`watcher/`** — a separate Ionic/React/Capacitor app (appId `com.shopbookidris.watcher`, so it
+  installs beside the shopkeeper app), same green/white theme + Tajawal. **Online-only**: no
+  SQLite, it holds no copy of anyone's book. Own `npm install`; `npm run dev` (proxies `/api` to
+  the droplet; `WATCHER_API_TARGET=http://localhost:3002 npm run dev` for a local backend);
+  APK: `npm run build && npx cap sync android`, then Android Studio on `watcher/android`.
+- **Admin login = three locks**: phone + an ADMIN password (not the shop password) + a 6-digit
+  **authenticator (TOTP) code**. All of it lives in `server/.env` (`ADMIN_PHONE`,
+  `ADMIN_PASSWORD_HASH`, `ADMIN_TOTP_SECRET`, `ADMIN_JWT_SECRET`) — never in the DB, so an SQL
+  injection elsewhere cannot mint an admin. Generate with `npx tsx scripts/admin-setup.ts`. Missing
+  config → `/admin` answers 503. TOTP is hand-written (`server/src/admin/totp.ts`, RFC 6238,
+  ±1 step drift, a used code is refused). 10 failed logins in 15 min → **everyone** locked out 15 min
+  (behind nginx every request is 127.0.0.1, so per-IP would be global anyway).
+- **Admin token** signed with `ADMIN_JWT_SECRET` (must differ from `JWT_SECRET`, ≥32 chars),
+  `role:'admin'`, **12h**. A shopkeeper token can't open `/admin`; an admin token can't pass
+  `requireAuth`. Both tested.
+- ⚠️ `/admin/*` are the **only routes NOT filtered by user_id** — by design. Keep every new admin
+  route behind `requireAdmin` (it is applied router-wide after `/login` in `routes/admin.ts`).
+- **`suspended`** status (migration `005_suspended.sql`): login → 403 «هذا الحساب موقوف»;
+  sync → 402 (requireSubscription refuses anything not `active`); `/customers` + `/transactions`
+  → 403 (`requireNotSuspended`), since an old 30-day token still exists. Data is kept. Activating
+  clears `subscription_expires_at`.
+- Endpoints: `POST /admin/login`, `GET /admin/users` (with contact/transaction counts + last
+  activity), `POST /admin/users/:id/status {active|suspended}`.
+- **Next slices (owner's plan):** open an account → its contacts + entries; then edit/delete
+  contacts and cancel entries (as reversing entries — the ledger stays append-only).
+
+> ⚠️ **To deploy slice 1** (owner, on the droplet, one step at a time):
+> 1. `cd /opt/daftar-albaqala && git pull`
+> 2. `sudo mysql -u root -p daftar_db < server/db/migrations/005_suspended.sql`
+> 3. `cd server && npx tsx scripts/admin-setup.ts` → append the 4 lines to `server/.env`, add the
+>    key to the authenticator app
+> 4. `pm2 restart daftar-api --update-env`
+
+> ▶ **RESUME HERE:** deploy + device-test the Watcher (Phase 20). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
 > paper = columns + balance), then the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
 > printing on the HP; still to confirm: statement → «طباعة», and Settings → «اختيار الطابعة» with
 > both kinds), then Phase 15 (send a long invoice by SMS and confirm the phone's

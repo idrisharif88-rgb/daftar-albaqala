@@ -47,3 +47,26 @@ export async function requireSubscription(
     next(err);
   }
 }
+
+// A suspended account keeps any 30-day token it already holds, so refusing it
+// at login is not enough: the routes that write the book directly refuse it
+// too. (/sync needs no extra check — requireSubscription already refuses
+// anything that is not 'active'.) Must sit AFTER requireAuth.
+export async function requireNotSuspended(
+  req: AuthedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const [rows] = await pool.query('SELECT subscription_status FROM users WHERE id = ?', [
+      req.userId,
+    ]);
+    const user = (rows as Row[])[0];
+    if (user?.subscription_status === 'suspended') {
+      return res.status(403).json({ error: 'account suspended' });
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}

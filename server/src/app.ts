@@ -6,8 +6,9 @@ import customersRouter from './routes/customers';
 import transactionsRouter from './routes/transactions';
 import syncRouter from './routes/sync';
 import accountRouter from './routes/account';
+import adminRouter from './routes/admin';
 import { requireAuth, AuthedRequest } from './middleware/auth';
-import { requireSubscription } from './middleware/requireSubscription';
+import { requireSubscription, requireNotSuspended } from './middleware/requireSubscription';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
 
@@ -54,10 +55,10 @@ app.get('/health', (_req, res) => {
 app.use('/auth', authRouter);
 
 // Customers CRUD — all behind requireAuth, every query filtered by req.userId.
-app.use('/customers', requireAuth, customersRouter);
+app.use('/customers', requireAuth, requireNotSuspended, customersRouter);
 
 // Transactions (append-only) — behind requireAuth, every query filtered by req.userId.
-app.use('/transactions', requireAuth, transactionsRouter);
+app.use('/transactions', requireAuth, requireNotSuspended, transactionsRouter);
 
 // The account itself. Behind requireAuth but NOT requireSubscription: an
 // account that was never activated is the likeliest one to be deleted, and
@@ -70,6 +71,12 @@ app.use('/account', requireAuth, accountRouter);
 // sync is refused (402) unless the user's subscription is active and unexpired.
 // POST /sync/push, GET /sync/pull.
 app.use('/sync', requireAuth, requireSubscription, syncRouter);
+
+// The Watcher app (the owner's admin view over every account). Its own login
+// (phone + admin password + authenticator code) and its own token — see
+// routes/admin.ts and middleware/requireAdmin.ts. NOT behind requireAuth: a
+// shopkeeper token must never open it.
+app.use('/admin', adminRouter);
 
 // Protected test route — returns the user named in the JWT.
 app.get(

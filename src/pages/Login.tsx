@@ -41,7 +41,10 @@ const Login: React.FC = () => {
       }
       // Success: AuthProvider flips isAuthenticated; App.tsx routes onward.
     } catch (err) {
-      if (err instanceof ApiError) {
+      if (err instanceof ApiError && err.status === 403) {
+        // Suspended by the owner from the Watcher app.
+        setError('هذا الحساب موقوف. تواصل مع المالك.');
+      } else if (err instanceof ApiError) {
         setError(err.message);
       } else {
         setError('حدث خطأ غير متوقع');

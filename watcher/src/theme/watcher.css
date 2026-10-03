@@ -1,0 +1,46 @@
+/* Watcher-only styles, on top of the shared brand palette (variables.css). */
+
+.login-brand { text-align: center; margin: 24px 0 20px; }
+.login-brand__name { font-size: 2rem; font-weight: 700; color: var(--ion-color-primary); }
+.login-brand__tag { color: #6b7a6b; font-size: 0.95rem; margin-top: 4px; }
+.login-brand, form { max-width: 480px; margin-inline: auto; }
+.login-error { display: block; margin-top: 8px; }
+.code-input { letter-spacing: 0.4em; font-size: 1.3rem; direction: ltr; }
+
+/* Role-tab style from the shopkeeper app: white bold labels, underline = selected. */
+ion-header ion-segment { --background: transparent; }
+ion-header ion-segment-button {
+  --color: #ffffff; --color-checked: #ffffff;
+  --indicator-color: #ffffff; --background-checked: transparent;
+  font-weight: 700; min-width: auto;
+}
+
+.summary {
+  display: flex; gap: 8px; padding: 12px 12px 0; flex-wrap: wrap;
+}
+.summary__chip {
+  flex: 1 1 0; min-width: 70px; text-align: center;
+  background: var(--app-green-soft); border-radius: 10px; padding: 8px 4px;
+}
+.summary__num { font-size: 1.3rem; font-weight: 700; color: var(--ion-color-primary); }
+.summary__label { font-size: 0.8rem; color: #4a5a4a; }
+
+.acct { margin: 10px 12px; border: 1px solid #dfe8df; border-radius: 12px; padding: 12px; }
+.acct__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.acct__name { font-weight: 700; font-size: 1.05rem; }
+.acct__phone { direction: ltr; unicode-bidi: isolate; color: #4a5a4a; }
+.acct__meta { color: #6b7a6b; font-size: 0.85rem; margin-top: 6px; line-height: 1.6; }
+.acct__actions { display: flex; gap: 8px; margin-top: 8px; }
+.acct__actions ion-button { flex: 1; margin: 0; }
+
+.badge { border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.badge--active { background: #1b5e20; color: #fff; }
+.badge--none { background: #fff4d6; color: #7a5a00; }
+.badge--expired { background: #eceff1; color: #455a64; }
+.badge--suspended { background: #c62828; color: #fff; }
+
+.empty { text-align: center; color: #6b7a6b; margin-top: 40px; }
+
+/* Dates and numbers inside Arabic text: keep 2026-10-02 in its own order. */
+.ltr { direction: ltr; unicode-bidi: isolate; }
+.alert-button[class*='destructive'] { color: #c62828; }
