@@ -996,10 +996,15 @@ Tests 44/44. **Not yet device-tested.**
       (not projected). Test: the lines are word-for-word the end of the SMS.
       ⚠️ Lesson: when two owner instructions conflict, ASK which one — don't pick the later one.
 
-## Status — BUILT (Phase 20: «مراقب البقالة» — the Watcher, slice 1) (2026-10-03)
+## Status — LIVE (Phase 20: «مراقب البقالة» — the Watcher, slice 1) (2026-10-03)
 The owner's own Android app over EVERY account (all grocers, whatever role their contacts
 are). Built in small slices on purpose. **Slice 1 = admin login + list all accounts + activate /
-suspend.** Server tests: 12 new (`admin.test.ts`) pass. **Not yet deployed or device-tested.**
+suspend.** Server tests: 12 new (`admin.test.ts`) pass. **Deployed 2026-10-04** (PR #5 merged,
+migration 005 applied, admin `.env` lines set, `pm2 restart`); owner logged in from the laptop
+browser against the droplet and saw every account. **The Watcher APK is not built yet.**
+⚠️ The laptop's local `daftar_db` was missing Phase 8+ columns — reset with `local-reset.sh` on
+2026-10-04 (local test data erased). The droplet had a hand-made untracked
+`server/public/delete-account.html` that blocked `git pull`; moved to `/root/delete-account.html.bak`.
 - **`watcher/`** — a separate Ionic/React/Capacitor app (appId `com.shopbookidris.watcher`, so it
   installs beside the shopkeeper app), same green/white theme + Tajawal. **Online-only**: no
   SQLite, it holds no copy of anyone's book. Own `npm install`; `npm run dev` (proxies `/api` to
@@ -1026,14 +1031,15 @@ suspend.** Server tests: 12 new (`admin.test.ts`) pass. **Not yet deployed or de
 - **Next slices (owner's plan):** open an account → its contacts + entries; then edit/delete
   contacts and cancel entries (as reversing entries — the ledger stays append-only).
 
-> ⚠️ **To deploy slice 1** (owner, on the droplet, one step at a time):
+> ✅ **Deployed** (kept for the next server) — slice 1 deploy steps:
 > 1. `cd /opt/daftar-albaqala && git pull`
 > 2. `sudo mysql -u root -p daftar_db < server/db/migrations/005_suspended.sql`
 > 3. `cd server && npx tsx scripts/admin-setup.ts` → append the 4 lines to `server/.env`, add the
 >    key to the authenticator app
 > 4. `pm2 restart daftar-api --update-env`
 
-> ▶ **RESUME HERE:** deploy + device-test the Watcher (Phase 20). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
+> ▶ **RESUME HERE:** build the Watcher APK (`cd watcher && npm run build && npx cap sync android`,
+> Android Studio on `watcher/android`), then Watcher slice 2 (open an account → contacts + entries). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
 > paper = columns + balance), then the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
 > printing on the HP; still to confirm: statement → «طباعة», and Settings → «اختيار الطابعة» with
 > both kinds), then Phase 15 (send a long invoice by SMS and confirm the phone's
