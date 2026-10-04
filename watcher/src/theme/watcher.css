@@ -44,3 +44,27 @@ ion-header ion-segment-button {
 /* Dates and numbers inside Arabic text: keep 2026-10-02 in its own order. */
 .ltr { direction: ltr; unicode-bidi: isolate; }
 .alert-button[class*='destructive'] { color: #c62828; }
+
+/* Old Android WebView (Note 9) paints a FOCUSED input as a black box when the
+   input is transparent and gets promoted to its own composited layer. A solid
+   background, explicit colours (-webkit-text-fill-color is the one that keeps
+   the text visible there), no effects and a light colour-scheme stop it. */
+ion-input input.native-input,
+ion-input input.native-input:focus {
+  background: #ffffff !important;
+  color: #1a1f1a !important;
+  -webkit-text-fill-color: #1a1f1a !important;
+  caret-color: #1b5e20;
+  opacity: 1 !important;
+  filter: none;
+  backdrop-filter: none;
+  transform: none;
+  -webkit-appearance: none;
+  appearance: none;
+  color-scheme: light;
+}
+ion-input input.native-input::placeholder {
+  color: #9aa59a !important;
+  -webkit-text-fill-color: #9aa59a !important;
+  opacity: 1 !important;
+}

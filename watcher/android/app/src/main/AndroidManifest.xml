@@ -15,7 +15,11 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustPan"
             android:exported="true">
+            <!-- adjustPan, not adjustResize: on the owner's Note 9 (old WebView)
+                 resizing for the keyboard made the focused input paint as a
+                 black box. Panning moves the page instead of shrinking it. -->
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
