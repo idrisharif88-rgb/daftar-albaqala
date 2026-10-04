@@ -72,7 +72,7 @@ router.post(
     }
 
     const [rows] = await pool.query(
-      'SELECT id, phone, password_hash, store_name FROM users WHERE phone = ?',
+      'SELECT id, phone, password_hash, store_name, subscription_status FROM users WHERE phone = ?',
       [normPhone]
     );
     const user = (rows as Array<Record<string, string>>)[0];
@@ -81,6 +81,12 @@ router.post(
     const ok = user && (await bcrypt.compare(String(password), user.password_hash));
     if (!ok) {
       return res.status(401).json({ error: 'invalid phone or password' });
+    }
+
+    // Suspended by the owner (Watcher app): no new session. Checked only AFTER
+    // the password, so this answer never tells a stranger the number exists.
+    if (user.subscription_status === 'suspended') {
+      return res.status(403).json({ error: 'account suspended' });
     }
 
     const token = signToken(user.id);

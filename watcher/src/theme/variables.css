@@ -1,0 +1,80 @@
+/* daftar-albaqala theme — professional dark-green + white, Tajawal font.
+   For Ionic theming reference: http://ionicframework.com/docs/theming/ */
+
+/* ---- Font: Tajawal (Arabic + Latin subsets), bundled locally in public/fonts
+   so the app renders in it fully offline on the device. ---- */
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/tajawal-arabic-400.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/fonts/tajawal-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/tajawal-arabic-500.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/fonts/tajawal-latin-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/tajawal-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+200C-200E;
+}
+@font-face {
+  font-family: 'Tajawal';
+  font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/fonts/tajawal-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+20AC, U+2122, U+2212;
+}
+
+/* ---- Palette: dark-green brand on white. ---- */
+:root {
+  /* Tajawal app-wide (Ionic reads this var on every component). */
+  --ion-font-family: 'Tajawal', 'Helvetica Neue', sans-serif;
+
+  /* Brand primary = forest green (#1b5e20). */
+  --ion-color-primary: #1b5e20;
+  --ion-color-primary-rgb: 27, 94, 32;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #185319;
+  --ion-color-primary-tint: #326e36;
+
+  /* Clean white surfaces + dark text. */
+  --ion-background-color: #ffffff;
+  --ion-background-color-rgb: 255, 255, 255;
+  --ion-text-color: #1a1f1a;
+  --ion-text-color-rgb: 26, 31, 26;
+
+  /* A soft green tint for card/summary backgrounds. */
+  --app-green-soft: #e8f1e9;
+}
+
+/* Force the light palette even if the device is in dark mode — the brand is
+   green-on-white, and a half-applied dark mode would look broken. */
+:root, .ion-palette-dark, body { color-scheme: light; }
+
+/* ---- Headers: dark-green bar, white title + buttons, across the app. ---- */
+ion-header ion-toolbar {
+  --background: var(--ion-color-primary);
+  --color: #ffffff;
+  --border-color: transparent;
+}
+ion-header ion-toolbar ion-title { font-weight: 700; }
+ion-header ion-toolbar ion-button,
+ion-header ion-toolbar ion-back-button,
+ion-header ion-toolbar ion-icon { --color: #ffffff; color: #ffffff; }
+

@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
 
   -- حقول الاشتراك (المدفوع = السحابة)
   plan                     VARCHAR(16)     NOT NULL DEFAULT 'free',  -- free | cloud
-  subscription_status      ENUM('none','active','expired') NOT NULL DEFAULT 'none',
+  subscription_status      ENUM('none','active','expired','suspended') NOT NULL DEFAULT 'none',
   subscription_expires_at  DATETIME        NULL,
 
   created_at               DATETIME        NOT NULL,
