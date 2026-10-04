@@ -1001,7 +1001,14 @@ The owner's own Android app over EVERY account (all grocers, whatever role their
 are). Built in small slices on purpose. **Slice 1 = admin login + list all accounts + activate /
 suspend.** Server tests: 12 new (`admin.test.ts`) pass. **Deployed 2026-10-04** (PR #5 merged,
 migration 005 applied, admin `.env` lines set, `pm2 restart`); owner logged in from the laptop
-browser against the droplet and saw every account. **The Watcher APK is not built yet.**
+browser against the droplet and saw every account. **APK built + installed on the owner's phone
+2026-10-04, working** (binoculars «ناظور» launcher icon, darker green so it isn't confused with
+the shop app). ⚠️ **Note 9 black-input bug** (old WebView paints a FOCUSED transparent input as
+a black box): fixed with solid opaque input CSS incl. `-webkit-text-fill-color`
+(`watcher/src/theme/watcher.css`) + `windowSoftInputMode="adjustPan"`; also carries
+`@capacitor/keyboard`. Apply the same if it ever shows in the shop app. These Watcher-only
+follow-ups (keyboard, icon, input fix) are on branch `claude/confident-bohr-uzhbuq`, **not yet
+merged to master** — no server change in them.
 ⚠️ The laptop's local `daftar_db` was missing Phase 8+ columns — reset with `local-reset.sh` on
 2026-10-04 (local test data erased). The droplet had a hand-made untracked
 `server/public/delete-account.html` that blocked `git pull`; moved to `/root/delete-account.html.bak`.
@@ -1038,8 +1045,10 @@ browser against the droplet and saw every account. **The Watcher APK is not buil
 >    key to the authenticator app
 > 4. `pm2 restart daftar-api --update-env`
 
-> ▶ **RESUME HERE:** build the Watcher APK (`cd watcher && npm run build && npx cap sync android`,
-> Android Studio on `watcher/android`), then Watcher slice 2 (open an account → contacts + entries). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
+> ▶ **RESUME HERE:** merge the Watcher follow-ups (open a PR from `claude/confident-bohr-uzhbuq`),
+> then Watcher slice 2 (open an account → its contacts + entries). Watcher APK build:
+> `cd watcher && npm run build && npx cap sync android`, Android Studio on `watcher/android`,
+> Gradle JDK = java-21-openjdk (JDK 25 is rejected). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
 > paper = columns + balance), then the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
 > printing on the HP; still to confirm: statement → «طباعة», and Settings → «اختيار الطابعة» with
 > both kinds), then Phase 15 (send a long invoice by SMS and confirm the phone's
