@@ -1007,8 +1007,7 @@ the shop app). ⚠️ **Note 9 black-input bug** (old WebView paints a FOCUSED t
 a black box): fixed with solid opaque input CSS incl. `-webkit-text-fill-color`
 (`watcher/src/theme/watcher.css`) + `windowSoftInputMode="adjustPan"`; also carries
 `@capacitor/keyboard`. Apply the same if it ever shows in the shop app. These Watcher-only
-follow-ups (keyboard, icon, input fix) are on branch `claude/confident-bohr-uzhbuq`, **not yet
-merged to master** — no server change in them.
+follow-ups (keyboard, icon, input fix) were merged to master 2026-10-04 (PR #6).
 ⚠️ The laptop's local `daftar_db` was missing Phase 8+ columns — reset with `local-reset.sh` on
 2026-10-04 (local test data erased). The droplet had a hand-made untracked
 `server/public/delete-account.html` that blocked `git pull`; moved to `/root/delete-account.html.bak`.
@@ -1045,8 +1044,7 @@ merged to master** — no server change in them.
 >    key to the authenticator app
 > 4. `pm2 restart daftar-api --update-env`
 
-> ▶ **RESUME HERE:** merge the Watcher follow-ups (open a PR from `claude/confident-bohr-uzhbuq`),
-> then Watcher slice 2 (open an account → its contacts + entries). Watcher APK build:
+> ▶ **RESUME HERE:** Watcher slice 2 (open an account → its contacts + entries). Watcher APK build:
 > `cd watcher && npm run build && npx cap sync android`, Android Studio on `watcher/android`,
 > Gradle JDK = java-21-openjdk (JDK 25 is rejected). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
 > paper = columns + balance), then the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice
