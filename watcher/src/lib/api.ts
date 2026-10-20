@@ -57,7 +57,9 @@ function messageFor(status: number): string {
     case 401: return 'البيانات غير صحيحة';
     case 429: return 'محاولات كثيرة. حاول بعد ١٥ دقيقة';
     case 503: return 'لوحة المراقبة غير مُعدّة على الخادم';
-    case 404: return 'الحساب غير موجود';
+    case 404: return 'غير موجود — ربما حُذف للتو';
+    case 409: return 'يوجد جهة أخرى بهذا الرقم في هذا الدفتر';
+    case 400: return 'بيانات غير صالحة';
     default: return `خطأ ${status}`;
   }
 }
@@ -94,4 +96,72 @@ export function setAccountStatus(id: string, status: 'active' | 'suspended'): Pr
     method: 'POST',
     body: JSON.stringify({ status }),
   });
+}
+
+// ---- One account's book (slice 2) ----
+
+export type Role = 'customer' | 'supplier' | 'partner';
+export type TxnType = 'debt' | 'payment';
+
+export interface Balance {
+  currency: string;
+  /** debt − payment, major units. Positive = the contact owes the shopkeeper. */
+  balance: number;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  note: string | null;
+  role: Role;
+  created_at: string;
+  updated_at: string;
+  balances: Balance[];
+  transactions_count?: number;
+}
+
+export interface Entry {
+  id: string;
+  type: TxnType;
+  amount: number;
+  currency: string;
+  note: string | null;
+  occurred_at: string;
+  created_at: string;
+}
+
+const u = (id: string) => `/admin/users/${encodeURIComponent(id)}`;
+
+export function getBook(userId: string): Promise<{ account: Pick<Account, 'id' | 'phone' | 'store_name' | 'subscription_status'>; customers: Contact[] }> {
+  return request(`${u(userId)}/customers`);
+}
+
+export function getContact(userId: string, customerId: string): Promise<{ customer: Contact; transactions: Entry[] }> {
+  return request(`${u(userId)}/customers/${encodeURIComponent(customerId)}`);
+}
+
+export function updateContact(
+  userId: string,
+  customerId: string,
+  fields: { name: string; phone: string; note: string; role: Role }
+): Promise<unknown> {
+  return request(`${u(userId)}/customers/${encodeURIComponent(customerId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(fields),
+  });
+}
+
+export function deleteContact(userId: string, customerId: string): Promise<unknown> {
+  return request(`${u(userId)}/customers/${encodeURIComponent(customerId)}`, { method: 'DELETE' });
+}
+
+/** Deletes outright. Reaches only a shop app new enough to understand it. */
+export function deleteEntry(userId: string, txnId: string): Promise<unknown> {
+  return request(`${u(userId)}/transactions/${encodeURIComponent(txnId)}`, { method: 'DELETE' });
+}
+
+/** Cancels with an opposite entry — works with every version of the shop app. */
+export function reverseEntry(userId: string, txnId: string): Promise<unknown> {
+  return request(`${u(userId)}/transactions/${encodeURIComponent(txnId)}/reverse`, { method: 'POST' });
 }

@@ -9,8 +9,10 @@ const router = Router();
 
 // All routes behind requireAuth (mounted in index.ts), so req.userId is set.
 // EVERY query filters by req.userId (tenant isolation — see CLAUDE.md).
-// Transactions are APPEND-ONLY: no update, no delete. A correction is a new
-// reversing entry, never an edit of the original.
+// Transactions are APPEND-ONLY for the shopkeeper: no update, no delete. A
+// correction is a new reversing entry, never an edit of the original. Only the
+// owner can delete one, from the Watcher (routes/admin.ts) — those rows carry a
+// deleted_at and are left out here.
 
 const TXN_COLS = 'id, customer_id, type, amount, currency, note, occurred_at, created_at';
 
@@ -26,7 +28,7 @@ router.get(
 
     const [rows] = await pool.query(
       `SELECT ${TXN_COLS} FROM transactions
-       WHERE user_id = ? AND customer_id = ?
+       WHERE user_id = ? AND customer_id = ? AND deleted_at IS NULL
        ORDER BY occurred_at DESC, created_at DESC`,
       [req.userId, customerId]
     );

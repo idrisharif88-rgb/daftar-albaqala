@@ -524,7 +524,11 @@ function asDate(value: unknown): Date {
 //
 //   - customers    → INCLUDES soft-deleted rows (tombstones) so deletes
 //                    propagate; the client reads deleted_at to apply them.
-//   - transactions → append-only, never change after insert.
+//   - transactions → append-only for the shopkeeper; the owner can delete one
+//                    from the Watcher, which leaves a tombstone (deleted_at).
+//                    Tombstones go ONLY to a client that asks for them with
+//                    `tombstones=1`: an older app ignores deleted_at, so a fresh
+//                    install of it would insert the deleted entry as a live one.
 //
 // Both filter on `server_updated_at`, the column MySQL stamps itself. They used
 // to filter on created_at / updated_at, which come from the PHONE — a device
@@ -564,10 +568,12 @@ router.get(
         LIMIT ?`,
       [req.userId, cursor.customers.ts, cursor.customers.ts, cursor.customers.id, limit + 1]
     );
+    const wantsTombstones = req.query.tombstones === '1';
     const [transactionRows] = await pool.query(
-      `SELECT id, customer_id, type, amount, currency, note, occurred_at, created_at, server_updated_at
+      `SELECT id, customer_id, type, amount, currency, note, occurred_at, created_at,
+              deleted_at, server_updated_at
          FROM transactions
-        WHERE user_id = ? AND ${after}
+        WHERE user_id = ? AND ${after}${wantsTombstones ? '' : ' AND deleted_at IS NULL'}
         ORDER BY server_updated_at ASC, id ASC
         LIMIT ?`,
       [req.userId, cursor.transactions.ts, cursor.transactions.ts, cursor.transactions.id, limit + 1]

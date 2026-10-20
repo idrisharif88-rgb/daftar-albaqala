@@ -4,7 +4,9 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { requireAdmin, adminJwtSecret } from '../middleware/requireAdmin';
+import { randomUUID } from 'crypto';
 import { verifyTotp } from '../admin/totp';
+import { VALID_ROLES } from '../domain';
 
 // The Watcher app's API: the owner's view over EVERY account.
 //
@@ -107,7 +109,7 @@ router.get(
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
-                 WHERE t.user_id = u.id) AS transactions_count,
+                 WHERE t.user_id = u.id AND t.deleted_at IS NULL) AS transactions_count,
               GREATEST(
                 COALESCE((SELECT MAX(c.server_updated_at) FROM customers c WHERE c.user_id = u.id), u.created_at),
                 COALESCE((SELECT MAX(t.server_updated_at) FROM transactions t WHERE t.user_id = u.id), u.created_at)
@@ -150,6 +152,219 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, subscription_status: status });
+  })
+);
+
+// ---- One account's book (slice 2) ----
+//
+// Every query below names the account in its WHERE clause — the contact AND the
+// entry are both matched against :id. The admin may read any account, but a
+// contact id pasted under the wrong account must still answer 404, never act on
+// someone else's row.
+
+type Row = Record<string, unknown>;
+
+/** Per-currency balance (debt − payment) of live entries, keyed by contact. */
+async function balancesFor(userId: string, customerId?: string): Promise<Map<string, Row[]>> {
+  const [rows] = await pool.query(
+    `SELECT customer_id, currency,
+            SUM(CASE WHEN type = 'debt' THEN amount ELSE -amount END) AS balance,
+            COUNT(*) AS n
+       FROM transactions
+      WHERE user_id = ? AND deleted_at IS NULL ${customerId ? 'AND customer_id = ?' : ''}
+      GROUP BY customer_id, currency`,
+    customerId ? [userId, customerId] : [userId]
+  );
+  const out = new Map<string, Row[]>();
+  for (const r of rows as Row[]) {
+    const key = String(r.customer_id);
+    const list = out.get(key) ?? [];
+    list.push({ currency: r.currency, balance: Number(r.balance), count: Number(r.n) });
+    out.set(key, list);
+  }
+  return out;
+}
+
+async function findAccount(id: string): Promise<Row | null> {
+  const [rows] = await pool.query(
+    'SELECT id, phone, store_name, subscription_status FROM users WHERE id = ?',
+    [id]
+  );
+  return (rows as Row[])[0] ?? null;
+}
+
+async function findContact(userId: string, customerId: string): Promise<Row | null> {
+  const [rows] = await pool.query(
+    `SELECT id, name, phone, note, role, created_at, updated_at
+       FROM customers
+      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+    [customerId, userId]
+  );
+  return (rows as Row[])[0] ?? null;
+}
+
+// GET /admin/users/:id/customers — the account's live contacts, each with its
+// balance per currency and its number of entries.
+router.get(
+  '/users/:id/customers',
+  asyncHandler(async (req, res) => {
+    const account = await findAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: 'user not found' });
+    const [rows] = await pool.query(
+      `SELECT id, name, phone, note, role, created_at, updated_at
+         FROM customers
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY name`,
+      [req.params.id]
+    );
+    const balances = await balancesFor(req.params.id);
+    const customers = (rows as Row[]).map((c) => {
+      const b = balances.get(String(c.id)) ?? [];
+      return {
+        ...c,
+        balances: b.filter((x) => x.balance !== 0).map(({ currency, balance }) => ({ currency, balance })),
+        transactions_count: b.reduce((n, x) => n + Number(x.count), 0),
+      };
+    });
+    return res.json({ account, customers });
+  })
+);
+
+// GET /admin/users/:id/customers/:cid — one contact and its live entries,
+// newest first, each with its id (the owner deletes by id).
+router.get(
+  '/users/:id/customers/:cid',
+  asyncHandler(async (req, res) => {
+    const contact = await findContact(req.params.id, req.params.cid);
+    if (!contact) return res.status(404).json({ error: 'customer not found' });
+    const [rows] = await pool.query(
+      `SELECT id, type, amount, currency, note, occurred_at, created_at
+         FROM transactions
+        WHERE user_id = ? AND customer_id = ? AND deleted_at IS NULL
+        ORDER BY occurred_at DESC, created_at DESC`,
+      [req.params.id, req.params.cid]
+    );
+    const balances = (await balancesFor(req.params.id, req.params.cid)).get(req.params.cid) ?? [];
+    return res.json({
+      customer: {
+        ...contact,
+        balances: balances.filter((x) => x.balance !== 0).map(({ currency, balance }) => ({ currency, balance })),
+      },
+      transactions: (rows as Row[]).map((t) => ({ ...t, amount: Number(t.amount) })),
+    });
+  })
+);
+
+// PUT /admin/users/:id/customers/:cid  { name?, phone?, note?, role? }
+//
+// updated_at is stamped with the SERVER's clock: the phones merge contacts
+// last-write-wins on updated_at, and an edit that kept the old value would be
+// thrown away as stale on the next pull. server_updated_at bumps itself.
+router.put(
+  '/users/:id/customers/:cid',
+  asyncHandler(async (req, res) => {
+    const existing = await findContact(req.params.id, req.params.cid);
+    if (!existing) return res.status(404).json({ error: 'customer not found' });
+    const body = req.body ?? {};
+
+    const name = body.name !== undefined ? String(body.name).trim() : String(existing.name);
+    const phone = body.phone !== undefined ? String(body.phone).replace(/[\s-]/g, '') : String(existing.phone);
+    const note = body.note !== undefined ? (String(body.note).trim() || null) : existing.note;
+    const role = body.role !== undefined ? String(body.role) : String(existing.role);
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    if (!phone) return res.status(400).json({ error: 'phone is required' });
+    if (!VALID_ROLES.has(role)) return res.status(400).json({ error: 'invalid role' });
+
+    // Same rule the app keeps: one live contact per phone in a book.
+    if (phone !== existing.phone) {
+      const [dupes] = await pool.query(
+        `SELECT id FROM customers
+          WHERE user_id = ? AND phone = ? AND deleted_at IS NULL AND id <> ?`,
+        [req.params.id, phone, req.params.cid]
+      );
+      if ((dupes as Row[]).length > 0) {
+        return res.status(409).json({ error: 'a customer with this phone already exists' });
+      }
+    }
+
+    await pool.query(
+      `UPDATE customers
+          SET name = ?, phone = ?, note = ?, role = ?, updated_at = UTC_TIMESTAMP()
+        WHERE id = ? AND user_id = ?`,
+      [name, phone, note, role, req.params.cid, req.params.id]
+    );
+    return res.json({ customer: await findContact(req.params.id, req.params.cid) });
+  })
+);
+
+// DELETE /admin/users/:id/customers/:cid — soft-delete (a tombstone every
+// version of the app already understands). Its entries stay in the table.
+router.delete(
+  '/users/:id/customers/:cid',
+  asyncHandler(async (req, res) => {
+    const [result] = await pool.query(
+      `UPDATE customers
+          SET deleted_at = UTC_TIMESTAMP(), updated_at = UTC_TIMESTAMP()
+        WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+      [req.params.cid, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'customer not found' });
+    }
+    return res.json({ id: req.params.cid, deleted: true });
+  })
+);
+
+// DELETE /admin/users/:id/transactions/:tid — delete an entry outright.
+//
+// A tombstone, not a DELETE (see migration 006): the phones hold their own
+// copy, and only a row that still exists can tell them to drop it. Reaches
+// only an app new enough to ask for tombstones — for an older one, use the
+// reversing entry below instead.
+router.delete(
+  '/users/:id/transactions/:tid',
+  asyncHandler(async (req, res) => {
+    const [result] = await pool.query(
+      `UPDATE transactions
+          SET deleted_at = UTC_TIMESTAMP()
+        WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+      [req.params.tid, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'transaction not found' });
+    }
+    return res.json({ id: req.params.tid, deleted: true });
+  })
+);
+
+// POST /admin/users/:id/transactions/:tid/reverse — cancel an entry the
+// append-only way: a NEW entry of the opposite type, same amount and currency.
+// Every version of the app receives it, and both stay in the history.
+router.post(
+  '/users/:id/transactions/:tid/reverse',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query(
+      `SELECT t.id, t.customer_id, t.type, t.amount, t.currency
+         FROM transactions t
+         JOIN customers c ON c.id = t.customer_id AND c.user_id = t.user_id
+        WHERE t.id = ? AND t.user_id = ? AND t.deleted_at IS NULL AND c.deleted_at IS NULL`,
+      [req.params.tid, req.params.id]
+    );
+    const original = (rows as Row[])[0];
+    if (!original) return res.status(404).json({ error: 'transaction not found' });
+
+    const id = randomUUID();
+    const type = original.type === 'debt' ? 'payment' : 'debt';
+    // The short id lets the owner, and the shopkeeper reading the history,
+    // match the reversal to the entry it cancels.
+    const note = `إلغاء حركة سابقة (${String(original.id).slice(0, 8)})`;
+    await pool.query(
+      `INSERT INTO transactions
+         (id, user_id, customer_id, type, amount, currency, note, occurred_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())`,
+      [id, req.params.id, original.customer_id, type, original.amount, original.currency, note]
+    );
+    return res.status(201).json({ id, type, amount: Number(original.amount), currency: original.currency, note });
   })
 );
 

@@ -150,6 +150,13 @@ export async function applyServerTransaction(row: {
   );
 }
 
+// The owner deleted this entry from the Watcher (a server tombstone). The only
+// way an entry leaves a phone: the shopkeeper's own book stays append-only.
+export async function removeServerTransaction(id: string): Promise<void> {
+  const db = await getDB();
+  await db.run(`DELETE FROM transactions WHERE id = ?`, [id]);
+}
+
 // ---- Balances ----
 
 // Running balance PER CURRENCY: sum(debt) − sum(payment) within each currency.

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon,
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
-  IonSpinner, useIonAlert, useIonToast,
+  IonSpinner, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
 import { logOutOutline, refreshOutline } from 'ionicons/icons';
 import { Account, ApiError, Status, listAccounts, setAccountStatus } from '../lib/api';
@@ -49,6 +49,7 @@ const Accounts: React.FC = () => {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [presentAlert] = useIonAlert();
   const [presentToast] = useIonToast();
+  const router = useIonRouter();
 
   const load = useCallback(async () => {
     setError(null);
@@ -189,6 +190,9 @@ const Accounts: React.FC = () => {
                 <span className="ltr">{day(a.last_activity_at)}</span>
               </div>
               <div className="acct__actions">
+                <IonButton size="small" fill="outline" onClick={() => router.push(`/accounts/${a.id}`)}>
+                  فتح الدفتر
+                </IonButton>
                 {s !== 'active' && (
                   <IonButton size="small" disabled={busyId === a.id} onClick={() => change(a, 'active')}>
                     {s === 'suspended' ? 'إعادة التفعيل' : 'تفعيل'}

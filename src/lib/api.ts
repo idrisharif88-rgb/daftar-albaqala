@@ -156,6 +156,8 @@ export interface PullTransaction {
   id: string; customer_id: string; type: string; amount: string | number;
   currency: string | null;
   note: string | null; occurred_at: string; created_at: string;
+  /** Set when the owner deleted the entry from the Watcher. */
+  deleted_at?: string | null;
 }
 export interface PullItem {
   id: string; customer_id: string; name: string; price: string | number;
@@ -196,6 +198,9 @@ export function syncPull(since?: string | null, limit?: number): Promise<PullRes
   const params = new URLSearchParams();
   if (since) params.set('since', since);
   if (limit) params.set('limit', String(limit));
+  // Ask for deleted entries too. Without it the server leaves them out, which
+  // is what keeps an older app (that would insert them as live) safe.
+  params.set('tombstones', '1');
   const q = params.toString();
   return request<PullResult>(`/sync/pull${q ? `?${q}` : ''}`);
 }
