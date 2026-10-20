@@ -1044,7 +1044,32 @@ follow-ups (keyboard, icon, input fix) were merged to master 2026-10-04 (PR #6).
 >    key to the authenticator app
 > 4. `pm2 restart daftar-api --update-env`
 
-> ▶ **RESUME HERE:** Watcher slice 2 (open an account → its contacts + entries). Watcher APK build:
+## Status — BUILT (Phase 21: Watcher slice 2 — open a book, correct it) (2026-10-20)
+Server tests 87/87 (8 new in `admin.book.test.ts`), shop unit tests 43/43. **Not yet device-tested.**
+- [x] **Watcher:** «فتح الدفتر» on each account → `Book.tsx` (contacts, balance per currency,
+      entry count) → `Contact.tsx` (entries newest first, each with its full id). Per entry:
+      **«حذف»** (delete outright) or **«عكس»** (opposite entry, same amount, note
+      «إلغاء حركة سابقة (<first 8 of id>)»). Header: edit contact (name/phone/note/role) + delete.
+- [x] **Entries can now be deleted — by the OWNER only, from the Watcher.** The shopkeeper's own
+      book stays append-only. Migration `006_transaction_delete.sql` adds `transactions.deleted_at`
+      and gives `server_updated_at` `ON UPDATE`, so a deletion moves forward in the delta cursor.
+      A tombstone, not a DELETE: only a row that still exists can tell the phones to drop it.
+- [x] **Tombstones go only to clients that ask** (`/sync/pull?tombstones=1`). An older shop app
+      ignores `deleted_at`, so a fresh install of it would insert the deleted entry as LIVE. The
+      new shop app asks and drops its copy (`removeServerTransaction`). ⚠️ **On an old app a
+      deleted entry stays on the phone** — the owner's rule: delete by id for updated users,
+      «عكس» for everyone else. Re-pushing a deleted id is acknowledged and does NOT resurrect it.
+- [x] Admin contact edits stamp `updated_at = UTC_TIMESTAMP()` (else the phone's LWW discards
+      them); app-layer phone uniqueness is enforced there too (409). Every admin book query
+      matches the contact/entry against the account in the URL — a mismatched id is a 404.
+- Deleted entries are left out of `GET /transactions`, the admin counts and every balance.
+
+> ⚠️ **MIGRATION REQUIRED:** droplet `sudo mysql -u root -p daftar_db < server/db/migrations/006_transaction_delete.sql`
+> (applied locally to `daftar_test` + `daftar_db` ✓). Then `git pull` + `pm2 restart daftar-api`.
+> The shop app must be rebuilt (`npm run build && npx cap sync android`) for 1.4 to carry it.
+
+> ▶ **RESUME HERE:** deploy + device-test Phase 21 (delete on Watcher → entry gone from an updated
+> shop app after sync; «عكس» on an old one). Watcher APK build:
 > `cd watcher && npm run build && npx cap sync android`, Android Studio on `watcher/android`,
 > Gradle JDK = java-21-openjdk (JDK 25 is rejected). Then: device-test Phase 19 (record+print → send sheet → back → «طباعة الفاتورة؟» →
 > paper = columns + balance), then the bold 1.5× receipt (HP + later thermal), then Phase 18 round 2 (owner confirmed the password eye and invoice

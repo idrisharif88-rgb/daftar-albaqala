@@ -72,9 +72,11 @@ CREATE TABLE IF NOT EXISTS transactions (
   note         TEXT            NULL,
   occurred_at  DATETIME        NOT NULL,               -- وقت حدوث المعاملة فعلياً (يحدده المستخدم)
   created_at   DATETIME        NOT NULL,               -- وقت الإنشاء على الهاتف
+  deleted_at   DATETIME        NULL,                   -- حذفها المالك من المراقب (tombstone) — migration 006
 
-  -- ساعة السيرفر (مفتاح المزامنة الدلتا). المعاملات غير قابلة للتعديل، فتُختم مرة واحدة.
-  server_updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  -- ساعة السيرفر (مفتاح المزامنة الدلتا). تتقدّم عند الحذف أيضاً حتى يصل الحذف للهواتف.
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
 
   PRIMARY KEY (id),
   CONSTRAINT fk_txn_user FOREIGN KEY (user_id)     REFERENCES users(id),

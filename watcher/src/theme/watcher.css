@@ -68,3 +68,23 @@ ion-input input.native-input::placeholder {
   -webkit-text-fill-color: #9aa59a !important;
   opacity: 1 !important;
 }
+
+/* Slice 2: a book's contacts and entries. */
+.acct--link { cursor: pointer; }
+.acct--link:active { background: var(--app-green-soft); }
+.badge--role { background: var(--app-green-soft); color: var(--ion-color-primary); }
+
+.entry { margin: 8px 12px; border: 1px solid #dfe8df; border-radius: 12px; padding: 10px 12px; }
+.entry__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.entry__amt { font-weight: 700; }
+.entry__amt--debt { color: #c62828; }
+.entry__amt--pay { color: #1b5e20; }
+.entry__date { color: #6b7a6b; font-size: 0.85rem; }
+.entry__note { margin-top: 4px; color: #333; }
+/* The id is what the owner deletes by — small, but selectable and whole. */
+.entry__id { margin-top: 4px; font-family: monospace; font-size: 0.72rem; color: #8a958a;
+  user-select: text; -webkit-user-select: text; word-break: break-all; }
+.hint { color: #6b7a6b; font-size: 0.85rem; }
+
+/* Confirmations carry two paragraphs; Ionic shows the message as plain text. */
+.alert-message { white-space: pre-line; }

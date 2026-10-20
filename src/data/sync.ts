@@ -6,7 +6,7 @@ import {
   getDirtyCustomers, markCustomersSynced, applyServerCustomer, type Customer,
 } from './customers';
 import {
-  getDirtyTransactions, markTransactionsSynced, applyServerTransaction,
+  getDirtyTransactions, markTransactionsSynced, applyServerTransaction, removeServerTransaction,
   type TxnType, type Transaction,
 } from './transactions';
 import {
@@ -351,6 +351,12 @@ async function doSync(): Promise<SyncOutcome> {
         });
       }
       for (const t of page.transactions) {
+        // The owner deleted it from the Watcher — drop our copy. Idempotent:
+        // the cursor's rewind can deliver the same tombstone twice.
+        if (t.deleted_at) {
+          await removeServerTransaction(t.id);
+          continue;
+        }
         await applyServerTransaction({
           id: t.id, customer_id: t.customer_id, type: t.type as TxnType,
           amount: toMinor(Number(t.amount)), // major → minor for local storage
