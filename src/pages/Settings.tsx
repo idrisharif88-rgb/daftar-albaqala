@@ -338,7 +338,10 @@ const Settings: React.FC = () => {
     try {
       const r = await runSync();
       const toast = {
-        ok: { message: 'تمت المزامنة', cssClass: 'toast-sync-ok', icon: checkmarkCircle },
+        ok: {
+          message: '', icon: checkmarkCircle, cssClass: 'toast-sync-ok', position: 'top' as const,
+          htmlAttributes: { 'aria-label': 'تمت المزامنة' },
+        },
         offline: { message: SYNC_PROBLEM_TEXT.offline, color: 'medium' },
         subscription: { message: SYNC_PROBLEM_TEXT.subscription, color: 'warning' },
         error: { message: SYNC_PROBLEM_TEXT.error, color: 'danger' },
