@@ -12,7 +12,6 @@ import {
 } from '../lib/api';
 import { ROLE_AR, balanceText, dateTime, money } from '../lib/format';
 import { digitsOnly } from '../lib/digits';
-import { useAdminCode } from '../lib/useAdminCode';
 
 // One contact in one account's book: its entries (with ids), and the owner's
 // three corrections — edit / delete the contact, and per entry either DELETE
@@ -30,7 +29,6 @@ const Contact: React.FC = () => {
   const [form, setForm] = useState({ name: '', phone: '', note: '', role: 'customer' as Role });
   const [presentAlert] = useIonAlert();
   const [presentToast] = useIonToast();
-  const { ask, modal } = useAdminCode();
 
   const load = useCallback(async () => {
     setError(null);
@@ -61,16 +59,6 @@ const Contact: React.FC = () => {
     }
   };
 
-  // Ask for the authenticator code, then run the change with it. The short
-  // delay lets the confirm alert finish dismissing before the code modal opens.
-  const guardedRun = (title: string, action: (code: string) => Promise<unknown>, done: string, after?: () => void) => {
-    setTimeout(() => {
-      void ask(title).then((code) => {
-        if (code) void run(() => action(code), done, after);
-      });
-    }, 350);
-  };
-
   const confirm = (header: string, message: string, text: string, onYes: () => void) =>
     presentAlert({
       header,
@@ -89,7 +77,7 @@ const Contact: React.FC = () => {
       'حذف الحركة',
       `${entryLine(t)}\n\nتُحذف نهائياً وتختفي من الرصيد. تختفي من هاتف صاحب الحساب فقط إذا كان تطبيقه محدّثاً — وإلا فاستخدم «عكس».`,
       'حذف',
-      () => guardedRun('حذف الحركة', (code) => deleteEntry(id, t.id, code), 'تم حذف الحركة'),
+      () => void run(() => deleteEntry(id, t.id), 'تم حذف الحركة'),
     );
 
   const askReverse = (t: Entry) =>
@@ -97,7 +85,7 @@ const Contact: React.FC = () => {
       'عكس الحركة',
       `${entryLine(t)}\n\nتُضاف حركة معاكسة بنفس المبلغ فيعود الرصيد كما كان. تبقى الحركتان في السجل، وتصل لكل نسخ التطبيق.`,
       'عكس',
-      () => guardedRun('عكس الحركة', (code) => reverseEntry(id, t.id, code), 'تمت إضافة الحركة المعاكسة'),
+      () => void run(() => reverseEntry(id, t.id), 'تمت إضافة الحركة المعاكسة'),
     );
 
   const askDeleteContact = () => {
@@ -106,7 +94,7 @@ const Contact: React.FC = () => {
       'حذف الجهة',
       `حذف «${contact.name}» من دفتر هذا الحساب؟ يختفي من هاتفه في المزامنة القادمة.`,
       'حذف',
-      () => guardedRun('حذف الجهة', (code) => deleteContact(id, cid, code), 'تم حذف الجهة', () => router.goBack()),
+      () => void run(() => deleteContact(id, cid), 'تم حذف الجهة', () => router.goBack()),
     );
   };
 
@@ -123,9 +111,8 @@ const Contact: React.FC = () => {
       toast('الاسم والرقم مطلوبان', false);
       return;
     }
-    guardedRun(
-      'تعديل الجهة',
-      (code) => updateContact(id, cid, { ...form, name, phone }, code),
+    void run(
+      () => updateContact(id, cid, { ...form, name, phone }),
       'تم الحفظ',
       () => { setEditing(false); void load(); },
     );
@@ -232,7 +219,6 @@ const Contact: React.FC = () => {
             <IonButton expand="block" disabled={busy} onClick={saveEdit}>حفظ</IonButton>
           </IonContent>
         </IonModal>
-        {modal}
       </IonContent>
     </IonPage>
   );

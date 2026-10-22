@@ -1026,14 +1026,6 @@ follow-ups (keyboard, icon, input fix) were merged to master 2026-10-04 (PR #6).
 - **Admin token** signed with `ADMIN_JWT_SECRET` (must differ from `JWT_SECRET`, ≥32 chars),
   `role:'admin'`, **12h**. A shopkeeper token can't open `/admin`; an admin token can't pass
   `requireAuth`. Both tested.
-- **Every admin CHANGE needs a fresh authenticator code** (`requireAdminCode`, applied to
-  `status` change, contact edit/delete, entry delete/reverse). The code rides in the request body
-  (`code`) and is checked against `ADMIN_TOTP_SECRET` with the SAME single-use replay counter as
-  login — one code, one thing (a code used to log in cannot authorise a change, and a code used for
-  one change cannot authorise another). Wrong/reused → **403** (deliberately not 401, so the Watcher
-  doesn't auto-logout on a mistyped code); 10 failures lock everyone out 15 min. The shared state
-  lives in `server/src/admin/totpGate.ts`; the Watcher prompts for the code via `useAdminCode`
-  (an `IonModal`, not an alert, so it can't collide with the confirm alert).
 - ⚠️ `/admin/*` are the **only routes NOT filtered by user_id** — by design. Keep every new admin
   route behind `requireAdmin` (it is applied router-wide after `/login` in `routes/admin.ts`).
 - **`suspended`** status (migration `005_suspended.sql`): login → 403 «هذا الحساب موقوف»;

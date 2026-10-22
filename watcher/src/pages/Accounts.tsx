@@ -8,7 +8,6 @@ import { logOutOutline, refreshOutline } from 'ionicons/icons';
 import { Account, ApiError, Status, listAccounts, setAccountStatus } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
-import { useAdminCode } from '../lib/useAdminCode';
 
 type Filter = 'all' | 'none' | 'active' | 'suspended';
 
@@ -51,7 +50,6 @@ const Accounts: React.FC = () => {
   const [presentAlert] = useIonAlert();
   const [presentToast] = useIonToast();
   const router = useIonRouter();
-  const { ask, modal } = useAdminCode();
 
   const load = useCallback(async () => {
     setError(null);
@@ -91,28 +89,6 @@ const Accounts: React.FC = () => {
     });
   }, [accounts, query, filter]);
 
-  const doChange = async (a: Account, status: 'active' | 'suspended', code: string) => {
-    const activating = status === 'active';
-    setBusyId(a.id);
-    try {
-      await setAccountStatus(a.id, status, code);
-      presentToast({
-        message: activating ? 'تم التفعيل' : 'تم الإيقاف',
-        duration: 1800,
-        color: activating ? 'success' : 'danger',
-      });
-      await load();
-    } catch (err) {
-      presentToast({
-        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
-        duration: 2500,
-        color: 'danger',
-      });
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const change = (a: Account, status: 'active' | 'suspended') => {
     const who = a.store_name || a.phone;
     const activating = status === 'active';
@@ -126,13 +102,25 @@ const Accounts: React.FC = () => {
         {
           text: activating ? 'تفعيل' : 'إيقاف',
           role: activating ? 'confirm' : 'destructive',
-          handler: () => {
-            // Let the confirm alert finish dismissing before the code modal opens.
-            setTimeout(() => {
-              void ask(activating ? 'تفعيل الحساب' : 'إيقاف الحساب').then((code) => {
-                if (code) void doChange(a, status, code);
+          handler: async () => {
+            setBusyId(a.id);
+            try {
+              await setAccountStatus(a.id, status);
+              presentToast({
+                message: activating ? 'تم التفعيل' : 'تم الإيقاف',
+                duration: 1800,
+                color: activating ? 'success' : 'danger',
               });
-            }, 350);
+              await load();
+            } catch (err) {
+              presentToast({
+                message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+                duration: 2500,
+                color: 'danger',
+              });
+            } finally {
+              setBusyId(null);
+            }
           },
         },
       ],
@@ -226,7 +214,6 @@ const Accounts: React.FC = () => {
           );
         })}
       </IonContent>
-      {modal}
     </IonPage>
   );
 };

@@ -16,7 +16,6 @@
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustPan"
-            android:hardwareAccelerated="false"
             android:exported="true">
             <!-- adjustPan, not adjustResize: on the owner's Note 9 (old WebView)
                  resizing for the keyboard made the focused input paint as a

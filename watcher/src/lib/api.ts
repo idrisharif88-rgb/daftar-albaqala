@@ -55,7 +55,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 function messageFor(status: number): string {
   switch (status) {
     case 401: return 'البيانات غير صحيحة';
-    case 403: return 'رمز التحقق غير صحيح أو مُستخدَم';
     case 429: return 'محاولات كثيرة. حاول بعد ١٥ دقيقة';
     case 503: return 'لوحة المراقبة غير مُعدّة على الخادم';
     case 404: return 'غير موجود — ربما حُذف للتو';
@@ -92,10 +91,10 @@ export async function listAccounts(): Promise<Account[]> {
   return res.users;
 }
 
-export function setAccountStatus(id: string, status: 'active' | 'suspended', code: string): Promise<unknown> {
+export function setAccountStatus(id: string, status: 'active' | 'suspended'): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/status`, {
     method: 'POST',
-    body: JSON.stringify({ status, code }),
+    body: JSON.stringify({ status }),
   });
 }
 
@@ -145,34 +144,24 @@ export function getContact(userId: string, customerId: string): Promise<{ custom
 export function updateContact(
   userId: string,
   customerId: string,
-  fields: { name: string; phone: string; note: string; role: Role },
-  code: string,
+  fields: { name: string; phone: string; note: string; role: Role }
 ): Promise<unknown> {
   return request(`${u(userId)}/customers/${encodeURIComponent(customerId)}`, {
     method: 'PUT',
-    body: JSON.stringify({ ...fields, code }),
+    body: JSON.stringify(fields),
   });
 }
 
-export function deleteContact(userId: string, customerId: string, code: string): Promise<unknown> {
-  return request(`${u(userId)}/customers/${encodeURIComponent(customerId)}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ code }),
-  });
+export function deleteContact(userId: string, customerId: string): Promise<unknown> {
+  return request(`${u(userId)}/customers/${encodeURIComponent(customerId)}`, { method: 'DELETE' });
 }
 
 /** Deletes outright. Reaches only a shop app new enough to understand it. */
-export function deleteEntry(userId: string, txnId: string, code: string): Promise<unknown> {
-  return request(`${u(userId)}/transactions/${encodeURIComponent(txnId)}`, {
-    method: 'DELETE',
-    body: JSON.stringify({ code }),
-  });
+export function deleteEntry(userId: string, txnId: string): Promise<unknown> {
+  return request(`${u(userId)}/transactions/${encodeURIComponent(txnId)}`, { method: 'DELETE' });
 }
 
 /** Cancels with an opposite entry — works with every version of the shop app. */
-export function reverseEntry(userId: string, txnId: string, code: string): Promise<unknown> {
-  return request(`${u(userId)}/transactions/${encodeURIComponent(txnId)}/reverse`, {
-    method: 'POST',
-    body: JSON.stringify({ code }),
-  });
+export function reverseEntry(userId: string, txnId: string): Promise<unknown> {
+  return request(`${u(userId)}/transactions/${encodeURIComponent(txnId)}/reverse`, { method: 'POST' });
 }
