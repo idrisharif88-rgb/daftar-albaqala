@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Redirect, Route } from 'react-router-dom';
 import {
-  IonApp, IonRouterOutlet, setupIonicReact, useIonRouter, useIonToast,
+  IonApp, IonRouterOutlet, setupIonicReact, useIonRouter, useIonAlert,
 } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -53,22 +53,25 @@ const AutoSync: React.FC = () => {
   return null;
 };
 
-// Android hardware back button: close any open overlay first (Ionic's default,
-// priority 100), otherwise navigate to the previous screen. When there's no
-// page to go back to (the home root) we defer to the lower-priority handlers
-// (App exit) — the double-tap-to-exit refinement lands next. Must live inside
-// IonReactRouter so useIonRouter() has the router context.
+// Android hardware back button: close any open overlay first, otherwise
+// navigate to the previous screen. At the root (home / login) there is nowhere
+// to go back to, so we ask for confirmation before leaving the app — a proper
+// dialog, not a disappearing toast the owner has to catch and act on in 2s.
+// Must live inside IonReactRouter so useIonRouter() has the router context.
 const HardwareBack: React.FC = () => {
   const router = useIonRouter();
-  const [presentToast] = useIonToast();
-  const lastBack = useRef(0);
+  const [presentAlert] = useIonAlert();
+  // One confirmation at a time — repeated back presses must not stack dialogs.
+  const confirming = useRef(false);
   useEffect(() => {
     const onBack = (ev: Event) => {
       (ev as CustomEvent).detail.register(10, (_processNext: () => void) => {
         // If an overlay (currency/language popover, a modal, an alert...) is on
         // screen, dismiss IT and stop — otherwise the page navigates back while
         // the overlay stays orphaned on top. We find the topmost visible overlay
-        // by checking it's actually rendered (not just present in the DOM).
+        // by checking it's actually rendered (not just present in the DOM). This
+        // also means a back press while the exit dialog is open simply closes
+        // it — i.e. "stay", which is the safe default.
         const overlays = Array.from(
           document.querySelectorAll<HTMLElement & { dismiss?: () => Promise<unknown> }>(
             'ion-modal, ion-popover, ion-action-sheet, ion-alert, ion-picker'
@@ -79,14 +82,24 @@ const HardwareBack: React.FC = () => {
         );
         if (open) { void open.dismiss?.(); return; }
         if (router.canGoBack()) { router.goBack(); return; }
-        // At the root (home / login): exit only on a second back press within 2s.
-        const now = Date.now();
-        if (now - lastBack.current < 2000) {
-          void CapacitorApp.exitApp();
-        } else {
-          lastBack.current = now;
-          void presentToast({ message: 'اضغط مرة أخرى للخروج', duration: 1500, color: 'dark' });
-        }
+        // At the root: confirm before exiting.
+        if (confirming.current) return;
+        confirming.current = true;
+        void presentAlert({
+          header: 'إغلاق التطبيق',
+          message: 'هل تريد إغلاق دفتر البقالة؟',
+          cssClass: 'exit-alert',
+          buttons: [
+            { text: 'بقاء', role: 'cancel', cssClass: 'alert-stay' },
+            {
+              text: 'خروج',
+              role: 'destructive',
+              cssClass: 'alert-exit',
+              handler: () => { void CapacitorApp.exitApp(); },
+            },
+          ],
+          onDidDismiss: () => { confirming.current = false; },
+        });
       });
     };
     document.addEventListener('ionBackButton', onBack);

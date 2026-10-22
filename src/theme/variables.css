@@ -394,3 +394,73 @@ ion-toast::part(message) {
   padding-top: 16px;
   border-top: 1px solid rgba(var(--ion-color-danger-rgb, 235, 68, 90), 0.3);
 }
+
+/* ============================================================
+   Professional polish pass
+   ============================================================ */
+
+/* ---- Buttons: rounded + calm, app-wide ----
+   Ionic's default is a hard-cornered, full-width rectangle that gets uppercased.
+   These soften EVERY button at once (no page edits): rounded corners, normal
+   case, a comfortable weight. Scoped carefully so header/clear buttons keep
+   their flat look. */
+ion-button {
+  --border-radius: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+}
+
+/* Block (full-width) call-to-action buttons: a comfortable height, a little
+   inset from the screen edge so they read as a rounded card, not a bar welded
+   to the sides, and a soft brand shadow instead of a flat slab. */
+ion-button[expand="block"] {
+  --border-radius: 14px;
+  --padding-top: 15px;
+  --padding-bottom: 15px;
+  margin-inline: 2px;
+}
+ion-button[expand="block"][fill="solid"],
+ion-button[expand="block"]:not([fill]):not([color="light"]):not([color="medium"]) {
+  --box-shadow: 0 3px 12px rgba(27, 94, 32, 0.18);
+}
+
+/* Outline (secondary) buttons: a thin border and no shadow — a secondary action
+   should sit quieter than the primary one beside it. */
+ion-button[fill="outline"] {
+  --border-width: 1px;
+  --box-shadow: none;
+}
+
+/* ---- Sync "done": a small pill, not a big bar ----
+   The success toast was a full-width green rectangle. A short centred pill with
+   the checkmark says the same thing without dominating the screen; failures
+   still raise the warning triangle in the header, so silence here is safe. */
+ion-toast::part(container) {
+  border-radius: 14px;
+}
+.toast-sync-ok::part(container) {
+  border-radius: 999px;
+  min-width: 0;
+  max-width: max-content;
+  margin: 0 auto 18px;
+  padding-inline: 6px;
+  box-shadow: 0 4px 14px rgba(27, 94, 32, 0.35);
+}
+.toast-sync-ok::part(message) { font-size: 0.9rem; }
+
+/* ---- Exit-confirmation dialog (hardware back at the root) ----
+   Tajawal (inherited app-wide), bold, with a red «خروج» and a green «بقاء». */
+.exit-alert .alert-title { font-weight: 700; }
+.exit-alert .alert-message {
+  font-weight: 700;
+  color: var(--ion-text-color);
+}
+.alert-button.alert-exit {
+  color: var(--ion-color-danger, #eb445a);
+  font-weight: 700;
+}
+.alert-button.alert-stay {
+  color: var(--ion-color-primary);
+  font-weight: 700;
+}
