@@ -194,6 +194,53 @@ export function syncPush(body: {
   return request<PushResult>('/sync/push', { method: 'POST', body: JSON.stringify(body) });
 }
 
+// ---- Attachments ----
+// A file pinned to an entry. Metadata + bytes travel on their OWN endpoints
+// (not the JSON row sync): the bytes are base64 in a JSON body, which is what
+// CapacitorHttp carries reliably. See server/src/routes/attachments.ts.
+
+export interface AttachmentMeta {
+  id: string;
+  transaction_id: string;
+  mime: string;
+  filename: string | null;
+  size: number;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+/** Upload (or re-upload) one file. `data` is base64 with no data: prefix. */
+export function uploadAttachment(body: {
+  id: string;
+  transaction_id: string;
+  mime: string;
+  filename: string;
+  data: string;
+}): Promise<{ attachment: AttachmentMeta }> {
+  return request<{ attachment: AttachmentMeta }>('/attachments', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/** The bytes for one attachment, base64. */
+export function downloadAttachment(id: string): Promise<{ attachment: AttachmentMeta; data: string }> {
+  return request<{ attachment: AttachmentMeta; data: string }>(`/attachments/${id}`);
+}
+
+/** Metadata delta since the given opaque cursor (includes tombstones). */
+export function pullAttachments(since?: string | null): Promise<{
+  attachments: AttachmentMeta[];
+  synced_at: string | null;
+}> {
+  const q = since ? `?since=${encodeURIComponent(since)}` : '?since=';
+  return request<{ attachments: AttachmentMeta[]; synced_at: string | null }>(`/attachments${q}`);
+}
+
+export function deleteAttachmentRemote(id: string): Promise<{ deleted: boolean }> {
+  return request<{ deleted: boolean }>(`/attachments/${id}`, { method: 'DELETE' });
+}
+
 export function syncPull(since?: string | null, limit?: number): Promise<PullResult> {
   const params = new URLSearchParams();
   if (since) params.set('since', since);

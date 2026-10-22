@@ -9,11 +9,18 @@ import {
 } from '@ionic/react';
 import {
   documentTextOutline, createOutline, receiptOutline, pricetagsOutline,
+  attachOutline, trashOutline, addOutline, documentOutline, closeOutline,
 } from 'ionicons/icons';
 import { getCustomer, updateCustomer, type Customer } from '../data/customers';
 import {
   listTransactions, getBalances, addTransaction, type Transaction, type TxnType,
 } from '../data/transactions';
+import {
+  listAttachments, createAttachment, softDeleteAttachment, getAttachmentData,
+  attachmentCounts, type Attachment,
+} from '../data/attachments';
+import { pickFile, FileTooLargeError } from '../lib/filePicker';
+import { compressImage } from '../lib/imageCompress';
 import { toMinor } from '../data/money';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
@@ -34,6 +41,9 @@ import { useContactNotifier } from '../lib/useContactNotifier';
 import { FEATURES } from '../config';
 import BalanceSummary from '../components/BalanceSummary';
 import { numericInput, phoneInput } from '../lib/digits';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 // Contact detail — transaction history + record an entry in either direction.
 // Append-only (CLAUDE.md): a transaction is never edited or deleted; a
@@ -48,6 +58,9 @@ import { numericInput, phoneInput } from '../lib/digits';
 // (never a UTC instant — «إلى 30 يوليو» has to mean that whole day here, not
 // wherever the timestamp was written).
 type ExportPeriod = 'day' | 'month' | 'full' | { from: string; to: string };
+
+// What the second export question answers: which file, and where it goes.
+type Delivery = 'pdf-share' | 'pdf-print' | 'excel';
 
 /** 'YYYY-MM-DD' in LOCAL time, which is the date shown on the phone. */
 function localDay(d: Date): string {
@@ -88,6 +101,19 @@ const CustomerDetail: React.FC = () => {
   const rangeModal = useRef<HTMLIonModalElement>(null);
   const [fromDay, setFromDay] = useState('');
   const [toDay, setToDay] = useState('');
+  // Attachments — files pinned to an entry (a product photo, the paper invoice,
+  // proof of payment). Shown per history row; a modal lists and manages them.
+  const [counts, setCounts] = useState<Map<string, number>>(new Map());
+  const attachModal = useRef<HTMLIonModalElement>(null);
+  const [attachTxn, setAttachTxn] = useState<Transaction | null>(null);
+  const [attachList, setAttachList] = useState<Attachment[]>([]);
+  // Thumbnails, loaded lazily into a map id→dataUrl so the list renders before
+  // the (possibly downloaded) bytes arrive.
+  const [thumbs, setThumbs] = useState<Map<string, string>>(new Map());
+  const [attachBusy, setAttachBusy] = useState(false);
+  // Full-screen image viewer.
+  const viewerModal = useRef<HTMLIonModalElement>(null);
+  const [viewerSrc, setViewerSrc] = useState<string | null>(null);
   // Synchronous in-flight guard — `saving` state updates a tick late, so a fast
   // double-tap could slip a second (duplicate) transaction through before the
   // button re-renders disabled. The ref blocks the second call immediately.
@@ -104,16 +130,18 @@ const CustomerDetail: React.FC = () => {
   const notifyContact = useContactNotifier();
 
   const load = useCallback(async () => {
-    const [c, list, bals, currentRates] = await Promise.all([
+    const [c, list, bals, currentRates, attCounts] = await Promise.all([
       getCustomer(customerId),
       listTransactions(customerId),
       getBalances(customerId),
       getRates(),
+      attachmentCounts(),
     ]);
     setCustomer(c);
     setTxns(list);
     setBalances(bals);
     setRates(currentRates);
+    setCounts(attCounts);
     setLoading(false);
   }, [customerId]);
 
@@ -235,7 +263,7 @@ const CustomerDetail: React.FC = () => {
   // the history by occurred_at, then render + share (see lib/pdf.ts).
   const askExport = () => {
     presentSheet({
-      header: 'تصدير كشف حساب PDF',
+      header: 'تصدير كشف حساب',
       buttons: [
         { text: 'اليوم', handler: () => { void doExport('day'); } },
         { text: 'هذا الشهر', handler: () => { void doExport('month'); } },
@@ -263,17 +291,22 @@ const CustomerDetail: React.FC = () => {
     await doExport({ from, to });
   };
 
-  // The second question of an export: where the statement goes. Resolved on
-  // dismiss, so the back button or a tap outside answers «nowhere».
-  const chooseDelivery = () => new Promise<'share' | 'print' | null>((resolve) => {
-    let picked: 'share' | 'print' | null = null;
+  // The second question of an export: which file, and where it goes. Resolved
+  // on dismiss, so the back button or a tap outside answers «nowhere». Printing
+  // is offered only where it exists (native); Excel always shares/downloads.
+  const chooseDelivery = () => new Promise<Delivery | null>((resolve) => {
+    let picked: Delivery | null = null;
+    const buttons = [
+      { text: 'ملف PDF', handler: () => { picked = 'pdf-share'; } },
+      ...(systemPrintAvailable()
+        ? [{ text: 'طباعة PDF', handler: () => { picked = 'pdf-print' as Delivery; } }]
+        : []),
+      { text: 'ملف Excel', handler: () => { picked = 'excel'; } },
+      { text: 'إلغاء', role: 'cancel' as const },
+    ];
     void presentDeliverySheet({
-      header: 'كشف الحساب',
-      buttons: [
-        { text: 'إرسال عبر واتساب', handler: () => { picked = 'share'; } },
-        { text: 'طباعة', handler: () => { picked = 'print'; } },
-        { text: 'إلغاء', role: 'cancel' },
-      ],
+      header: 'صيغة الكشف',
+      buttons,
       onDidDismiss: () => resolve(picked),
     });
   });
@@ -298,15 +331,11 @@ const CustomerDetail: React.FC = () => {
       : period === 'month' ? 'هذا الشهر'
       : period === 'full' ? 'كل الحركات'
       : `من ${period.from} إلى ${period.to}`;
-    // Send it, or print it. Only asked where printing exists — on the web the
-    // statement simply downloads, as before.
-    const delivery = systemPrintAvailable() ? await chooseDelivery() : 'share';
+    // PDF or Excel, shared or printed.
+    const delivery = await chooseDelivery();
     if (!delivery) return;
     setExporting(true);
     try {
-      // Loaded on demand — jspdf is a large dependency, and a session that
-      // never exports a statement shouldn't pay to parse it at startup.
-      const { exportCustomerStatement, printCustomerStatement } = await import('../lib/pdf');
       const statement = {
         customer,
         transactions: filtered,
@@ -315,23 +344,146 @@ const CustomerDetail: React.FC = () => {
         rates,
         periodLabel,
       };
-      if (delivery === 'print') await printCustomerStatement(statement);
-      else await exportCustomerStatement(statement);
+      // Loaded on demand — both exporters pull in large dependencies (jspdf /
+      // the xlsx writer) that a session which never exports shouldn't parse.
+      if (delivery === 'excel') {
+        const { exportCustomerStatementXlsx } = await import('../lib/excel');
+        await exportCustomerStatementXlsx(statement);
+      } else {
+        const { exportCustomerStatement, printCustomerStatement } = await import('../lib/pdf');
+        if (delivery === 'pdf-print') await printCustomerStatement(statement);
+        else await exportCustomerStatement(statement);
+      }
     } catch (err) {
       // Backing out of the share sheet is not a failure and gets no dialog.
       if (!(err instanceof ShareCancelledError)) {
         presentAlert({
-          header: delivery === 'print' ? 'تعذّرت الطباعة' : 'خطأ',
+          header: delivery === 'pdf-print' ? 'تعذّرت الطباعة' : 'خطأ',
           message: err instanceof NoShareTargetError
             ? 'لا يوجد تطبيق يمكنه فتح هذا الملف'
-            : delivery === 'print' && err instanceof Error
+            : delivery === 'pdf-print' && err instanceof Error
               ? err.message
-              : 'تعذّر إنشاء ملف PDF',
+              : delivery === 'excel' ? 'تعذّر إنشاء ملف Excel' : 'تعذّر إنشاء ملف PDF',
           buttons: ['حسناً'],
         });
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+  // ---- Attachments ----
+
+  const isImage = (mime: string) => mime.startsWith('image/');
+
+  // Load thumbnails for the image attachments in a list (lazy — a pulled file's
+  // bytes are fetched on first view; a just-added one is already local).
+  const loadThumbs = async (list: Attachment[]) => {
+    const next = new Map<string, string>();
+    for (const a of list) {
+      if (!isImage(a.mime)) continue;
+      const data = await getAttachmentData(a.id);
+      if (data) next.set(a.id, `data:${a.mime};base64,${data}`);
+    }
+    setThumbs(next);
+  };
+
+  const refreshAttachments = async (txnId: string) => {
+    const list = await listAttachments(txnId);
+    setAttachList(list);
+    setCounts(await attachmentCounts());
+    await loadThumbs(list);
+  };
+
+  const openAttachments = async (txn: Transaction) => {
+    setAttachTxn(txn);
+    setAttachList([]);
+    setThumbs(new Map());
+    await attachModal.current?.present();
+    await refreshAttachments(txn.id);
+  };
+
+  const addAttachment = async () => {
+    if (!attachTxn) return;
+    setAttachBusy(true);
+    try {
+      const picked = await pickFile();
+      if (!picked) return; // cancelled
+      const squeezed = await compressImage(picked.data, picked.mime);
+      await createAttachment({
+        transactionId: attachTxn.id,
+        mime: squeezed.mime,
+        data: squeezed.data,
+        filename: picked.filename,
+        size: squeezed.size,
+      });
+      await refreshAttachments(attachTxn.id);
+      void runSync(); // upload in the background — the file is already saved locally
+    } catch (err) {
+      presentAlert({
+        header: 'تعذّر إرفاق الملف',
+        message: err instanceof FileTooLargeError
+          ? 'الملف كبير جداً (الحد ١٢ ميجابايت).'
+          : 'حدث خطأ أثناء إرفاق الملف.',
+        buttons: ['حسناً'],
+      });
+    } finally {
+      setAttachBusy(false);
+    }
+  };
+
+  const removeAttachment = (att: Attachment) => {
+    presentAlert({
+      header: 'حذف المرفق',
+      message: 'سيُحذف هذا الملف من كل الأجهزة. متابعة؟',
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        {
+          text: 'حذف',
+          role: 'destructive',
+          handler: () => {
+            void (async () => {
+              await softDeleteAttachment(att.id);
+              if (attachTxn) await refreshAttachments(attachTxn.id);
+              void runSync();
+            })();
+          },
+        },
+      ],
+    });
+  };
+
+  // Open an attachment: an image goes to the in-app viewer; anything else
+  // (a PDF) is handed to the OS — opened in a new tab on web, shared out to a
+  // viewer on the phone.
+  const openAttachment = async (att: Attachment) => {
+    const data = await getAttachmentData(att.id);
+    if (!data) {
+      presentAlert({
+        header: 'غير متاح',
+        message: 'هذا الملف غير متاح بدون اتصال بالإنترنت.',
+        buttons: ['حسناً'],
+      });
+      return;
+    }
+    if (isImage(att.mime)) {
+      setViewerSrc(`data:${att.mime};base64,${data}`);
+      void viewerModal.current?.present();
+      return;
+    }
+    if (Capacitor.getPlatform() === 'web') {
+      const win = window.open();
+      if (win) win.document.write(
+        `<iframe src="data:${att.mime};base64,${data}" style="border:0;width:100%;height:100%"></iframe>`,
+      );
+      return;
+    }
+    try {
+      const name = att.filename || 'attachment';
+      const written = await Filesystem.writeFile({ path: name, data, directory: Directory.Cache });
+      await Share.share({ title: name, url: written.uri });
+    } catch {
+      // No viewer / backed out — not worth a red dialog.
     }
   };
 
@@ -458,6 +610,19 @@ const CustomerDetail: React.FC = () => {
                         )}
                       </div>
                     </IonText>
+                    {/* Files pinned to this entry — tap to view or add. */}
+                    <IonButton
+                      fill="clear"
+                      slot="end"
+                      onClick={() => openAttachments(t)}
+                      aria-label="مرفقات"
+                    >
+                      <IonIcon
+                        slot={counts.get(t.id) ? 'start' : 'icon-only'}
+                        icon={attachOutline}
+                      />
+                      {counts.get(t.id) ? counts.get(t.id) : null}
+                    </IonButton>
                   </IonItem>
                 ))}
               </IonList>
@@ -635,6 +800,105 @@ const CustomerDetail: React.FC = () => {
             <IonButton expand="block" className="ion-margin-top" onClick={confirmRange}>
               إنشاء الكشف
             </IonButton>
+          </IonContent>
+        </IonModal>
+
+        {/* Attachments for one entry — list, add, view, delete. */}
+        <IonModal ref={attachModal} onDidDismiss={() => setAttachTxn(null)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>مرفقات الحركة</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => attachModal.current?.dismiss()}>إغلاق</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent className="ion-padding">
+            <IonButton expand="block" onClick={addAttachment} disabled={attachBusy}>
+              {attachBusy ? (
+                <IonSpinner name="crescent" />
+              ) : (
+                <>
+                  <IonIcon slot="start" icon={addOutline} />
+                  إضافة ملف (صورة أو PDF)
+                </>
+              )}
+            </IonButton>
+            <IonNote color="medium" className="ion-padding-start">
+              <IonText>
+                <p>لإرفاق صورة منتج أو فاتورة: التقطها بالكاميرا ثم اخترها من المعرض.</p>
+              </IonText>
+            </IonNote>
+
+            {attachList.length === 0 ? (
+              <IonText color="medium">
+                <p className="ion-text-center ion-padding">لا توجد مرفقات بعد.</p>
+              </IonText>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
+                {attachList.map((a) => (
+                  <div key={a.id} style={{ position: 'relative', width: 120 }}>
+                    <div
+                      onClick={() => { void openAttachment(a); }}
+                      style={{
+                        cursor: 'pointer', height: 120, borderRadius: 8, overflow: 'hidden',
+                        background: '#fff', border: '1px solid var(--ion-color-light-shade)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                    >
+                      {isImage(a.mime) && thumbs.get(a.id) ? (
+                        <img
+                          src={thumbs.get(a.id)}
+                          alt={a.filename}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <IonIcon icon={documentOutline} style={{ fontSize: 40, color: 'var(--ion-color-medium)' }} />
+                      )}
+                    </div>
+                    <div style={{
+                      fontSize: 12, textAlign: 'center', marginTop: 4,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {a.filename || (isImage(a.mime) ? 'صورة' : 'ملف')}
+                    </div>
+                    <IonButton
+                      fill="solid"
+                      color="danger"
+                      size="small"
+                      onClick={() => removeAttachment(a)}
+                      style={{ position: 'absolute', top: -8, insetInlineEnd: -8, '--padding-start': '6px', '--padding-end': '6px' } as React.CSSProperties}
+                    >
+                      <IonIcon slot="icon-only" icon={trashOutline} />
+                    </IonButton>
+                  </div>
+                ))}
+              </div>
+            )}
+          </IonContent>
+        </IonModal>
+
+        {/* Full-screen image viewer. */}
+        <IonModal ref={viewerModal} onDidDismiss={() => setViewerSrc(null)}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>عرض الصورة</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => viewerModal.current?.dismiss()}>
+                  <IonIcon slot="icon-only" icon={closeOutline} />
+                </IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div style={{
+              width: '100%', height: '100%', background: '#000',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {viewerSrc && (
+                <img src={viewerSrc} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+              )}
+            </div>
           </IonContent>
         </IonModal>
 

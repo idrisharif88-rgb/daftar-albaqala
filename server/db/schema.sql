@@ -157,3 +157,29 @@ CREATE TABLE IF NOT EXISTS item_groups (
   KEY idx_group_user_cust (user_id, customer_id),
   KEY idx_group_sync (user_id, server_updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- المرفقات — ملف مرتبط بحركة (صورة منتج، صورة فاتورة، إثبات دفع)
+-- السجل (الوصف) يُزامَن كبقية الجداول؛ أما البايتات فتُخزَّن على القرص
+-- تحت ATTACH_DIR عبر routes/attachments.ts، لا داخل هذا الصف.
+-- حذف ناعم عبر deleted_at، ودلتا عبر server_updated_at.
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS attachments (
+  id              CHAR(36)      NOT NULL,
+  user_id         CHAR(36)      NOT NULL,              -- المالك (عزل المستأجرين)
+  transaction_id  CHAR(36)      NOT NULL,              -- الحركة المرتبطة
+  mime            VARCHAR(100)  NOT NULL,
+  filename        VARCHAR(255)  NOT NULL DEFAULT '',
+  size            INT           NOT NULL DEFAULT 0,
+  created_at      DATETIME      NOT NULL,
+  deleted_at      DATETIME      NULL,                  -- شاهدة حذف (تُزامَن)
+
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+  PRIMARY KEY (id),
+  CONSTRAINT fk_att_user FOREIGN KEY (user_id)        REFERENCES users(id),
+  CONSTRAINT fk_att_txn  FOREIGN KEY (transaction_id) REFERENCES transactions(id),
+  KEY idx_att_user_txn (user_id, transaction_id),
+  KEY idx_att_sync (user_id, server_updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

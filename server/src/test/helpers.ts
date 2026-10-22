@@ -15,6 +15,7 @@ export function mysqlDate(d: Date): string {
 // Wipe every table in FK-safe order (transactions → customers → users) so each
 // test starts from a known-empty state.
 export async function cleanDb(): Promise<void> {
+  await pool.query('DELETE FROM attachments');
   await pool.query('DELETE FROM transactions');
   await pool.query('DELETE FROM item_groups');
   await pool.query('DELETE FROM items');

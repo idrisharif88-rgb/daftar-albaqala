@@ -6,13 +6,15 @@ import { classifyShareError } from './shareTarget';
 // Blob in a WebView (the /node build wants a filesystem stream).
 import writeXlsxFile, { type Row as XlsxRow, type Sheet } from 'write-excel-file/browser';
 import { listCustomers, type Customer } from '../data/customers';
-import { listAllTransactions, getBalancesByCustomer } from '../data/transactions';
+import { listAllTransactions, getBalancesByCustomer, type Transaction } from '../data/transactions';
 import { fromMinor } from '../data/money';
 import {
   BASE_CURRENCY, CURRENCIES, currencyDef, totalInBase,
   type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
-import { directionLabel, isGrowthEntry, ownerBalanceLabel, roleDef } from '../data/roles';
+import {
+  directionLabel, isGrowthEntry, orderedTypes, ownerBalanceLabel, roleDef,
+} from '../data/roles';
 
 // Excel export of the whole book: a summary sheet, every transaction, and
 // per-currency totals.
@@ -263,10 +265,155 @@ export async function exportWorkbook(o: WorkbookOptions): Promise<void> {
   ).toBlob();
 
   const stamp = new Date().toISOString().slice(0, 10);
-  // ASCII filename: the share plugin's sanitiser mangles Arabic ones, and the
-  // store name goes in the share caption instead where it displays correctly.
-  const filename = `daftar-${stamp}.xlsx`;
+  // ASCII filename for the whole-book file; the store name rides in the share
+  // caption instead.
+  await deliverXlsx(
+    blob,
+    `daftar-${stamp}.xlsx`,
+    `دفتر ${o.storeName || 'الحسابات'}`,
+    `كشف كامل — ${stamp}`,
+  );
+}
 
+// ---- Per-contact statement (the Excel counterpart of the PDF one) ----
+
+/** Same options object the PDF statement takes, so the detail screen can hand
+ *  the identical thing to either exporter. */
+export interface CustomerStatementOptions {
+  customer: Customer;
+  transactions: Transaction[]; // already filtered to the chosen period
+  storeName: string;
+  ownerName: string;
+  rates: Rates;
+  periodLabel: string;
+}
+
+/**
+ * Build and share an .xlsx for a SINGLE contact: one sheet of its entries and
+ * a role-aware per-currency totals summary. Same reasoning as the whole-book
+ * export — real numeric cells, so the reader can sum and sort.
+ */
+export async function exportCustomerStatementXlsx(o: CustomerStatementOptions): Promise<void> {
+  const { customer, transactions, rates } = o;
+  const role = customer.role;
+
+  // ---- Sheet 1: this contact's entries (caller already ordered them) ----
+  const txnData: XlsxRow[] = [
+    headerRow(['التاريخ', 'النوع', 'المبلغ', 'العملة', 'ملاحظة']),
+  ];
+  for (const t of transactions) {
+    const color = isGrowthEntry(role, t.type) ? DEBT_COLOR : PAYMENT_COLOR;
+    txnData.push([
+      { type: Date, value: new Date(t.occurred_at), format: DATE_FORMAT },
+      textCell(directionLabel(role, t.type), { textColor: color, fontWeight: 'bold' }),
+      moneyCell(t.amount, color),
+      textCell(currencyDef(t.currency).shortAr),
+      textCell(t.note ?? ''),
+    ]);
+  }
+  const txnSheet: Sheet<Blob> = {
+    sheet: 'الحركات',
+    data: txnData,
+    rightToLeft: true,
+    stickyRowsCount: 1,
+    columns: [{ width: 20 }, { width: 16 }, { width: 16 }, { width: 10 }, { width: 40 }],
+  };
+
+  // ---- Sheet 2: identity + per-currency totals ----
+  // Role-aware, like the PDF: against a صاحب متجر the 'payment' rows ARE the
+  // debts, so the two total columns are named from the role, not the raw type.
+  const [growsType, settlesType] = orderedTypes(role);
+  const perCurrency = new Map<CurrencyCode, { grows: number; settles: number }>();
+  for (const t of transactions) {
+    const e = perCurrency.get(t.currency) ?? { grows: 0, settles: 0 };
+    if (t.type === growsType) e.grows += t.amount;
+    else e.settles += t.amount;
+    perCurrency.set(t.currency, e);
+  }
+
+  const issuer = o.ownerName.trim() || o.storeName.trim();
+  const summaryData: XlsxRow[] = [
+    [textCell(`كشف حساب: ${customer.name}`, { fontWeight: 'bold' })],
+    [textCell(`الهاتف: ${customer.phone}`), textCell(`الصفة: ${roleDef(role).labelAr}`)],
+    [
+      textCell(`الفترة: ${o.periodLabel}`),
+      issuer ? textCell(`صاحب الكشف: ${issuer}`) : null,
+    ],
+    [],
+    headerRow([
+      'العملة',
+      `إجمالي ${directionLabel(role, growsType)}`,
+      `إجمالي ${directionLabel(role, settlesType)}`,
+      'الرصيد', 'الاتجاه',
+    ]),
+  ];
+
+  const balances: CurrencyBalance[] = [];
+  for (const c of CURRENCIES) {
+    const e = perCurrency.get(c.code);
+    if (!e) continue;
+    // The signed balance still comes from the stored types, unchanged.
+    const signed = growsType === 'debt' ? e.grows - e.settles : e.settles - e.grows;
+    balances.push({ currency: c.code, minor: signed });
+    summaryData.push([
+      textCell(c.longAr, { fontWeight: 'bold' }),
+      moneyCell(e.grows, DEBT_COLOR),
+      moneyCell(e.settles, PAYMENT_COLOR),
+      moneyCell(signed),
+      textCell(ownerBalanceLabel(signed)),
+    ]);
+  }
+
+  const { minor: totalMinor, complete } = totalInBase(balances, rates);
+  summaryData.push([]);
+  if (balances.length > 1 && complete) {
+    summaryData.push([
+      textCell('الإجمالي التقريبي بالريال', { fontWeight: 'bold' }),
+      null, null,
+      moneyCell(totalMinor),
+      textCell(ownerBalanceLabel(totalMinor)),
+    ]);
+    summaryData.push([
+      textCell('محسوب بأسعار اليوم؛ كل عملة محفوظة بأصلها.', { textColor: '#777777' }),
+    ]);
+  } else if (balances.length > 1) {
+    summaryData.push([
+      textCell('بعض الأسعار غير محددة في الإعدادات، لذا الإجمالي بالريال غير مكتمل.', {
+        textColor: '#777777',
+      }),
+    ]);
+  }
+
+  const summarySheet: Sheet<Blob> = {
+    sheet: 'الملخص',
+    data: summaryData,
+    rightToLeft: true,
+    columns: [{ width: 22 }, { width: 18 }, { width: 18 }, { width: 16 }, { width: 12 }],
+  };
+
+  const blob = await writeXlsxFile([txnSheet, summarySheet], {
+    fontFamily: 'Arial', fontSize: 11,
+  }).toBlob();
+
+  // Arabic filename, as the PDF statement does — it is the only label the file
+  // carries once it is in a WhatsApp thread. `/ \ : * ? " < > |` are illegal in
+  // a filename; Arabic itself is fine.
+  const safe = (s: string) => s.replace(/[/\\:*?"<>|]/g, '').trim().replace(/\s+/g, '_');
+  const day = new Date().toISOString().slice(0, 10);
+  const filename = `كشف-${safe(customer.name).slice(0, 40) || 'حساب'}-${day}.xlsx`;
+  await deliverXlsx(
+    blob,
+    filename,
+    `كشف حساب ${customer.name}`,
+    `${o.storeName || 'دفتر البقالة'} — ${o.periodLabel}`,
+  );
+}
+
+// Download on web; otherwise write to the cache dir and hand the file to the
+// system share sheet (WhatsApp, Drive, email — the owner picks).
+async function deliverXlsx(
+  blob: Blob, filename: string, title: string, text: string,
+): Promise<void> {
   if (Capacitor.getPlatform() === 'web') {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -276,21 +423,12 @@ export async function exportWorkbook(o: WorkbookOptions): Promise<void> {
     URL.revokeObjectURL(url);
     return;
   }
-
-  // Native: write to the cache directory, then hand the file to the system
-  // share sheet (WhatsApp, Drive, email — the owner picks).
   const base64 = await blobToBase64(blob);
   const written = await Filesystem.writeFile({
-    path: filename,
-    data: base64,
-    directory: Directory.Cache,
+    path: filename, data: base64, directory: Directory.Cache,
   });
   try {
-    await Share.share({
-      title: `دفتر ${o.storeName || 'الحسابات'}`,
-      text: `كشف كامل — ${stamp}`,
-      url: written.uri,
-    });
+    await Share.share({ title, text, url: written.uri });
   } catch (err) {
     // The workbook exists; what failed is finding something to open it with —
     // or the owner backed out of the sheet (shareTarget.ts).

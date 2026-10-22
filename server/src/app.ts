@@ -5,6 +5,7 @@ import authRouter from './routes/auth';
 import customersRouter from './routes/customers';
 import transactionsRouter from './routes/transactions';
 import syncRouter from './routes/sync';
+import attachmentsRouter, { attachmentsBodyParser } from './routes/attachments';
 import accountRouter from './routes/account';
 import adminRouter from './routes/admin';
 import { requireAuth, AuthedRequest } from './middleware/auth';
@@ -29,7 +30,15 @@ const app = express();
 // formality. Removing the cap entirely would let one authenticated request ask
 // the 1GB droplet to buffer an arbitrarily large body in memory. The number
 // should be the largest legitimate request, and no larger.
-app.use(express.json({ limit: '2mb' }));
+//
+// /attachments is the one exception: an upload body is a base64 image or PDF,
+// far above 2 MB, so it carries its OWN parser (a higher limit, mounted on that
+// router) and this global one must step aside — otherwise it rejects the body
+// here, before the router's parser is ever reached.
+const globalJson = express.json({ limit: '2mb' });
+app.use((req, res, next) =>
+  req.path.startsWith('/attachments') ? next() : globalJson(req, res, next),
+);
 
 // The privacy policy, served as a plain file from server/public.
 //
@@ -71,6 +80,16 @@ app.use('/account', requireAuth, accountRouter);
 // sync is refused (402) unless the user's subscription is active and unexpired.
 // POST /sync/push, GET /sync/pull.
 app.use('/sync', requireAuth, requireSubscription, syncRouter);
+
+// Attachments — a file pinned to an entry. Behind the same gates as sync (it is
+// part of the paid cloud backup) and tenant-filtered by req.userId. The global
+// JSON parser skips this path (above), so the router's own larger parser is the
+// one that reads the upload body.
+app.use(
+  '/attachments',
+  requireAuth, requireSubscription, requireNotSuspended,
+  attachmentsBodyParser, attachmentsRouter,
+);
 
 // The Watcher app (the owner's admin view over every account). Its own login
 // (phone + admin password + authenticator code) and its own token — see

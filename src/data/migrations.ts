@@ -143,6 +143,42 @@ CREATE INDEX IF NOT EXISTS idx_groups_synced ON item_groups (synced);`,
       );
     },
   },
+  {
+    version: 5,
+    name: 'attachments (a file pinned to an entry)',
+    async run(db) {
+      // A file on an entry — a product photo, a picture of the paper invoice,
+      // proof of a payment (see attachments.ts). The bytes live in `data` as
+      // base64: compressed images are small enough that one column beats the
+      // filesystem/plugin juggling, and the same path then works identically on
+      // web and native. `data` is NULL for a row learned from the server whose
+      // bytes have not been downloaded yet (lazy — fetched when first viewed).
+      //
+      // `uploaded` distinguishes a row the server has seen from one created and
+      // then deleted offline before any sync: the first needs a DELETE pushed,
+      // the second is simply dropped (nothing on the server to tombstone).
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS attachments (
+  id             TEXT PRIMARY KEY NOT NULL,
+  transaction_id TEXT NOT NULL,
+  mime           TEXT NOT NULL,
+  filename       TEXT NOT NULL DEFAULT '',
+  size           INTEGER NOT NULL DEFAULT 0,
+  data           TEXT,
+  created_at     TEXT NOT NULL,
+  deleted_at     TEXT,
+  synced         INTEGER NOT NULL DEFAULT 0,
+  uploaded       INTEGER NOT NULL DEFAULT 0
+);
+`);
+      // One statement per line — the Android plugin splits a batch on ";\n"
+      // and would otherwise run only the first (see owner.ts).
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_att_txn ON attachments (transaction_id);
+CREATE INDEX IF NOT EXISTS idx_att_synced ON attachments (synced);`,
+      );
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.
