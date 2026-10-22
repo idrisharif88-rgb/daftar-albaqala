@@ -4,8 +4,11 @@ import jwt from 'jsonwebtoken';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { requireAdmin, adminJwtSecret } from '../middleware/requireAdmin';
+import { requireAdminCode } from '../middleware/requireAdminCode';
 import { randomUUID } from 'crypto';
-import { verifyTotp } from '../admin/totp';
+import {
+  verifyCode, isUsed, markUsed, isLocked, recordFailure, clearFailures,
+} from '../admin/totpGate';
 import { VALID_ROLES } from '../domain';
 
 // The Watcher app's API: the owner's view over EVERY account.
@@ -21,36 +24,10 @@ const router = Router();
 
 const ADMIN_TOKEN_TTL = '12h';
 
-// ---- Login throttling ----
-//
-// Every failed admin login counts against ONE global budget. Behind nginx all
-// requests arrive from 127.0.0.1, so a per-IP limit would be a global one
-// anyway — this just says so. The cost: someone hammering the endpoint can
-// lock the owner out for LOCK_MS too. That is the right trade for a door with
-// one legitimate user.
-const MAX_FAILURES = 10;
-const WINDOW_MS = 15 * 60 * 1000;
-const LOCK_MS = 15 * 60 * 1000;
-
-let failures: number[] = [];
-let lockedUntil = 0;
-let lastTotpStep = -1;
-
-/** Tests only: forget failures, the lock and the last used code. */
-export function resetAdminLoginState(): void {
-  failures = [];
-  lockedUntil = 0;
-  lastTotpStep = -1;
-}
-
-function recordFailure(now: number): void {
-  failures = failures.filter((t) => now - t < WINDOW_MS);
-  failures.push(now);
-  if (failures.length >= MAX_FAILURES) {
-    lockedUntil = now + LOCK_MS;
-    failures = [];
-  }
-}
+// Login throttling and the single-use authenticator code live in
+// ../admin/totpGate.ts — shared with the change gate (requireAdminCode) so a
+// code authorises exactly one thing: a login, or a single change.
+export { resetAdminLoginState } from '../admin/totpGate';
 
 function normalizePhone(raw: unknown): string {
   return String(raw ?? '').replace(/[\s-]/g, '').replace(/^\+/, '');
@@ -69,7 +46,7 @@ router.post(
     }
 
     const now = Date.now();
-    if (now < lockedUntil) {
+    if (isLocked(now)) {
       return res.status(429).json({ error: 'too many attempts, try later' });
     }
 
@@ -78,17 +55,17 @@ router.post(
     // password take the same time and give the same answer.
     const passwordOk = await bcrypt.compare(String(password ?? ''), passwordHash);
     const phoneOk = normalizePhone(phone) === adminPhone;
-    const step = verifyTotp(totpSecret, String(code ?? '').trim(), now);
+    const step = verifyCode(code, now);
     // A code already used is refused: one code, one login.
-    const codeOk = step !== null && step > lastTotpStep;
+    const codeOk = step !== null && !isUsed(step);
 
     if (!passwordOk || !phoneOk || !codeOk) {
       recordFailure(now);
       return res.status(401).json({ error: 'invalid credentials' });
     }
 
-    lastTotpStep = step as number;
-    failures = [];
+    markUsed(step as number);
+    clearFailures();
     const token = jwt.sign({ sub: 'admin', role: 'admin' }, jwtSecret, {
       expiresIn: ADMIN_TOKEN_TTL,
     });
@@ -133,6 +110,7 @@ const SETTABLE = new Set(['active', 'suspended']);
 // POST /admin/users/:id/status  { status: 'active' | 'suspended' }
 router.post(
   '/users/:id/status',
+  requireAdminCode,
   asyncHandler(async (req, res) => {
     const status = String(req.body?.status ?? '');
     if (!SETTABLE.has(status)) {
@@ -262,6 +240,7 @@ router.get(
 // thrown away as stale on the next pull. server_updated_at bumps itself.
 router.put(
   '/users/:id/customers/:cid',
+  requireAdminCode,
   asyncHandler(async (req, res) => {
     const existing = await findContact(req.params.id, req.params.cid);
     if (!existing) return res.status(404).json({ error: 'customer not found' });
@@ -301,6 +280,7 @@ router.put(
 // version of the app already understands). Its entries stay in the table.
 router.delete(
   '/users/:id/customers/:cid',
+  requireAdminCode,
   asyncHandler(async (req, res) => {
     const [result] = await pool.query(
       `UPDATE customers
@@ -323,6 +303,7 @@ router.delete(
 // reversing entry below instead.
 router.delete(
   '/users/:id/transactions/:tid',
+  requireAdminCode,
   asyncHandler(async (req, res) => {
     const [result] = await pool.query(
       `UPDATE transactions
@@ -342,6 +323,7 @@ router.delete(
 // Every version of the app receives it, and both stay in the history.
 router.post(
   '/users/:id/transactions/:tid/reverse',
+  requireAdminCode,
   asyncHandler(async (req, res) => {
     const [rows] = await pool.query(
       `SELECT t.id, t.customer_id, t.type, t.amount, t.currency
