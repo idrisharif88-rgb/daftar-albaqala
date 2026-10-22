@@ -70,6 +70,16 @@ function localDay(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// A file chosen in the add-entry form, already compressed, waiting for its entry.
+interface PendingFile {
+  key: string;
+  data: string; // base64
+  mime: string;
+  filename: string;
+  size: number;
+}
+const MAX_PENDING_FILES = 5;
+
 const CustomerDetail: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -113,6 +123,10 @@ const CustomerDetail: React.FC = () => {
   // the (possibly downloaded) bytes arrive.
   const [thumbs, setThumbs] = useState<Map<string, string>>(new Map());
   const [attachBusy, setAttachBusy] = useState(false);
+  // Files picked while RECORDING an entry. They live only in the form until the
+  // entry itself is written (see `commit` in save) — the entry has no id yet,
+  // and cancelling at the send sheet must leave nothing behind.
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   // Full-screen image viewer.
   const viewerModal = useRef<HTMLIonModalElement>(null);
   const [viewerSrc, setViewerSrc] = useState<string | null>(null);
@@ -162,6 +176,7 @@ const CustomerDetail: React.FC = () => {
     setAmount('');
     setCurrency(BASE_CURRENCY);
     setNote('');
+    setPendingFiles([]);
     setError(null);
     void modal.current?.present();
   };
@@ -190,18 +205,29 @@ const CustomerDetail: React.FC = () => {
       // once the notice is on its way — no notice, no debt (the owner's rule;
       // see useContactNotifier). Backing out of the send sheet leaves the book
       // exactly as it was, which matters because an entry cannot be deleted.
+      // Snapshot now: the form state can change before commit runs (the send
+      // sheet is open in between).
+      const filesToAttach = pendingFiles;
       const commit = async () => {
         // The number goes into the ledger too, not only into the message: it is
         // what the counter reads back after a reinstall, and what the two sides
         // point at when they ask which payment is being talked about.
         const number = numbered ? await nextNoticeNumber() : null;
-        await addTransaction({
+        const txn = await addTransaction({
           customerId,
           type: formType,
           amount: amountMinor,
           currency: entryCurrency,
           note: number !== null ? noticeNote(number, note) : (note.trim() || null),
         });
+        // Pin the files picked in the form to the entry just written. Done here,
+        // inside commit, so a cancelled notice saves neither the entry nor them.
+        for (const f of filesToAttach) {
+          await createAttachment({
+            transactionId: txn.id, mime: f.mime, data: f.data,
+            filename: f.filename, size: f.size,
+          });
+        }
         // Push it to the server straight away, but NEVER wait for it: the entry
         // is already saved locally, and the round trip to the droplet is ~400ms
         // on a good link and unbounded on a bad one. Offline it no-ops and the
@@ -434,6 +460,33 @@ const CustomerDetail: React.FC = () => {
     }
   };
 
+  // ---- Files picked while recording an entry ----
+
+  const pickForEntry = async () => {
+    if (pendingFiles.length >= MAX_PENDING_FILES) {
+      setError(`الحد الأقصى ${MAX_PENDING_FILES} ملفات للحركة الواحدة`);
+      return;
+    }
+    try {
+      const picked = await pickFile();
+      if (!picked) return; // cancelled
+      const squeezed = await compressImage(picked.data, picked.mime);
+      setPendingFiles((prev) => [...prev, {
+        key: `${Date.now()}-${prev.length}`,
+        data: squeezed.data, mime: squeezed.mime,
+        filename: picked.filename, size: squeezed.size,
+      }]);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof FileTooLargeError
+        ? 'الملف كبير جداً (الحد ١٢ ميجابايت).'
+        : 'تعذّر إرفاق الملف.');
+    }
+  };
+
+  const dropPending = (key: string) =>
+    setPendingFiles((prev) => prev.filter((f) => f.key !== key));
+
   const removeAttachment = (att: Attachment) => {
     presentAlert({
       header: 'حذف المرفق',
@@ -648,18 +701,18 @@ const CustomerDetail: React.FC = () => {
                       </div>
                     </IonText>
                     {/* Files pinned to this entry — tap to view or add. */}
-                    <IonButton
-                      fill="clear"
+                    <button
+                      type="button"
                       slot="end"
-                      onClick={() => openAttachments(t)}
+                      className={`att-btn${counts.get(t.id) ? ' att-btn--has' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); void openAttachments(t); }}
                       aria-label="مرفقات"
                     >
-                      <IonIcon
-                        slot={counts.get(t.id) ? 'start' : 'icon-only'}
-                        icon={attachOutline}
-                      />
-                      {counts.get(t.id) ? counts.get(t.id) : null}
-                    </IonButton>
+                      <IonIcon icon={attachOutline} />
+                      {counts.get(t.id) ? (
+                        <span className="att-btn__n">{counts.get(t.id)}</span>
+                      ) : null}
+                    </button>
                   </IonItem>
                 ))}
               </IonList>
@@ -717,6 +770,39 @@ const CustomerDetail: React.FC = () => {
                 onIonInput={(e) => setNote(e.detail.value ?? '')}
               />
             </IonItem>
+
+            {/* Files to pin to this entry (a product photo, the paper invoice,
+                proof of payment). Saved with the entry, not before it. */}
+            <div className="entry-files">
+              <button
+                type="button"
+                className="entry-files__add"
+                onClick={() => { void pickForEntry(); }}
+                disabled={saving}
+              >
+                <IonIcon icon={attachOutline} />
+                <span>إرفاق ملف</span>
+              </button>
+              {pendingFiles.map((f) => (
+                <div key={f.key} className="entry-files__chip">
+                  {f.mime.startsWith('image/') ? (
+                    <img src={`data:${f.mime};base64,${f.data}`} alt="" />
+                  ) : (
+                    <IonIcon icon={documentOutline} />
+                  )}
+                  <span className="entry-files__name">{f.filename || 'ملف'}</span>
+                  <button
+                    type="button"
+                    className="entry-files__x"
+                    onClick={() => dropPending(f.key)}
+                    disabled={saving}
+                    aria-label="إزالة"
+                  >
+                    <IonIcon icon={closeOutline} />
+                  </button>
+                </div>
+              ))}
+            </div>
 
             {error && (
               <IonNote color="danger" className="ion-padding-start">

@@ -86,7 +86,13 @@ const Home: React.FC = () => {
     try {
       const r = await runSync();
       const toast = {
-        ok: { message: 'تمت المزامنة', cssClass: 'toast-sync-ok', icon: checkmarkCircle },
+        // Success is a tiny checkmark with no text (see .toast-sync-ok): the
+        // header warning triangle already covers every failure, so a clean sync
+        // needs no sentence.
+        ok: {
+          message: '', icon: checkmarkCircle, cssClass: 'toast-sync-ok', position: 'top' as const,
+          htmlAttributes: { 'aria-label': 'تمت المزامنة' },
+        },
         offline: { message: SYNC_PROBLEM_TEXT.offline, color: 'medium' },
         subscription: { message: SYNC_PROBLEM_TEXT.subscription, color: 'warning' },
         error: { message: SYNC_PROBLEM_TEXT.error, color: 'danger' },

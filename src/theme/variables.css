@@ -439,15 +439,79 @@ ion-button[fill="outline"] {
 ion-toast::part(container) {
   border-radius: 14px;
 }
-.toast-sync-ok::part(container) {
-  border-radius: 999px;
-  min-width: 0;
-  max-width: max-content;
-  margin: 0 auto 18px;
-  padding-inline: 6px;
-  box-shadow: 0 4px 14px rgba(27, 94, 32, 0.35);
+/* Sync "done": just a small round checkmark, no text, no bar. */
+.toast-sync-ok {
+  --width: 44px;
+  --min-width: 44px;
+  --max-width: 44px;
+  --height: 44px;
+  --min-height: 44px;
+  --border-radius: 50%;
+  --box-shadow: 0 4px 14px rgba(27, 94, 32, 0.35);
 }
-.toast-sync-ok::part(message) { font-size: 0.9rem; }
+.toast-sync-ok::part(container) {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin-inline: auto;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+}
+.toast-sync-ok::part(icon) {
+  margin: 0;
+  font-size: 26px;
+  color: #ffffff;
+}
+.toast-sync-ok::part(message) { display: none; }
+
+/* ---- Attachments button (CustomerDetail history rows) ----
+   A round 44px chip with a large paperclip. Soft green when empty; solid brand
+   green with a count badge once the entry has files, so a row that carries
+   proof is recognisable at a glance. */
+.att-btn {
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin-inline-start: 10px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(27, 94, 32, 0.28);
+  border-radius: 50%;
+  background: var(--app-green-soft);
+  color: var(--ion-color-primary);
+  font-size: 26px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.att-btn:active { transform: scale(0.92); }
+.att-btn--has {
+  background: var(--ion-color-primary);
+  border-color: var(--ion-color-primary);
+  color: #ffffff;
+}
+.att-btn__n {
+  position: absolute;
+  top: -5px;
+  inset-inline-end: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--ion-color-primary);
+  border: 1.5px solid var(--ion-color-primary);
+  font-family: var(--ion-font-family);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
 
 /* ---- Exit-confirmation dialog (hardware back at the root) ----
    Tajawal (inherited app-wide), bold, with a red «خروج» and a green «بقاء». */
@@ -464,3 +528,65 @@ ion-toast::part(container) {
   color: var(--ion-color-primary);
   font-weight: 700;
 }
+
+/* ---- Files attached while recording an entry (add-entry form) ---- */
+.entry-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 4px 4px;
+}
+.entry-files__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid rgba(27, 94, 32, 0.35);
+  border-radius: 999px;
+  background: var(--app-green-soft);
+  color: var(--ion-color-primary);
+  font-family: var(--ion-font-family);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.entry-files__add ion-icon { font-size: 20px; }
+.entry-files__add:disabled { opacity: 0.5; }
+.entry-files__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
+  background: #ffffff;
+  font-size: 0.85rem;
+}
+.entry-files__chip img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.entry-files__chip > ion-icon { font-size: 22px; color: var(--ion-color-medium); }
+.entry-files__name {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entry-files__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+}
+.entry-files__x ion-icon { font-size: 16px; }
