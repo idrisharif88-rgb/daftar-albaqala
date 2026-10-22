@@ -16,7 +16,10 @@ import {
   getDirtyGroups, markGroupsSynced, applyServerGroup, type WireGroup,
 } from './itemGroups';
 import {
-  syncPush, syncPull, ApiError,
+  pushDirtyAttachments, applyServerAttachment,
+} from './attachments';
+import {
+  syncPush, syncPull, pullAttachments, ApiError,
   type PushCustomer, type PushTransaction, type PushItem, type PushItemGroup,
   type TableAck,
 } from '../lib/api';
@@ -41,6 +44,10 @@ import { getLocalSettings, applyServerSettings, type SettingRow } from './settin
 // The CURRENCY travels alongside: it is part of the debt, not a display choice.
 
 const CURSOR_KEY = 'sync_since';
+// Attachments sync on their own channel and keep their own cursor (see
+// attachments.ts). Like sync_since it lives in app_meta, which ensureLocalOwner
+// wipes on an account switch — so a new owner re-pulls from zero, as it should.
+const ATT_CURSOR_KEY = 'att_sync_since';
 const LAST_OK_KEY = 'sync_last_ok_at';
 const LAST_STATUS_KEY = 'sync_last_status';
 const UNSYNCED_KEY = 'sync_unsynced_count';
@@ -385,6 +392,34 @@ async function doSync(): Promise<SyncOutcome> {
       if (pages >= MAX_PULL_PAGES) break;
     }
 
+    // ---- 3. attachments — their OWN channel (metadata + bytes separate) ----
+    // Runs AFTER the entries are pushed, so an upload's ownership check finds
+    // the entry already stored. Metadata deltas come down here too; the bytes
+    // themselves are fetched lazily when a file is first opened. Best-effort:
+    // a failure leaves rows dirty and shows as 'partial' rather than failing
+    // the whole run — except a 402, which means the account was deactivated and
+    // must surface the same way the rest of sync does.
+    let attFailed = 0;
+    try {
+      const attPush = await pushDirtyAttachments();
+      attFailed = attPush.failed;
+      const attCursor = await getMeta(ATT_CURSOR_KEY);
+      const attPage = await pullAttachments(attCursor);
+      for (const a of attPage.attachments) {
+        await applyServerAttachment({
+          id: a.id, transaction_id: a.transaction_id, mime: a.mime,
+          filename: a.filename, size: a.size, created_at: a.created_at,
+          deleted_at: a.deleted_at,
+        });
+      }
+      if (attPage.synced_at) await setMetaRaw(ATT_CURSOR_KEY, attPage.synced_at);
+      await persist();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 402) throw err;
+      attFailed = Math.max(attFailed, 1);
+      console.warn('attachment sync failed', err);
+    }
+
     await setAccountActive(true); // a successful sync means the owner activated us
 
     const rejected = custResult.rejected + itemResult.rejected + groupResult.rejected +
@@ -394,7 +429,7 @@ async function doSync(): Promise<SyncOutcome> {
     // than telling the owner everything is fine.
     if (!drained) console.warn('sync: pull hit the page cap without draining');
     const outcome: SyncOutcome = {
-      status: rejected > 0 || !drained ? 'partial' : 'ok',
+      status: rejected > 0 || !drained || attFailed > 0 ? 'partial' : 'ok',
       pushed: custResult.accepted + itemResult.accepted + groupResult.accepted +
         txnResult.accepted,
       pulled,

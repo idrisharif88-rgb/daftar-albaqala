@@ -31,7 +31,8 @@ const OWNER_KEY = 'owner_user_id';
 export async function wipeLocalStore(): Promise<void> {
   const db = await getDB();
   await db.execute(
-    `DELETE FROM transactions;
+    `DELETE FROM attachments;
+DELETE FROM transactions;
 DELETE FROM item_groups;
 DELETE FROM items;
 DELETE FROM customers;

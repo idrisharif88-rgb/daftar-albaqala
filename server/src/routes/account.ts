@@ -1,7 +1,11 @@
 import { Router } from 'express';
+import fs from 'fs/promises';
+import path from 'path';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
+
+const ATTACH_DIR = process.env.ATTACH_DIR || path.join(process.cwd(), 'data', 'attachments');
 
 const router = Router();
 
@@ -39,6 +43,10 @@ router.delete(
       // forgiving place to get tenant isolation wrong: the bug that leaks one
       // owner's data is bad, the bug that erases another owner's book is
       // unrecoverable.
+      // Attachments first of all — they hold a foreign key onto transactions,
+      // so deleting the entries before the files that hang off them fails on
+      // the constraint. Their bytes on disk are removed after the commit.
+      await conn.query('DELETE FROM attachments WHERE user_id = ?', [req.userId]);
       await conn.query('DELETE FROM transactions WHERE user_id = ?', [req.userId]);
       await conn.query('DELETE FROM item_groups WHERE user_id = ?', [req.userId]);
       await conn.query('DELETE FROM items WHERE user_id = ?', [req.userId]);
@@ -47,6 +55,12 @@ router.delete(
       const [result] = await conn.query('DELETE FROM users WHERE id = ?', [req.userId]);
 
       await conn.commit();
+
+      // The rows are gone; now reclaim this owner's files from disk. Best-effort
+      // and after the commit — a leftover folder wastes space but never blocks
+      // the deletion the person asked for.
+      await fs.rm(path.join(ATTACH_DIR, String(req.userId)), { recursive: true, force: true })
+        .catch(() => {});
 
       // The token stays technically valid until it expires, but it now names a
       // user who does not exist — every authenticated route reads the row and

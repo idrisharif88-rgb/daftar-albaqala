@@ -8,3 +8,6 @@ dist/
 db/local-setup.sql
 db/local-load-schema.sh
 db/local-reset.sh
+
+# Attachment files written during local dev + tests
+data/

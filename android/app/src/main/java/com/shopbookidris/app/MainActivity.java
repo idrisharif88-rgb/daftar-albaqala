@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ContactPickerPlugin.class);
         registerPlugin(OutboundPlugin.class);
         registerPlugin(SystemPrintPlugin.class);
+        registerPlugin(FilePickerPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
