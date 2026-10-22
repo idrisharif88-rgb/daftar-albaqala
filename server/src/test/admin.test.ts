@@ -144,15 +144,18 @@ describe('/admin', () => {
     let res = await request(app)
       .post(`/admin/users/${user}/status`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'active' });
+      .send({ status: 'active', code: codeNow(1) });
     assert.equal(res.status, 200);
     res = await request(app).get('/sync/pull').set('Authorization', `Bearer ${tokenFor(user)}`);
     assert.equal(res.status, 200);
 
+    // One code = one change: clear the replay counter so the second change gets
+    // its own fresh code.
+    resetAdminLoginState();
     res = await request(app)
       .post(`/admin/users/${user}/status`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'suspended' });
+      .send({ status: 'suspended', code: codeNow(1) });
     assert.equal(res.status, 200);
 
     res = await request(app).get('/sync/pull').set('Authorization', `Bearer ${tokenFor(user)}`);
@@ -171,12 +174,44 @@ describe('/admin', () => {
     let res = await request(app)
       .post(`/admin/users/${user}/status`)
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'expired' });
+      .send({ status: 'expired', code: codeNow(1) });
     assert.equal(res.status, 400);
+    resetAdminLoginState();
     res = await request(app)
       .post('/admin/users/00000000-0000-0000-0000-000000000000/status')
       .set('Authorization', `Bearer ${token}`)
-      .send({ status: 'active' });
+      .send({ status: 'active', code: codeNow(1) });
     assert.equal(res.status, 404);
+  });
+
+  test('a change without the authenticator code is refused', async () => {
+    const user = await seedUser();
+    const token = await adminToken();
+    const res = await request(app)
+      .post(`/admin/users/${user}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'active' });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.error, 'invalid or used authenticator code');
+  });
+
+  test('a change with the login code reused is refused', async () => {
+    const user = await seedUser();
+    const token = await adminToken();
+    const res = await request(app)
+      .post(`/admin/users/${user}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'active', code: codeNow() });
+    assert.equal(res.status, 403);
+  });
+
+  test('a change with a wrong code is refused', async () => {
+    const user = await seedUser();
+    const token = await adminToken();
+    const res = await request(app)
+      .post(`/admin/users/${user}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'active', code: '000000' });
+    assert.equal(res.status, 403);
   });
 });
