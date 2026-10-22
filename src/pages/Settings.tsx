@@ -344,7 +344,7 @@ const Settings: React.FC = () => {
         error: { message: SYNC_PROBLEM_TEXT.error, color: 'danger' },
         partial: { message: SYNC_PROBLEM_TEXT.partial, color: 'warning' },
       }[r.status];
-      await presentToast({ ...toast, duration: 2000 });
+      await presentToast({ ...toast, duration: r.status === 'ok' ? 1200 : 2600 });
     } finally {
       setSyncing(false);
     }

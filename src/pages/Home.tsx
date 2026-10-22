@@ -93,7 +93,9 @@ const Home: React.FC = () => {
         partial: { message: SYNC_PROBLEM_TEXT.partial, color: 'warning' },
       }[r.status];
       await load();
-      await presentToast({ ...toast, duration: 2000 });
+      // Success flashes briefly — it's a confirmation, not a message. A problem
+      // lingers a little longer because it asks the owner to do something.
+      await presentToast({ ...toast, duration: r.status === 'ok' ? 1200 : 2600 });
     } finally {
       setSyncing(false);
     }
