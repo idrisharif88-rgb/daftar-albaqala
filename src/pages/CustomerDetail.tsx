@@ -10,6 +10,7 @@ import {
 import {
   documentTextOutline, createOutline, receiptOutline, pricetagsOutline,
   attachOutline, trashOutline, addOutline, documentOutline, closeOutline,
+  logoWhatsapp,
 } from 'ionicons/icons';
 import { getCustomer, updateCustomer, type Customer } from '../data/customers';
 import {
@@ -21,6 +22,7 @@ import {
 } from '../data/attachments';
 import { pickFile, FileTooLargeError } from '../lib/filePicker';
 import { compressImage } from '../lib/imageCompress';
+import { shareFileViaWhatsApp } from '../lib/shareFile';
 import { toMinor } from '../data/money';
 import { getSettings, messageSender } from '../data/settings';
 import { getRates } from '../data/rates';
@@ -487,6 +489,41 @@ const CustomerDetail: React.FC = () => {
     }
   };
 
+  // Share one attachment, WhatsApp first (the grocer picks the chat — WhatsApp
+  // can't both pre-select a contact and carry a file). Deliberately on demand,
+  // not automatic: attaching a file and sending it are different acts.
+  const shareAttachment = async (att: Attachment) => {
+    const data = await getAttachmentData(att.id);
+    if (!data) {
+      presentAlert({
+        header: 'غير متاح',
+        message: 'هذا الملف غير متاح بدون اتصال بالإنترنت.',
+        buttons: ['حسناً'],
+      });
+      return;
+    }
+    try {
+      const settings = await getSettings();
+      await shareFileViaWhatsApp({
+        data,
+        mime: att.mime,
+        filename: att.filename || (isImage(att.mime) ? 'صورة.jpg' : 'ملف'),
+        caption: messageSender(settings),
+      });
+    } catch (err) {
+      // Backing out of the share sheet is not a failure.
+      if (!(err instanceof ShareCancelledError)) {
+        presentAlert({
+          header: 'تعذّرت المشاركة',
+          message: err instanceof NoShareTargetError
+            ? 'لا يوجد تطبيق يمكنه مشاركة هذا الملف'
+            : 'حدث خطأ أثناء المشاركة.',
+          buttons: ['حسناً'],
+        });
+      }
+    }
+  };
+
   // Button/label wording follows the contact's role: recording «دين» against a
   // shop you buy from reads backwards, so each role names its two directions.
   // The order and the colours follow it too — for a صاحب متجر the debt-growing
@@ -862,11 +899,23 @@ const CustomerDetail: React.FC = () => {
                     }}>
                       {a.filename || (isImage(a.mime) ? 'صورة' : 'ملف')}
                     </div>
+                    {/* Share this file — WhatsApp first; you pick the chat. */}
+                    <IonButton
+                      fill="solid"
+                      color="success"
+                      size="small"
+                      onClick={() => { void shareAttachment(a); }}
+                      aria-label="مشاركة عبر واتساب"
+                      style={{ position: 'absolute', top: -8, insetInlineStart: -8, '--padding-start': '6px', '--padding-end': '6px' } as React.CSSProperties}
+                    >
+                      <IonIcon slot="icon-only" icon={logoWhatsapp} />
+                    </IonButton>
                     <IonButton
                       fill="solid"
                       color="danger"
                       size="small"
                       onClick={() => removeAttachment(a)}
+                      aria-label="حذف المرفق"
                       style={{ position: 'absolute', top: -8, insetInlineEnd: -8, '--padding-start': '6px', '--padding-end': '6px' } as React.CSSProperties}
                     >
                       <IonIcon slot="icon-only" icon={trashOutline} />
