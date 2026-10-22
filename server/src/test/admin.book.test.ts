@@ -25,6 +25,10 @@ async function adminToken(): Promise<string> {
   return res.body.token;
 }
 
+function codeNow(offsetSteps = 0): string {
+  return totpAt(base32Decode(TOTP_SECRET), currentStep() + offsetSteps);
+}
+
 async function seedContact(userId: string, name = 'زبون', phone = '711111111'): Promise<string> {
   const id = randomUUID();
   const now = mysqlDate(new Date(Date.now() - 60_000));
@@ -95,10 +99,13 @@ describe('/admin — one account\'s book', () => {
     const c = await seedContact(a);
     const t = await seedTxn(a, c, 'debt', 50);
     assert.equal((await request(app).get(`/admin/users/${b}/customers/${c}`).set(auth())).status, 404);
-    assert.equal((await request(app).put(`/admin/users/${b}/customers/${c}`).set(auth()).send({ name: 'x' })).status, 404);
-    assert.equal((await request(app).delete(`/admin/users/${b}/customers/${c}`).set(auth())).status, 404);
-    assert.equal((await request(app).delete(`/admin/users/${b}/transactions/${t}`).set(auth())).status, 404);
-    assert.equal((await request(app).post(`/admin/users/${b}/transactions/${t}/reverse`).set(auth())).status, 404);
+    assert.equal((await request(app).put(`/admin/users/${b}/customers/${c}`).set(auth()).send({ name: 'x', code: codeNow(1) })).status, 404);
+    resetAdminLoginState();
+    assert.equal((await request(app).delete(`/admin/users/${b}/customers/${c}`).set(auth()).send({ code: codeNow(1) })).status, 404);
+    resetAdminLoginState();
+    assert.equal((await request(app).delete(`/admin/users/${b}/transactions/${t}`).set(auth()).send({ code: codeNow(1) })).status, 404);
+    resetAdminLoginState();
+    assert.equal((await request(app).post(`/admin/users/${b}/transactions/${t}/reverse`).set(auth()).send({ code: codeNow(1) })).status, 404);
   });
 
   test('edit bumps updated_at so the phone accepts it; duplicate phone refused', async () => {
@@ -108,23 +115,25 @@ describe('/admin — one account\'s book', () => {
     const before = (await getCustomer(c))!.updated_at as Date;
 
     let res = await request(app).put(`/admin/users/${user}/customers/${c}`).set(auth())
-      .send({ name: 'اسم جديد', role: 'partner' });
+      .send({ name: 'اسم جديد', role: 'partner', code: codeNow(1) });
     assert.equal(res.status, 200);
     const row = (await getCustomer(c))!;
     assert.equal(row.name, 'اسم جديد');
     assert.equal(row.role, 'partner');
     assert.ok((row.updated_at as Date).getTime() > before.getTime());
 
-    res = await request(app).put(`/admin/users/${user}/customers/${c}`).set(auth()).send({ phone: '722222222' });
+    resetAdminLoginState();
+    res = await request(app).put(`/admin/users/${user}/customers/${c}`).set(auth()).send({ phone: '722222222', code: codeNow(1) });
     assert.equal(res.status, 409);
-    res = await request(app).put(`/admin/users/${user}/customers/${c}`).set(auth()).send({ role: 'boss' });
+    resetAdminLoginState();
+    res = await request(app).put(`/admin/users/${user}/customers/${c}`).set(auth()).send({ role: 'boss', code: codeNow(1) });
     assert.equal(res.status, 400);
   });
 
   test('deleting a contact leaves a tombstone the phone pulls', async () => {
     const user = await seedUser();
     const c = await seedContact(user);
-    const res = await request(app).delete(`/admin/users/${user}/customers/${c}`).set(auth());
+    const res = await request(app).delete(`/admin/users/${user}/customers/${c}`).set(auth()).send({ code: codeNow(1) });
     assert.equal(res.status, 200);
     assert.ok((await getCustomer(c))!.deleted_at);
     const pull = await request(app).get('/sync/pull').set('Authorization', `Bearer ${tokenFor(user)}`);
@@ -136,10 +145,11 @@ describe('/admin — one account\'s book', () => {
     const c = await seedContact(user);
     const t = await seedTxn(user, c, 'debt', 500);
 
-    const res = await request(app).delete(`/admin/users/${user}/transactions/${t}`).set(auth());
+    const res = await request(app).delete(`/admin/users/${user}/transactions/${t}`).set(auth()).send({ code: codeNow(1) });
     assert.equal(res.status, 200);
     // Deleting twice is a 404, not a second tombstone.
-    assert.equal((await request(app).delete(`/admin/users/${user}/transactions/${t}`).set(auth())).status, 404);
+    resetAdminLoginState();
+    assert.equal((await request(app).delete(`/admin/users/${user}/transactions/${t}`).set(auth()).send({ code: codeNow(1) })).status, 404);
 
     const book = await request(app).get(`/admin/users/${user}/customers/${c}`).set(auth());
     assert.equal(book.body.transactions.length, 0);
@@ -174,7 +184,7 @@ describe('/admin — one account\'s book', () => {
     const cursor = first.body.synced_at as string;
     assert.equal((await request(app).get(`/sync/pull?tombstones=1&since=${encodeURIComponent(cursor)}`).set(shop)).body.transactions.length, 0);
 
-    await request(app).delete(`/admin/users/${user}/transactions/${t}`).set(auth());
+    await request(app).delete(`/admin/users/${user}/transactions/${t}`).set(auth()).send({ code: codeNow(1) });
     const after = await request(app).get(`/sync/pull?tombstones=1&since=${encodeURIComponent(cursor)}`).set(shop);
     assert.equal(after.body.transactions.length, 1);
     assert.ok(after.body.transactions[0].deleted_at);
@@ -184,7 +194,7 @@ describe('/admin — one account\'s book', () => {
     const user = await seedUser();
     const c = await seedContact(user);
     const t = await seedTxn(user, c, 'debt', 1250.5);
-    const res = await request(app).post(`/admin/users/${user}/transactions/${t}/reverse`).set(auth());
+    const res = await request(app).post(`/admin/users/${user}/transactions/${t}/reverse`).set(auth()).send({ code: codeNow(1) });
     assert.equal(res.status, 201);
     assert.equal(res.body.type, 'payment');
     assert.equal(res.body.amount, 1250.5);
