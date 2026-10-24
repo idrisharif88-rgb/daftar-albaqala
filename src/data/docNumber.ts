@@ -96,3 +96,24 @@ export function noticeNote(number: number, note: string): string {
   const own = note.trim();
   return own ? `${NOTICE.prefix}${number}: ${own}` : `${NOTICE.prefix}${number}`;
 }
+
+export interface ParsedDocNote {
+  kind: 'invoice' | 'notice' | null;
+  number: number | null;
+  /** The note without its «فاتورة رقم 12: » head — the paper prints the
+   *  number on its own line, so repeating it in the note is noise. */
+  rest: string;
+}
+
+/** Read the number back out of an entry's note — the reverse of noticeNote
+ *  and of the invoice screen's «فاتورة رقم 12: …». */
+export function parseDocNote(note: string | null): ParsedDocNote {
+  const text = (note ?? '').trim();
+  for (const [kind, series] of [['invoice', INVOICE], ['notice', NOTICE]] as const) {
+    const match = new RegExp(`^${series.prefix}(\\d+)(?::\\s*)?`).exec(text);
+    if (match) {
+      return { kind, number: Number(match[1]), rest: text.slice(match[0].length).trim() };
+    }
+  }
+  return { kind: null, number: null, rest: text };
+}

@@ -290,6 +290,148 @@ export async function renderReceipt(o: ReceiptOptions, scale = 1): Promise<HTMLC
   return canvas;
 }
 
+// ---- One entry, printed from the history ----
+//
+// Any entry can be printed, not only an invoice at the moment it is made. A
+// single entry has no item table — its note is all the detail there is, and an
+// old invoice's note is its breakdown («جبن ×3، سكر ×2»; the prices were never
+// stored per row). So this is the invoice receipt's head and foot around one
+// amount instead of a table.
+
+export interface EntryReceiptOptions {
+  storeName: string;
+  contactName: string;
+  roleLabel: string;
+  entryLabel: string;
+  /** «رقم الفاتورة» / «رقم الإشعار», when the entry carries a number. */
+  numberLabel?: string;
+  number?: number | null;
+  amount: number;
+  currency: string;
+  note: string;
+  issuedAt: Date;
+  rates: Rates;
+  /** The balance right AFTER this entry — not today's (see balancesUpTo). */
+  balanceLines?: string[];
+}
+
+/** Break text into lines that fit `maxWidth` at the context's current font. */
+function wrapText(ctx: CanvasRenderingContext2D, value: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of value.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+export async function renderEntryReceipt(
+  o: EntryReceiptOptions, scale = 1,
+): Promise<HTMLCanvasElement> {
+  await ensureFonts();
+
+  // Drawn on a strip taller than it can need, then cropped to where the
+  // drawing stopped — a long note wraps to however many lines it takes, and
+  // counting them twice (once to size, once to draw) is how the two drift.
+  const noteLines = (() => {
+    if (!o.note) return [];
+    const probe = document.createElement('canvas').getContext('2d');
+    if (!probe) return [o.note];
+    probe.font = `700 26px ${FONT}`;
+    return wrapText(probe, `ملاحظة: ${o.note}`, PAPER_DOTS - 24);
+  })();
+  const draft = document.createElement('canvas');
+  draft.width = Math.ceil(PAPER_DOTS * scale);
+  draft.height = Math.ceil((900 + (noteLines.length + (o.balanceLines?.length ?? 0)) * LINE_H) * scale);
+  const ctx = draft.getContext('2d');
+  if (!ctx) throw new Error('تعذّر تجهيز الإيصال');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, draft.width, draft.height);
+  ctx.scale(scale, scale);
+
+  const right = PAPER_DOTS - MARGIN;
+  const centre = PAPER_DOTS / 2;
+  let y = 34;
+
+  text(ctx, o.storeName || 'دفتر البقالة', centre, y, { size: 34, align: 'center' });
+  y += LINE_H + 6;
+  text(ctx, o.entryLabel, centre, y, { size: 28, align: 'center' });
+  y += LINE_H;
+
+  rule(ctx, y);
+  y += GAP + 6;
+
+  text(ctx, `${o.roleLabel}: ${o.contactName}`, right, y, { size: 26, maxWidth: PAPER_DOTS - 40 });
+  y += LINE_H;
+  if (o.number != null && o.numberLabel) {
+    text(ctx, `${o.numberLabel}: ${o.number}`, right, y, { size: 26 });
+    y += LINE_H;
+  }
+  text(ctx, `التاريخ: ${stamp(o.issuedAt)}`, right, y, { size: 26 });
+  y += LINE_H;
+
+  rule(ctx, y, true);
+  y += GAP + 10;
+
+  const short = currencyDef(o.currency).shortAr;
+  text(ctx, `المبلغ: ${formatMinor(o.amount)} ${short}`, right, y, { size: 32 });
+  y += ROW_H;
+
+  const { minor: inBase, complete } = totalInBase(
+    [{ currency: o.currency as never, minor: o.amount }], o.rates,
+  );
+  if (complete && currencyDef(o.currency).isBase === false) {
+    text(ctx, `≈ ${formatMinor(inBase)} ريال بأسعار اليوم`, right, y, { size: 24 });
+    y += LINE_H;
+  }
+  if (currencyDef(o.currency).isBase) {
+    text(ctx, `فقط ${tafqeetBaseMinor(o.amount)} لا غير`, right, y, {
+      size: 24, maxWidth: PAPER_DOTS - 24,
+    });
+    y += LINE_H;
+  }
+
+  if (noteLines.length) {
+    y += GAP;
+    for (const line of noteLines) {
+      text(ctx, line, right, y, { size: 26, maxWidth: PAPER_DOTS - 24 });
+      y += LINE_H;
+    }
+  }
+
+  if (o.balanceLines?.length) {
+    y += GAP;
+    rule(ctx, y, true);
+    y += GAP + 10;
+    for (const line of o.balanceLines) {
+      text(ctx, line, right, y, { size: 26, maxWidth: PAPER_DOTS - 24 });
+      y += LINE_H;
+    }
+  }
+
+  y += GAP;
+  rule(ctx, y, true);
+  y += GAP + 10;
+  text(ctx, 'دفتر البقالة', centre, y, { size: 24, align: 'center' });
+  y += 48; // room below the footer, so the cut does not graze it
+
+  const canvas = document.createElement('canvas');
+  canvas.width = draft.width;
+  canvas.height = Math.ceil(y * scale);
+  const out = canvas.getContext('2d');
+  if (!out) throw new Error('تعذّر تجهيز الإيصال');
+  out.drawImage(draft, 0, 0);
+  return canvas;
+}
+
 // ---- ESC/POS ----
 
 const ESC = 0x1b;
