@@ -1,41 +1,55 @@
 /* The opening screen — the owner chose this one from a live preview
-   (2026-10-24): the basket pops in and rolls, the name rises, a line fills
-   right to left, then the app shows through. 2.7 seconds in all.
-   It is one look in both themes on purpose: brand green, like the launcher. */
+   (2026-10-24). The basket sits at the exact centre and is ALREADY there on
+   the first frame: Android's launch window (launch_green.xml) and the boot
+   placeholder in index.html draw the same basket in the same spot, so the
+   hand-over from native to web has nothing to jump. Then it bounces once,
+   the wheels roll, the name rises, a line fills, and a sample book shows
+   before the real app.
+   One look in both themes on purpose: brand green, like the launcher. */
 .splash-intro {
   position: fixed;
   inset: 0;
   z-index: 200000; /* above the fingerprint lock, which waits for it */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
   direction: rtl;
-  background: radial-gradient(120% 80% at 50% 38%, #1b5e20 0%, #0f3d14 100%);
+  background: #1b5e20; /* solid, so the launch window can match it exactly */
   font-family: 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
   transition: opacity 350ms ease-out;
 }
 .splash-intro--leaving { opacity: 0; pointer-events: none; }
 
-.splash-intro__tile {
+/* Shared with index.html's #boot-splash — same size, same place. */
+.splash-tile {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 96px;
   height: 96px;
+  margin: -48px 0 0 -48px;
   border-radius: 26px;
   background: rgba(255, 255, 255, 0.14);
   display: grid;
   place-items: center;
-  opacity: 0;
-  transform: scale(0.5);
-  animation: splash-pop 560ms cubic-bezier(.34, 1.56, .64, 1) 150ms forwards;
 }
-.splash-intro__tile svg { width: 56px; height: 56px; }
+.splash-tile svg { width: 56px; height: 56px; }
+
+.splash-intro .splash-tile {
+  animation: splash-nudge 650ms cubic-bezier(.34, 1.56, .64, 1) 100ms;
+}
 .splash-intro__wheel {
   transform-origin: center;
   transform-box: fill-box;
-  animation: splash-roll 900ms ease-out 250ms;
+  animation: splash-roll 900ms ease-out 150ms;
 }
 
+.splash-intro__below {
+  position: absolute;
+  top: calc(50% + 66px);
+  inset-inline: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
 .splash-intro__name {
   margin: 0;
   font-size: 34px;
@@ -43,7 +57,7 @@
   color: #ffffff;
   opacity: 0;
   transform: translateY(14px);
-  animation: splash-rise 500ms ease-out 1000ms forwards;
+  animation: splash-rise 500ms ease-out 700ms forwards;
 }
 .splash-intro__tag {
   margin: 0;
@@ -51,7 +65,7 @@
   font-weight: 700;
   color: rgba(255, 255, 255, 0.78);
   opacity: 0;
-  animation: splash-fade 450ms ease-out 1300ms forwards;
+  animation: splash-fade 450ms ease-out 1000ms forwards;
 }
 
 /* A thin line that fills under the name, right to left, the way Arabic reads. */
@@ -62,7 +76,7 @@
   background: rgba(255, 255, 255, 0.18);
   overflow: hidden;
   opacity: 0;
-  animation: splash-fade 200ms ease-out 1400ms forwards;
+  animation: splash-fade 200ms ease-out 1100ms forwards;
 }
 .splash-intro__bar span {
   display: block;
@@ -70,25 +84,12 @@
   background: #ffffff;
   transform: scaleX(0);
   transform-origin: right;
-  animation: splash-fill 1100ms ease-in-out 1450ms forwards;
+  animation: splash-fill 1100ms ease-in-out 1150ms forwards;
 }
 
-@keyframes splash-pop  { to { transform: scale(1); opacity: 1; } }
-@keyframes splash-roll { from { transform: rotate(-360deg); } to { transform: rotate(0); } }
-@keyframes splash-rise { to { transform: translateY(0); opacity: 1; } }
-@keyframes splash-fade { to { opacity: 1; } }
-@keyframes splash-fill { to { transform: scaleX(1); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .splash-intro *, .splash-intro__bar span {
-    animation-duration: 1ms !important;
-    animation-delay: 0ms !important;
-  }
-}
-
-/* The last beat: a sample book fades in over the green, the way the owner saw
-   it in the preview, then the real app shows through. Sample names only —
-   never the owner's own contacts on a screen anyone can see at launch. */
+/* The last beat: a sample book fades in over the green, then the real app
+   shows through. Sample names only — never the owner's own contacts on a
+   screen anyone can see at launch. */
 .splash-intro__book {
   position: absolute;
   inset: 0;
@@ -96,7 +97,7 @@
   flex-direction: column;
   background: #f6f8f6;
   opacity: 0;
-  animation: splash-fade 350ms ease-out 2700ms forwards;
+  animation: splash-fade 350ms ease-out 2400ms forwards;
 }
 .splash-intro__book header {
   background: #1b5e20;
@@ -121,3 +122,16 @@
 .splash-intro__row b { font-variant-numeric: tabular-nums; }
 .splash-intro__row .credit { color: #1b5e20; }
 .splash-intro__row .settled { color: #7a857b; }
+
+@keyframes splash-nudge { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes splash-roll  { from { transform: rotate(-360deg); } to { transform: rotate(0); } }
+@keyframes splash-rise  { to { transform: translateY(0); opacity: 1; } }
+@keyframes splash-fade  { to { opacity: 1; } }
+@keyframes splash-fill  { to { transform: scaleX(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-intro *, .splash-intro__bar span {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}

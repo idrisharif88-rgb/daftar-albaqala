@@ -13,6 +13,10 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Kept on screen after the launch theme is swapped for this one, until
+             the page paints: without it there is one frame of nothing between
+             the launch window and the opening screen — the "glitch". -->
+        <item name="android:windowBackground">@drawable/launch_green</item>
         <!-- Dark-green status bar with white icons (brand look). -->
         <item name="android:statusBarColor">@color/colorPrimaryDark</item>
         <item name="android:windowLightStatusBar">false</item>

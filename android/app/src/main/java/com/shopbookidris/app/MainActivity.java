@@ -22,6 +22,8 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(FilePickerPlugin.class);
         registerPlugin(DevicePinPlugin.class);
         super.onCreate(savedInstanceState);
+        // The opening animation, played natively over the page (NativeSplash).
+        NativeSplash.show(this, getBridge());
     }
 
     // Google Drive backup. The Google sign-in plugin will not ask for any extra

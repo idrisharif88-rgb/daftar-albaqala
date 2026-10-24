@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Lifts the launch window's basket to where the web page draws it. The
+         window spans the whole screen; the page sits between the status bar
+         (24dp) and the navigation bar (48dp), so its centre is 12dp higher.
+         A bottom inset of 24dp moves the drawn centre up by half of that.
+         Measured on the owner's Note 9: 31px apart at 2.625px/dp. -->
+    <dimen name="splash_offset">24dp</dimen>
+</resources>

@@ -4,8 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.shopbookidris.app',
   appName: 'دفتر البقالة',
   webDir: 'dist',
-  // The WebView's own colour before the page paints — brand green, so a cold
-  // start goes green (launch window) → green (page) with no white frame.
+  // Brand green behind the page. The WebView itself is held invisible until
+  // its first frame is ready (MainActivity.holdWebViewUntilPainted), so the
+  // launch window's basket is what shows meanwhile — never black, never white.
   backgroundColor: '#1b5e20',
   plugins: {
     // Route fetch/XHR through native HTTP instead of the WebView, so calls to
