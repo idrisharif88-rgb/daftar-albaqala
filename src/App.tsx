@@ -11,6 +11,7 @@ import Items from './pages/Items';
 import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import Welcome from './pages/Welcome';
 import { AuthProvider, useAuth } from './lib/auth';
 import { runSync } from './data/sync';
 
@@ -116,6 +117,9 @@ const Routes: React.FC = () => {
     <IonReactRouter>
       <HardwareBack />
       <IonRouterOutlet>
+        <Route exact path="/welcome">
+          {isAuthenticated ? <Redirect to="/home" /> : <Welcome />}
+        </Route>
         <Route exact path="/login">
           {isAuthenticated ? <Redirect to="/home" /> : <Login />}
         </Route>
@@ -137,7 +141,7 @@ const Routes: React.FC = () => {
           {isAuthenticated ? <Settings /> : <Redirect to="/login" />}
         </Route>
         <Route exact path="/">
-          <Redirect to={isAuthenticated ? '/home' : '/login'} />
+          <Redirect to={isAuthenticated ? '/home' : '/welcome'} />
         </Route>
       </IonRouterOutlet>
     </IonReactRouter>

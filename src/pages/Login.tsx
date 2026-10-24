@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonItem, IonLabel,
   IonInput, IonInputPasswordToggle, IonButton, IonText, IonSegment, IonSegmentButton,
@@ -14,7 +15,10 @@ type Mode = 'login' | 'register';
 // AuthProvider stores the JWT and the router (App.tsx) swaps to the home view.
 const Login: React.FC = () => {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  // The Welcome screen's "new account" button links here with ?register=1.
+  const location = useLocation();
+  const startRegister = new URLSearchParams(location.search).get('register') === '1';
+  const [mode, setMode] = useState<Mode>(startRegister ? 'register' : 'login');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [storeName, setStoreName] = useState('');
