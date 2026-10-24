@@ -138,7 +138,13 @@ const HardwareBack: React.FC = () => {
 const Routes: React.FC = () => {
   const { isAuthenticated, isOwner } = useAuth();
   return (
-    <IonReactRouter>
+    // Remount the whole router when signing in or out. IonRouterOutlet keeps a
+    // STACK of the pages it has shown; flipping these routes between a page and
+    // a <Redirect> leaves the old entry in that stack with nothing to render,
+    // which is the blank screen the owner saw after login and logout (a back
+    // press rebuilt the stack and the page appeared). A fresh router starts
+    // with an empty stack, so the first page it shows is the right one.
+    <IonReactRouter key={isAuthenticated ? 'in' : 'out'}>
       <HardwareBack />
       <IonRouterOutlet>
         <Route exact path="/welcome">

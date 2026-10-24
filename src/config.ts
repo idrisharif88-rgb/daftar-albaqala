@@ -34,11 +34,15 @@ export const FEATURES = {
 };
 
 /**
- * The privacy policy, served by the API itself (server/public/privacy.html).
+ * The privacy policy, published on GitHub Pages from `docs/privacy.html`.
  *
- * It lives on the same host as the API on purpose: nginx already proxies
- * everything there, so there is nothing extra to configure and nothing that can
- * be reachable in the app but not on the web. A link to a page that 404s is
- * worse than no link at all.
+ * It is NOT served from the API host any more: the page is handed to anyone who
+ * asks — users, Google Play, Google's OAuth review — and it has no business
+ * pointing them at the machine that holds everyone's books. GitHub Pages also
+ * stays up when the droplet does not, and a privacy link that 404s reads as an
+ * app hiding what it does.
+ *
+ * The page itself no longer names the server either; it says what is stored and
+ * how it travels, which is what a reader actually needs.
  */
-export const PRIVACY_URL = 'https://shopbook.shahed.uk/privacy.html';
+export const PRIVACY_URL = 'https://idrisharif88-rgb.github.io/daftar-albaqala/privacy.html';
