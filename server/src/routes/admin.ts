@@ -82,7 +82,7 @@ router.get(
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query(
       `SELECT u.id, u.phone, u.store_name, u.plan,
-              u.subscription_status, u.subscription_expires_at, u.created_at,
+              u.subscription_status, u.subscription_expires_at, u.drive_backup, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -98,8 +98,31 @@ router.get(
       ...r,
       customers_count: Number(r.customers_count),
       transactions_count: Number(r.transactions_count),
+      drive_backup: Number(r.drive_backup) === 1,
     }));
     return res.json({ users });
+  })
+);
+
+// POST /admin/users/:id/drive-backup  { enabled: boolean }
+// Google Drive backup is an extra the owner grants per account (and may charge
+// for). The shop app shows it only when GET /me says so.
+router.post(
+  '/users/:id/drive-backup',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be true or false' });
+    }
+    const [result] = await pool.query(
+      'UPDATE users SET drive_backup = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [enabled ? 1 : 0, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ id: req.params.id, drive_backup: enabled });
   })
 );
 

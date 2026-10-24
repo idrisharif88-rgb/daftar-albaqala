@@ -17,4 +17,30 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(PHONE_KEY);
+  localStorage.removeItem(DRIVE_KEY);
+}
+
+// Whether the owner granted this account Google Drive backup — remembered so the
+// section still shows offline. Refreshed from GET /me on every launch.
+const DRIVE_KEY = 'daftar.drive-allowed';
+
+export function getDriveAllowed(): boolean {
+  return localStorage.getItem(DRIVE_KEY) === '1';
+}
+
+export function setDriveAllowed(on: boolean): void {
+  if (on) localStorage.setItem(DRIVE_KEY, '1'); else localStorage.removeItem(DRIVE_KEY);
+}
+
+// The signed-in phone. The token carries only the user id, and the app needs
+// the phone to know whether this is the owner's own account (see isOwner).
+const PHONE_KEY = 'daftar.phone';
+
+export function getPhone(): string | null {
+  return localStorage.getItem(PHONE_KEY);
+}
+
+export function setPhone(phone: string): void {
+  localStorage.setItem(PHONE_KEY, phone);
 }

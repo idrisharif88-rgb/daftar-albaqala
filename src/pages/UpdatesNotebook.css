@@ -1,0 +1,211 @@
+/* «دفتر التحديثات» — copied from «خماسيات», on this app's theme tokens. */
+.notebook-card {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.notebook-btn {
+  border: 1.5px solid var(--ion-color-primary);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--ion-color-primary);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+
+.notebook-btn.primary {
+  background: var(--ion-color-primary);
+  border-color: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+}
+
+.notebook-btn.danger {
+  background: var(--ion-color-danger);
+  border-color: var(--ion-color-danger);
+  color: #ffffff;
+}
+
+.notebook-add {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.notebook-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.notebook-input,
+.notebook-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--ion-text-color-rgb), 0.25);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--ion-text-color);
+  /* Opaque text fill: the old Note 9 WebView paints a focused transparent
+     input as a black box (see the Watcher's input fix). */
+  -webkit-text-fill-color: var(--ion-text-color);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.notebook-input { font-weight: 800; }
+
+.notebook-textarea {
+  resize: vertical;
+  line-height: 1.7;
+}
+
+.notebook-input:focus,
+.notebook-textarea:focus {
+  border-color: var(--ion-color-primary);
+}
+
+.notebook-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.notebook-empty {
+  text-align: center;
+  color: var(--app-muted);
+}
+
+.notebook-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notebook-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background: var(--app-surface);
+}
+
+.notebook-check {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px solid var(--ion-color-primary);
+  background: transparent;
+  color: var(--ion-color-primary-contrast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.notebook-note.done .notebook-check {
+  background: var(--ion-color-primary);
+  border-color: var(--ion-color-primary);
+}
+
+.notebook-note-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: none;
+  background: none;
+  color: var(--ion-text-color);
+  font-family: inherit;
+  text-align: right;
+  padding: 0;
+  cursor: pointer;
+}
+
+.notebook-note-body strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.notebook-note-text {
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notebook-note-date {
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
+.notebook-note.done strong,
+.notebook-note.done .notebook-note-text {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.notebook-done-toggle {
+  border: none;
+  background: none;
+  color: var(--app-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+/* Sharing: pick notes, then text or PDF. */
+.notebook-note.picking { cursor: pointer; }
+.notebook-note.picked { border-color: var(--ion-color-primary); }
+.notebook-check.pick { border-radius: 8px; }
+
+.notebook-note.picked .notebook-check.pick {
+  background: var(--ion-color-primary);
+  border-color: var(--ion-color-primary);
+}
+
+.notebook-share-bar {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 10px 12px calc(10px + var(--ion-safe-area-bottom, 0px));
+  background: var(--app-surface);
+  border-top: 1px solid var(--app-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notebook-share-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notebook-share-row .notebook-btn { flex: 1; }
+
+.notebook-share-row .notebook-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.notebook-share-count {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--app-muted);
+}

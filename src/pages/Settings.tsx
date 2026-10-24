@@ -30,6 +30,13 @@ import { wipeLocalStore } from '../data/owner';
 import { INACTIVE_MESSAGE, SUPPORT_EMAIL } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { numericInput } from '../lib/digits';
+import { useAppearance, ACCENT_NAMES } from '../theme/appearance';
+import { useAppScale } from '../lib/appScale';
+import AppScaleSheet from '../components/AppScaleSheet';
+import BackupSection from '../components/BackupSection';
+import {
+  biometricEnabled, setBiometricEnabled, biometricAvailable, verifyFinger, BiometricCancelled,
+} from '../lib/biometric';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -50,7 +57,11 @@ const Settings: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
-  const { logout } = useAuth();
+  const { logout, isOwner } = useAuth();
+  const { accent, night, cycleAccent, toggleNight } = useAppearance();
+  const { scale, setScale } = useAppScale();
+  const [scaleOpen, setScaleOpen] = useState(false);
+  const [bioOn, setBioOn] = useState(biometricEnabled);
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   // The printer invoices go to — chosen once here, used for every invoice:
@@ -109,6 +120,39 @@ const Settings: React.FC = () => {
         color: 'warning',
         duration: 2500,
       });
+    }
+  };
+
+  // Turning the fingerprint lock on asks for the finger once — proof that this
+  // phone can actually check it, before the app starts depending on it.
+  const toggleBiometric = async (on: boolean) => {
+    if (!on) {
+      setBiometricEnabled(false);
+      setBioOn(false);
+      return;
+    }
+    if (!(await biometricAvailable())) {
+      setBioOn(false);
+      await presentToast({
+        message: 'لا توجد بصمة أو قفل شاشة على هذا الجهاز',
+        color: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+    try {
+      await verifyFinger();
+      setBiometricEnabled(true);
+      setBioOn(true);
+    } catch (err) {
+      setBioOn(false);
+      if (!(err instanceof BiometricCancelled)) {
+        await presentToast({
+          message: err instanceof Error ? err.message : 'تعذّر التحقق من البصمة.',
+          color: 'warning',
+          duration: 3000,
+        });
+      }
     }
   };
 
@@ -429,6 +473,49 @@ const Settings: React.FC = () => {
               </IonText>
             </IonNote>
 
+            {/* ---- Look & lock ---- */}
+            <h2 className="settings-section">المظهر والأمان</h2>
+            <IonList>
+              <IonItem button detail={false} onClick={cycleAccent}>
+                <IonLabel>لون التطبيق</IonLabel>
+                <IonNote slot="end" color="primary" className="settings-value">{ACCENT_NAMES[accent]}</IonNote>
+              </IonItem>
+              <IonItem>
+                <IonToggle checked={night} onIonChange={toggleNight}>
+                  الوضع الليلي
+                </IonToggle>
+              </IonItem>
+              <IonItem button detail={false} onClick={() => setScaleOpen(true)}>
+                <IonLabel>حجم العرض</IonLabel>
+                <IonNote slot="end" color="primary" className="settings-value">{scale}%</IonNote>
+              </IonItem>
+              <IonItem>
+                <IonToggle
+                  checked={bioOn}
+                  onIonChange={(e) => { setBioOn(e.detail.checked); void toggleBiometric(e.detail.checked); }}
+                >
+                  قفل بالبصمة
+                </IonToggle>
+              </IonItem>
+              {isOwner && (
+                <IonItem button routerLink="/notebook">
+                  <IonLabel>دفتر التحديثات</IonLabel>
+                </IonItem>
+              )}
+            </IonList>
+            <IonNote color="medium" className="ion-padding-start">
+              <IonText>
+                الوضع الليلي يتبع إعداد الهاتف تلقائياً. عند تفعيل قفل البصمة يُطلب
+                إصبعك عند فتح التطبيق، وبعد غيابه أكثر من دقيقة.
+              </IonText>
+            </IonNote>
+            <AppScaleSheet
+              isOpen={scaleOpen}
+              scale={scale}
+              onChange={setScale}
+              onClose={() => setScaleOpen(false)}
+            />
+
             {/* ---- Exchange rates ---- */}
             <h2 className="settings-section">أسعار الصرف مقابل {currencyDef(BASE_CURRENCY).longAr}</h2>
             <IonList>
@@ -507,6 +594,8 @@ const Settings: React.FC = () => {
             >
               {exporting ? <IonSpinner name="crescent" /> : 'تصدير الدفتر إلى Excel'}
             </IonButton>
+
+            <BackupSection senderName={messageSender(settings)} />
 
             {/* Privacy policy. Not required by Play for an app that collects
                 what this one does, but reviewers look for it, and the page has

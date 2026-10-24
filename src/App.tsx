@@ -12,8 +12,13 @@ import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Welcome from './pages/Welcome';
+import UpdatesNotebook from './pages/UpdatesNotebook';
+import BiometricGate from './components/BiometricGate';
+import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
 import { runSync } from './data/sync';
+import { dailyBackupIfDue } from './data/driveBackup';
+import { GOOGLE_ENABLED, linkedEmail } from './lib/googleDrive';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -31,8 +36,9 @@ import '@ionic/react/css/text-transformation.css';
 import '@ionic/react/css/flex-utils.css';
 import '@ionic/react/css/display.css';
 
-/* Dark mode is intentionally NOT imported: the brand is green-on-white, so we
- * force the light palette (see color-scheme in theme/variables.css). */
+/* Night mode: Ionic's dark palette, switched by the `.ion-palette-dark` class
+ * on <html> (theme/appearance.tsx) — following the phone, not forced. */
+import '@ionic/react/css/palettes/dark.class.css';
 
 /* Theme variables */
 import './theme/variables.css';
@@ -51,6 +57,23 @@ const AutoSync: React.FC = () => {
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
   }, [isAuthenticated]);
+  return null;
+};
+
+// The daily Google Drive backup — only for an account the owner granted it to,
+// and only once the grocer has linked his Google account. On launch and on
+// every return to the app; never opens Google's window (a token that cannot be
+// renewed silently waits for «نسخ الآن» in Settings).
+const DriveDailyBackup: React.FC = () => {
+  const { driveBackupAllowed } = useAuth();
+  useEffect(() => {
+    if (!driveBackupAllowed || !GOOGLE_ENABLED) return undefined;
+    const run = () => { if (linkedEmail()) dailyBackupIfDue().catch(() => undefined); };
+    const onVisible = () => { if (document.visibilityState === 'visible') run(); };
+    run();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [driveBackupAllowed]);
   return null;
 };
 
@@ -110,9 +133,10 @@ const HardwareBack: React.FC = () => {
 };
 
 // Routes depend on auth state: signed-in users get the app, everyone else is
-// sent to /login. Kept inside AuthProvider so useAuth() is available.
+// sent to /welcome — including on logout, so leaving the app lands on the same
+// first screen as opening it. Kept inside AuthProvider so useAuth() is available.
 const Routes: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isOwner } = useAuth();
   return (
     <IonReactRouter>
       <HardwareBack />
@@ -124,21 +148,25 @@ const Routes: React.FC = () => {
           {isAuthenticated ? <Redirect to="/home" /> : <Login />}
         </Route>
         <Route exact path="/home">
-          {isAuthenticated ? <Home /> : <Redirect to="/login" />}
+          {isAuthenticated ? <Home /> : <Redirect to="/welcome" />}
         </Route>
         <Route exact path="/customers/:id">
-          {isAuthenticated ? <CustomerDetail /> : <Redirect to="/login" />}
+          {isAuthenticated ? <CustomerDetail /> : <Redirect to="/welcome" />}
         </Route>
         {/* More specific paths come first — a bare /customers/:id would
             otherwise swallow both of these. */}
         <Route exact path="/customers/:id/items">
-          {isAuthenticated ? <Items /> : <Redirect to="/login" />}
+          {isAuthenticated ? <Items /> : <Redirect to="/welcome" />}
         </Route>
         <Route exact path="/customers/:id/invoice">
-          {isAuthenticated ? <Invoice /> : <Redirect to="/login" />}
+          {isAuthenticated ? <Invoice /> : <Redirect to="/welcome" />}
         </Route>
         <Route exact path="/settings">
-          {isAuthenticated ? <Settings /> : <Redirect to="/login" />}
+          {isAuthenticated ? <Settings /> : <Redirect to="/welcome" />}
+        </Route>
+        {/* The owner's own notebook — no other account can reach it. */}
+        <Route exact path="/notebook">
+          {isOwner ? <UpdatesNotebook /> : <Redirect to="/home" />}
         </Route>
         <Route exact path="/">
           <Redirect to={isAuthenticated ? '/home' : '/welcome'} />
@@ -150,10 +178,14 @@ const Routes: React.FC = () => {
 
 const App: React.FC = () => (
   <IonApp>
-    <AuthProvider>
-      <AutoSync />
-      <Routes />
-    </AuthProvider>
+    <AppearanceProvider>
+      <AuthProvider>
+        <AutoSync />
+        <DriveDailyBackup />
+        <Routes />
+        <BiometricGate />
+      </AuthProvider>
+    </AppearanceProvider>
   </IonApp>
 );
 

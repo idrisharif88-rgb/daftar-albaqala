@@ -74,6 +74,8 @@ export interface Account {
   plan: string;
   subscription_status: Status;
   subscription_expires_at: string | null;
+  /** Google Drive backup — an extra the owner grants per account. */
+  drive_backup: boolean;
   created_at: string;
   customers_count: number;
   transactions_count: number;
@@ -96,6 +98,13 @@ export function setAccountStatus(id: string, status: 'active' | 'suspended', cod
   return request(`/admin/users/${encodeURIComponent(id)}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, code }),
+  });
+}
+
+export function setDriveBackup(id: string, enabled: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/drive-backup`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled, code }),
   });
 }
 

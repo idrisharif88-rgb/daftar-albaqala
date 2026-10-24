@@ -5,7 +5,7 @@ import {
   IonSpinner, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
 import { logOutOutline, refreshOutline } from 'ionicons/icons';
-import { Account, ApiError, Status, listAccounts, setAccountStatus } from '../lib/api';
+import { Account, ApiError, Status, listAccounts, setAccountStatus, setDriveBackup } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
@@ -111,6 +111,54 @@ const Accounts: React.FC = () => {
     } finally {
       setBusyId(null);
     }
+  };
+
+  // Google Drive backup: an extra granted per account. Same gate as every other
+  // change — confirm, then a fresh authenticator code.
+  const doDrive = async (a: Account, enabled: boolean, code: string) => {
+    setBusyId(a.id);
+    try {
+      await setDriveBackup(a.id, enabled, code);
+      presentToast({
+        message: enabled ? 'تم تفعيل نسخ Google Drive' : 'تم إيقاف نسخ Google Drive',
+        duration: 1800,
+        color: enabled ? 'success' : 'medium',
+      });
+      await load();
+    } catch (err) {
+      presentToast({
+        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        duration: 2500,
+        color: 'danger',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const changeDrive = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const enabling = !a.drive_backup;
+    presentAlert({
+      header: 'نسخ Google Drive',
+      message: enabling
+        ? `السماح لـ«${who}» بحفظ نسخة من دفتره في Google Drive الخاص به؟`
+        : `إيقاف نسخ Google Drive لـ«${who}»؟ نسخه السابقة تبقى في حسابه على Google.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: enabling ? 'سماح' : 'إيقاف',
+          role: enabling ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('نسخ Google Drive').then((code) => {
+                if (code) void doDrive(a, enabling, code);
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
   };
 
   const change = (a: Account, status: 'active' | 'suspended') => {
@@ -221,6 +269,15 @@ const Accounts: React.FC = () => {
                     إيقاف
                   </IonButton>
                 )}
+                <IonButton
+                  size="small"
+                  fill={a.drive_backup ? 'solid' : 'outline'}
+                  color="tertiary"
+                  disabled={busyId === a.id}
+                  onClick={() => changeDrive(a)}
+                >
+                  {a.drive_backup ? 'Drive: مفعّل' : 'Drive'}
+                </IonButton>
               </div>
             </div>
           );
