@@ -10,11 +10,12 @@ import {
 import {
   documentTextOutline, createOutline, receiptOutline, pricetagsOutline,
   attachOutline, trashOutline, addOutline, documentOutline, closeOutline,
-  logoWhatsapp,
+  logoWhatsapp, printOutline,
 } from 'ionicons/icons';
 import { getCustomer, updateCustomer, type Customer } from '../data/customers';
 import {
-  listTransactions, getBalances, addTransaction, type Transaction, type TxnType,
+  listTransactions, getBalances, addTransaction, balancesUpTo,
+  type Transaction, type TxnType,
 } from '../data/transactions';
 import {
   listAttachments, createAttachment, softDeleteAttachment, getAttachmentData,
@@ -34,7 +35,10 @@ import {
   ROLES, directionColor, directionLabel, orderedTypes, roleDef, usesMovementNotice,
   type ContactRole,
 } from '../data/roles';
-import { peekNoticeNumber, nextNoticeNumber, noticeNote } from '../data/docNumber';
+import {
+  peekNoticeNumber, nextNoticeNumber, noticeNote, parseDocNote,
+} from '../data/docNumber';
+import { printedBalanceLines } from '../lib/notify';
 import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { systemPrintAvailable } from '../lib/systemPrint';
@@ -109,6 +113,7 @@ const CustomerDetail: React.FC = () => {
   // A long history takes a few seconds to render into the PDF; without this the
   // screen just sits there and reads as a freeze.
   const [exporting, setExporting] = useState(false);
+  const [printing, setPrinting] = useState(false);
   // Custom date range for the statement.
   const rangeModal = useRef<HTMLIonModalElement>(null);
   const [fromDay, setFromDay] = useState('');
@@ -247,6 +252,48 @@ const CustomerDetail: React.FC = () => {
     } finally {
       setSaving(false);
       savingRef.current = false;
+    }
+  };
+
+  // ---- Print one entry ----
+  //
+  // Any entry in the history can go to the printer — a payment, a debt, an old
+  // invoice — not only an invoice at the moment it is recorded. The balance on
+  // the paper is the one right AFTER that entry, so a reprint of last month's
+  // receipt says what it said then, not what the book says today.
+  const printEntry = async (t: Transaction) => {
+    if (!customer || printing) return;
+    setPrinting(true);
+    try {
+      // Loaded on demand, as on the invoice screen: the driver and the
+      // renderer are dead weight in a session that never prints.
+      const { readyPrintTarget, printEntryReceipt } = await import('../lib/print');
+      const target = await readyPrintTarget();
+      const settings = await getSettings();
+      const doc = parseDocNote(t.note);
+      await printEntryReceipt({
+        storeName: messageSender(settings),
+        contactName: customer.name,
+        roleLabel: roleDef(role).labelAr,
+        entryLabel: directionLabel(role, t.type),
+        numberLabel: doc.kind === 'invoice' ? 'رقم الفاتورة'
+          : doc.kind === 'notice' ? 'رقم الإشعار' : undefined,
+        number: doc.number,
+        amount: t.amount,
+        currency: t.currency,
+        note: doc.rest,
+        issuedAt: new Date(t.occurred_at),
+        rates,
+        balanceLines: printedBalanceLines(balancesUpTo(txns, t.id), rates),
+      }, target);
+    } catch (err) {
+      presentAlert({
+        header: 'تعذّرت الطباعة',
+        message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
+        buttons: ['حسناً'],
+      });
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -700,6 +747,15 @@ const CustomerDetail: React.FC = () => {
                         )}
                       </div>
                     </IonText>
+                    <button
+                      type="button"
+                      slot="end"
+                      className="att-btn"
+                      onClick={(e) => { e.stopPropagation(); void printEntry(t); }}
+                      aria-label="طباعة"
+                    >
+                      <IonIcon icon={printOutline} />
+                    </button>
                     {/* Files pinned to this entry — tap to view or add. */}
                     <button
                       type="button"
@@ -1038,6 +1094,7 @@ const CustomerDetail: React.FC = () => {
         </IonModal>
 
         <IonLoading isOpen={exporting} message="جارٍ إنشاء الكشف..." />
+        <IonLoading isOpen={printing} message="جارٍ الطباعة..." />
       </IonContent>
     </IonPage>
   );

@@ -205,6 +205,22 @@ export function projectBalances(
   return out.filter((b) => b.minor !== 0).sort(byCurrencyOrder);
 }
 
+/**
+ * The balances as they stood right after one entry — what a reprinted receipt
+ * must show. Today's balance would be wrong on paper dated last month: it
+ * would include payments made after the receipt it is printed on.
+ *
+ * `txns` is one contact's history NEWEST FIRST, as listTransactions returns
+ * it, so everything from the entry onwards is that entry and what came before.
+ */
+export function balancesUpTo(txns: Transaction[], id: string): CurrencyBalance[] {
+  const at = txns.findIndex((t) => t.id === id);
+  if (at < 0) return [];
+  return txns.slice(at).reverse().reduce<CurrencyBalance[]>(
+    (acc, t) => projectBalances(acc, t.type, t.amount, t.currency), [],
+  );
+}
+
 // Balances for every contact in ONE query, keyed by contact id.
 //
 // The list screen used to call getBalances() once per contact — a classic N+1:

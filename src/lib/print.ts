@@ -1,5 +1,8 @@
 import { getMeta, setMeta } from '../data/meta';
-import { renderReceipt, canvasToEscPos, PAPER_DOTS, type ReceiptOptions } from './receipt';
+import {
+  renderReceipt, renderEntryReceipt, canvasToEscPos, PAPER_DOTS,
+  type ReceiptOptions, type EntryReceiptOptions,
+} from './receipt';
 import { printPdf, systemPrintAvailable } from './systemPrint';
 
 // Printing a receipt — two ways, because no single one reaches every printer.
@@ -149,13 +152,24 @@ export async function readyPrintTarget(): Promise<PrintTarget> {
  * one, and a failure here must never be a reason to lose the debt.
  */
 export async function printReceipt(o: ReceiptOptions, target: PrintTarget): Promise<void> {
+  await printDrawn((scale) => renderReceipt(o, scale), `فاتورة-${o.number}`, target);
+}
+
+/** One entry from the history — the same printers, the same sizes. */
+export async function printEntryReceipt(o: EntryReceiptOptions, target: PrintTarget): Promise<void> {
+  const title = o.number != null ? `إيصال-${o.number}` : 'إيصال';
+  await printDrawn((scale) => renderEntryReceipt(o, scale), title, target);
+}
+
+async function printDrawn(
+  draw: (scale: number) => Promise<HTMLCanvasElement>, title: string, target: PrintTarget,
+): Promise<void> {
   if (target === 'system') {
-    const canvas = await renderReceipt(o, SYSTEM_SCALE);
-    await printPdf(await receiptPdfBase64(canvas), `فاتورة-${o.number}`);
+    await printPdf(await receiptPdfBase64(await draw(SYSTEM_SCALE)), title);
     return;
   }
   // The thermal head is exactly PAPER_DOTS wide — never scaled.
-  await printThermal(await renderReceipt(o));
+  await printThermal(await draw(1));
 }
 
 async function printThermal(canvas: HTMLCanvasElement): Promise<void> {
