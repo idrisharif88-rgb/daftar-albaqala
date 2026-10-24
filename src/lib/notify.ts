@@ -10,6 +10,7 @@ import {
 import { tafqeetBaseMinor } from './tafqeet';
 import type { TxnType } from '../data/transactions';
 import type { InvoiceLine } from './receipt';
+import { expectReturn } from './biometric';
 
 // Customer notifications: when the shopkeeper records a debt/payment we tell the
 // customer. Two channels, both sent FROM the shopkeeper's own phone/number:
@@ -552,6 +553,7 @@ export async function whatsappAvailable(): Promise<boolean> {
 
 /** Open the WhatsApp chat with the message filled in. False = not installed. */
 export async function openWhatsApp(phone: string, message: string): Promise<boolean> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (!isAndroid()) {
     window.open(whatsappUrl(phone, message), '_blank');
     return true;
@@ -595,6 +597,7 @@ export async function smsAvailable(): Promise<boolean> {
  * what the job needs, and no more.
  */
 export async function openSms(phone: string, message: string): Promise<boolean> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (!isAndroid()) return false;
   try {
     return (await Outbound.openSms({ phone: toIntlDigits(phone), text: message })).opened;
@@ -607,6 +610,7 @@ export async function openSms(phone: string, message: string): Promise<boolean> 
 export async function openEmail(
   to: string, subject: string, body: string,
 ): Promise<boolean> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (!isAndroid()) {
     window.open(
       `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
@@ -623,6 +627,7 @@ export async function openEmail(
 
 /** Open a web address in the phone's browser. False = no browser. */
 export async function openUrl(url: string): Promise<boolean> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (!isAndroid()) {
     window.open(url, '_blank');
     return true;

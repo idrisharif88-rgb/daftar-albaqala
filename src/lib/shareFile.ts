@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { classifyShareError } from './shareTarget';
+import { expectReturn } from './biometric';
 
 // Share one attached file, WhatsApp first.
 //
@@ -41,6 +42,7 @@ export interface ShareableFile {
 }
 
 export async function shareFileViaWhatsApp(file: ShareableFile): Promise<void> {
+  expectReturn(); // the lock must not greet the owner on the way back
   const name = file.filename || 'file';
 
   if (Capacitor.getPlatform() === 'web') {

@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { SocialLogin } from '@capgo/capacitor-social-login';
+import { expectReturn } from './biometric';
 
 // Google Drive — the app's HIDDEN folder in the grocer's own Drive. Copied from
 // «خماسيات».
@@ -77,6 +78,7 @@ export async function getAccessToken({ interactive }: { interactive: boolean }):
   if (renewed) return renewed;
   if (!interactive) return null;
   await init();
+  expectReturn(); // Google opens its own account screen
   const { result } = await SocialLogin.login({
     provider: 'google', options: { scopes: ['email', SCOPE] },
   }) as { result: { accessToken?: { token?: string; expires?: string }; profile?: { email?: string } } };

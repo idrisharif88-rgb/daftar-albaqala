@@ -55,15 +55,32 @@ const saveScale = (scale: number) => {
   try { localStorage.setItem(SCALE_KEY, String(scale)); } catch { /* applied anyway */ }
 };
 
+// Text grows HALF a step faster than everything else. Zoom alone enlarges the
+// whole layout evenly, and the owner found the writing still too small at a
+// size where the buttons and cards were already big enough — on a ledger the
+// text IS the content. The boost is a root font-size, and every size in the app
+// is in rem, so it reaches all of them in one go and keeps the same 5% grades.
+// Each 5% step raises the layout by 5% and the text by about 10%, so the
+// writing pulls ahead as you go up. Capped at +25% so the longest contact name
+// still fits its row on a tablet at the top of the range.
+const FONT_LEAD = 1;
+const FONT_BOOST_MAX = 0.25;
+const fontBoost = (scale: number) => {
+  const extra = ((scale - DEFAULT_SCALE) / 100) * FONT_LEAD;
+  return 1 + Math.min(extra, FONT_BOOST_MAX);
+};
+
 export function applyScale(scale: number): void {
   const root = document.documentElement;
   if (scale === DEFAULT_SCALE) {
     root.style.removeProperty('zoom');
+    root.style.removeProperty('font-size');
     ['--vh', '--vw', '--dvh'].forEach((name) => root.style.removeProperty(name));
     return;
   }
   const factor = scale / 100;
   root.style.setProperty('zoom', String(factor));
+  root.style.setProperty('font-size', `${(fontBoost(scale) * 100).toFixed(2)}%`);
   const vh = `${window.innerHeight / factor / 100}px`;
   root.style.setProperty('--vh', vh);
   root.style.setProperty('--dvh', vh);

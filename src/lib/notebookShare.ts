@@ -3,6 +3,7 @@ import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import type { Note } from '../data/updatesNotebook';
 import { classifyShareError } from './shareTarget';
+import { expectReturn } from './biometric';
 
 // Sharing «دفتر التحديثات» notes — as text or as a PDF, all of them or the ones
 // picked. Copied from «خماسيات». The PDF is drawn on a canvas in the app's own
@@ -184,6 +185,7 @@ export async function shareNotesPdf(notes: Note[]): Promise<void> {
     directory: Directory.Cache,
   });
   try {
+    expectReturn(); // the lock must not greet the owner on the way back
     await Share.share({ title: TITLE, url: written.uri });
   } catch (err) {
     throw classifyShareError(err);

@@ -35,6 +35,33 @@ export async function biometricAvailable(): Promise<boolean> {
 
 export class BiometricCancelled extends Error {}
 
+// ---- Leaving the app on purpose ----
+//
+// The lock asks for the finger whenever the app is reopened. But recording a
+// debt OPENS another app — WhatsApp, the messaging app, the printer dialog, the
+// file picker — and coming straight back from one of those is not "reopening";
+// demanding a finger there would put a lock in the middle of the one thing the
+// owner does most.
+//
+// So the app says, out loud, when it is handing over to another app, and the
+// first return after that is let through. The flag lives in memory only: if
+// Android kills the app while it is away, it comes back empty and the lock asks,
+// which is the safe side to fail on.
+let handedOverAt = 0;
+const HAND_OFF_WINDOW_MS = 10 * 60_000;
+
+/** Call right before opening another app. */
+export function expectReturn(): void {
+  handedOverAt = Date.now();
+}
+
+/** True once per hand-off: the return it was expecting. */
+export function consumeExpectedReturn(): boolean {
+  const expected = handedOverAt > 0 && Date.now() - handedOverAt < HAND_OFF_WINDOW_MS;
+  handedOverAt = 0;
+  return expected;
+}
+
 /** Ask for the finger. Resolves on success; throws BiometricCancelled when the
  *  owner backs out, or an Error with an Arabic message for anything else. */
 export async function verifyFinger(): Promise<void> {

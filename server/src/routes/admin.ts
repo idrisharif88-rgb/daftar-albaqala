@@ -231,6 +231,44 @@ router.get(
   })
 );
 
+// GET /admin/users/:id/export — the whole book of one account in one response:
+// every live contact and every live entry.
+//
+// This is how a grocer's "send me a copy of my data" request is answered. The
+// app lets him export his own book from Settings, but someone who cannot manage
+// that asks instead, and the owner needs the same data without reading it off
+// the screen contact by contact. The Watcher turns this into a spreadsheet.
+//
+// Read-only, so no authenticator code — the same rule as the other GETs here.
+// Deleted rows stay out: a tombstone is bookkeeping, not part of his book.
+router.get(
+  '/users/:id/export',
+  asyncHandler(async (req, res) => {
+    const account = await findAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: 'user not found' });
+    const [customers] = await pool.query(
+      `SELECT id, name, phone, note, role, created_at, updated_at
+         FROM customers
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY name`,
+      [req.params.id]
+    );
+    const [transactions] = await pool.query(
+      `SELECT id, customer_id, type, amount, currency, note, occurred_at, created_at
+         FROM transactions
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY occurred_at, created_at`,
+      [req.params.id]
+    );
+    return res.json({
+      account,
+      customers,
+      transactions: (transactions as Row[]).map((t) => ({ ...t, amount: Number(t.amount) })),
+      exported_at: new Date().toISOString(),
+    });
+  })
+);
+
 // GET /admin/users/:id/customers/:cid — one contact and its live entries,
 // newest first, each with its id (the owner deletes by id).
 router.get(

@@ -5,17 +5,26 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from '../lib/auth';
 import {
   biometricEnabled, biometricAvailable, verifyFinger, BiometricCancelled,
+  consumeExpectedReturn,
 } from '../lib/biometric';
 
-// The lock screen over a signed-in app, when «قفل بالبصمة» is on. It locks on
-// launch, and again after the app has been away for a minute — not on every
-// return: recording a debt opens WhatsApp or the messaging app, and a finger
-// demanded every time the owner comes back from sending a notice would be
-// friction on the one thing he does most.
+// The lock screen over a signed-in app, when «قفل بالبصمة» is on.
+//
+// It asks at the two moments that matter: the moment the account is OPENED —
+// on launch and right after a password login, because letting the first entry
+// through and asking later would be guarding a door that was already open —
+// and again on returning to the app after being away more than five minutes
+// (the owner's figure: long enough that a quick glance at a message costs
+// nothing, short enough that a phone left on a counter is not an open book).
+//
+// A return the app was EXPECTING never asks, however long it took: the app had
+// handed over to WhatsApp, the messaging app, the printer, the file picker or
+// Google itself, which is part of recording a debt, not reopening the app
+// (see expectReturn in biometric.ts).
 //
 // It covers the screen rather than replacing the routes, so whatever was open
 // (a half-typed entry, the send sheet) is still there once unlocked.
-const AWAY_MS = 60_000;
+const AWAY_MS = 5 * 60_000;
 
 const BiometricGate: React.FC = () => {
   const { isAuthenticated, logout } = useAuth();
@@ -43,20 +52,30 @@ const BiometricGate: React.FC = () => {
     }
   }, []);
 
-  // Lock on resume after a minute away.
+  // Lock on returning after five minutes away — unless the app itself sent the
+  // owner to another app, which is let through however long it took.
   useEffect(() => {
     const handle = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (!isActive) { leftAt.current = Date.now(); return; }
       const away = leftAt.current ? Date.now() - leftAt.current : 0;
       leftAt.current = null;
-      if (away > AWAY_MS && isAuthenticated && biometricEnabled()) setLocked(true);
+      const expected = consumeExpectedReturn();
+      if (expected || away <= AWAY_MS) return;
+      if (isAuthenticated && biometricEnabled()) setLocked(true);
     });
     return () => { void handle.then((h) => h.remove()); };
   }, [isAuthenticated]);
 
-  // Signing out drops the lock; signing in does not raise it (the password was
-  // just typed).
-  useEffect(() => { if (!isAuthenticated) setLocked(false); }, [isAuthenticated]);
+  // Signing out drops the lock. Signing IN raises it: the password alone is not
+  // enough on a phone whose owner asked for a finger. Letting the first entry
+  // through and asking only afterwards would be guarding a door that was
+  // already open — anyone who knows the password would simply log in.
+  // (It guards THIS phone. Someone who takes the password to another phone
+  // meets no finger there, because the setting lives on the device.)
+  useEffect(() => {
+    if (!isAuthenticated) { setLocked(false); return; }
+    if (biometricEnabled()) setLocked(true);
+  }, [isAuthenticated]);
 
   // Ask for the finger as soon as the lock shows.
   useEffect(() => { if (locked) void unlock(); }, [locked, unlock]);
