@@ -775,3 +775,37 @@ ion-toast::part(container) {
 
 /* The current value at the end of a Settings row («ذهبي», «105%»). */
 .settings-value { font-size: 0.95rem; font-weight: 700; }
+
+/* ---- One weight for the whole app ----
+   The owner asked for bold text and bold numbers everywhere: a ledger is read
+   at arm's length, often in poor light, and the regular weight was thin on the
+   phone. Tajawal ships 700 here (see the @font-face block at the top), so this
+   is a real bundled face, not a weight the WebView fakes by smearing strokes —
+   the same reasoning as the printed receipt, which draws every line bold.
+   font-weight inherits, so body reaches most of Ionic; the components below
+   set their own and have to be named. */
+body {
+  font-weight: 700;
+}
+ion-label, ion-note, ion-text, ion-input, ion-textarea, ion-select,
+ion-segment-button, ion-checkbox, ion-toggle, ion-item, ion-list-header,
+ion-back-button, ion-searchbar, ion-chip, ion-badge, ion-title,
+ion-alert, ion-toast, ion-action-sheet, ion-picker, ion-datetime {
+  font-weight: 700;
+}
+/* Ionic gives these their own weight inside a list item — a contact's name is
+   an <h2> and its number a <p>, and both came out light next to everything
+   else. This is where the book is actually read.
+   !important because the weight is set inside ion-label's shadow DOM
+   (`::slotted(*) h2 { font-weight: normal }`), which an ordinary selector out
+   here does not outrank. */
+ion-label h1, ion-label h2, ion-label h3, ion-label h4, ion-label p,
+ion-item h1, ion-item h2, ion-item h3, ion-item h4, ion-item p {
+  font-weight: 700 !important;
+}
+
+/* Inner native controls: the inherited weight stops at the shadow boundary. */
+ion-input input, ion-textarea textarea, ion-searchbar input,
+ion-select::part(text), ion-select::part(placeholder) {
+  font-weight: 700;
+}

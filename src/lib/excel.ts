@@ -15,6 +15,7 @@ import {
 import {
   directionLabel, isGrowthEntry, orderedTypes, ownerBalanceLabel, roleDef,
 } from '../data/roles';
+import { expectReturn } from './biometric';
 
 // Excel export of the whole book: a summary sheet, every transaction, and
 // per-currency totals.
@@ -428,6 +429,7 @@ async function deliverXlsx(
     path: filename, data: base64, directory: Directory.Cache,
   });
   try {
+    expectReturn(); // the lock must not greet the owner on the way back
     await Share.share({ title, text, url: written.uri });
   } catch (err) {
     // The workbook exists; what failed is finding something to open it with —

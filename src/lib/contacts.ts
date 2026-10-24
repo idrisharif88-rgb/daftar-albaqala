@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { expectReturn } from './biometric';
 
 // Pick a customer's name + number from the phone's saved contacts.
 //
@@ -29,6 +30,7 @@ interface ContactPickerPlugin {
 const ContactPicker = registerPlugin<ContactPickerPlugin>('ContactPicker');
 
 export async function pickContact(): Promise<PickedContact | null> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (Capacitor.getPlatform() !== 'android') return null;
   try {
     const result = await ContactPicker.pick();

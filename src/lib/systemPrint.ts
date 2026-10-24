@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { expectReturn } from './biometric';
 
 // Printing through Android's own print dialog — any printer the phone can
 // reach: an office laser on the WiFi, a printer shared by a print service app,
@@ -29,6 +30,7 @@ export function systemPrintAvailable(): boolean {
  * here claims otherwise. Throws with an Arabic message the caller can show.
  */
 export async function printPdf(base64: string, jobName: string): Promise<void> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (!systemPrintAvailable()) throw new Error('الطباعة متاحة على الهاتف فقط.');
   try {
     await SystemPrint.printPdf({ base64, jobName });

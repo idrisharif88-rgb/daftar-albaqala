@@ -185,3 +185,41 @@ export function reverseEntry(userId: string, txnId: string, code: string): Promi
     body: JSON.stringify({ code }),
   });
 }
+
+// ---- A copy of one account's whole book ----
+//
+// What a grocer gets when he asks for his data. The shop app exports his own
+// book from Settings; this is the same book handed over by the owner, for
+// someone who cannot manage that himself. Read-only, so no authenticator code.
+
+export interface ExportedContact {
+  id: string;
+  name: string;
+  phone: string;
+  note: string | null;
+  role: Role;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExportedEntry {
+  id: string;
+  customer_id: string;
+  type: TxnType;
+  amount: number;
+  currency: string;
+  note: string | null;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface BookExport {
+  account: Pick<Account, 'id' | 'phone' | 'store_name' | 'subscription_status'>;
+  customers: ExportedContact[];
+  transactions: ExportedEntry[];
+  exported_at: string;
+}
+
+export function exportBook(userId: string): Promise<BookExport> {
+  return request(`${u(userId)}/export`);
+}

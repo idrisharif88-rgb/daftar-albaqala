@@ -1,4 +1,5 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { expectReturn } from './biometric';
 
 // Pick ONE file (an image or a PDF) to attach to an entry — with NO storage or
 // media permission at all.
@@ -43,6 +44,7 @@ export class FileTooLargeError extends Error {
 }
 
 export async function pickFile(): Promise<PickedFile | null> {
+  expectReturn(); // the lock must not greet the owner on the way back
   if (Capacitor.getPlatform() === 'web') return pickFileWeb();
 
   try {

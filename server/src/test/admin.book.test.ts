@@ -203,6 +203,39 @@ describe('/admin — one account\'s book', () => {
     assert.deepEqual(book.body.customer.balances, []);
   });
 
+  test('export hands over the whole book, and leaves deleted rows out', async () => {
+    const user = await seedUser();
+    const other = await seedUser();
+    const a = await seedContact(user, 'ماجد', '711111111');
+    const b = await seedContact(user, 'خولة', '722222222');
+    await seedContact(other, 'ليس له', '733333333');
+    const t1 = await seedTxn(user, a, 'debt', 1250.5);
+    await seedTxn(user, b, 'payment', 300);
+    await seedTxn(other, await seedContact(other), 'debt', 999);
+
+    // A deleted entry and a deleted contact belong to neither the book nor the copy.
+    await pool.query('UPDATE transactions SET deleted_at = UTC_TIMESTAMP() WHERE id = ?', [t1]);
+    const gone = await seedContact(user, 'محذوف', '744444444');
+    await pool.query('UPDATE customers SET deleted_at = UTC_TIMESTAMP() WHERE id = ?', [gone]);
+
+    const res = await request(app).get(`/admin/users/${user}/export`).set(auth());
+    assert.equal(res.status, 200);
+    assert.equal(res.body.account.id, user);
+    assert.deepEqual(res.body.customers.map((c: { name: string }) => c.name).sort(), ['خولة', 'ماجد']);
+    assert.equal(res.body.transactions.length, 1);
+    assert.equal(res.body.transactions[0].amount, 300);
+    assert.ok(res.body.exported_at);
+  });
+
+  test('export refuses an unknown account and a shopkeeper token', async () => {
+    let res = await request(app).get('/admin/users/00000000-0000-0000-0000-000000000000/export').set(auth());
+    assert.equal(res.status, 404);
+    const user = await seedUser();
+    res = await request(app).get(`/admin/users/${user}/export`)
+      .set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(res.status, 401);
+  });
+
   test('a shopkeeper token cannot reach these routes', async () => {
     const user = await seedUser();
     const res = await request(app).get(`/admin/users/${user}/customers`)
