@@ -7,8 +7,14 @@ import { BiometricAuth, BiometryError, BiometryErrorType } from '@aparajita/capa
 // customer's debts. Off by default; the owner turns it on in Settings, per
 // device (localStorage, never synced — the finger is on this phone).
 //
-// The phone's own PIN/pattern is accepted too (allowDeviceCredential), so a
-// cut finger or a wet hand never locks the owner out of his own book.
+// The phone's PIN/pattern is deliberately NOT offered inside the prompt
+// (allowDeviceCredential: false). On Android 10 and older that option does not
+// add a button to the fingerprint sheet: it launches Settings' own
+// ConfirmDeviceCredentialActivity, a separate full-screen grey page that covers
+// the app's lock screen — the owner saw the green lock, then a blank page with
+// a fingerprint on it. Without it, the fingerprint sheet slides up over the
+// lock screen itself. A cut finger or a wet hand still never locks the owner
+// out: the lock screen's «الدخول بكلمة المرور» is the fallback.
 
 const KEY = 'daftar.biometric';
 
@@ -27,7 +33,10 @@ export async function biometricAvailable(): Promise<boolean> {
   if (!Capacitor.isNativePlatform()) return false;
   try {
     const r = await BiometricAuth.checkBiometry();
-    return r.isAvailable || r.deviceIsSecure;
+    // Only a phone with a fingerprint enrolled: the PIN is no longer accepted
+    // in the prompt (see above), so a phone with just a screen lock would show
+    // a prompt nobody could pass.
+    return r.isAvailable;
   } catch {
     return false;
   }
@@ -71,7 +80,7 @@ export async function verifyFinger(): Promise<void> {
       androidTitle: 'دفتر البقالة',
       androidSubtitle: 'ضع إصبعك لفتح الدفتر',
       cancelTitle: 'إلغاء',
-      allowDeviceCredential: true,
+      allowDeviceCredential: false,
       androidConfirmationRequired: false,
     });
   } catch (err) {

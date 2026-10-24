@@ -30,12 +30,18 @@ const BiometricGate: React.FC = () => {
   const { isAuthenticated, logout } = useAuth();
   const [locked, setLocked] = useState(() => isAuthenticated && biometricEnabled());
   const [error, setError] = useState<string | null>(null);
+  // True while Android's own fingerprint sheet is up. The lock screen then shows
+  // nothing but its background: the sheet is already asking, and the owner saw
+  // two things asking for the same finger at once. The lock's own text and
+  // buttons appear only once the sheet is gone — he cancelled it, or it failed.
+  const [asking, setAsking] = useState(false);
   const prompting = useRef(false);
   const leftAt = useRef<number | null>(null);
 
   const unlock = useCallback(async () => {
     if (prompting.current) return;
     prompting.current = true;
+    setAsking(true);
     setError(null);
     try {
       // A phone whose fingerprint and screen lock were both removed since the
@@ -49,6 +55,7 @@ const BiometricGate: React.FC = () => {
       }
     } finally {
       prompting.current = false;
+      setAsking(false);
     }
   }, []);
 
@@ -84,7 +91,7 @@ const BiometricGate: React.FC = () => {
 
   return (
     <div className="bio-gate" dir="rtl">
-      <div className="bio-gate__box">
+      {!asking && <div className="bio-gate__box">
         <IonIcon icon={fingerPrint} className="bio-gate__icon" />
         <h1>دفتر البقالة</h1>
         <p>الدفتر مقفل</p>
@@ -93,7 +100,7 @@ const BiometricGate: React.FC = () => {
         <IonButton expand="block" fill="clear" onClick={logout}>
           الدخول بكلمة المرور
         </IonButton>
-      </div>
+      </div>}
     </div>
   );
 };
