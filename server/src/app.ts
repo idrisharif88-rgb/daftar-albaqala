@@ -103,12 +103,12 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, drive_backup FROM users WHERE id = ?',
       [req.userId]
     );
-    const user = (rows as unknown[])[0];
+    const user = (rows as Array<Record<string, unknown>>)[0];
     if (!user) return res.status(404).json({ error: 'user not found' });
-    return res.json({ user });
+    return res.json({ user: { ...user, drive_backup: Number(user.drive_backup) === 1 } });
   })
 );
 

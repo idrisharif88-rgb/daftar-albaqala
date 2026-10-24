@@ -1021,7 +1021,7 @@ const CustomerDetail: React.FC = () => {
                       onClick={() => { void openAttachment(a); }}
                       style={{
                         cursor: 'pointer', height: 120, borderRadius: 8, overflow: 'hidden',
-                        background: '#fff', border: '1px solid var(--ion-color-light-shade)',
+                        background: 'var(--app-surface)', border: '1px solid var(--ion-color-light-shade)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
                     >

@@ -205,6 +205,52 @@ describe('/admin', () => {
     assert.equal(res.status, 403);
   });
 
+  test('Drive backup: off by default, granted by the owner, read back on /me', async () => {
+    const user = await seedUser({ status: 'active' });
+    let res = await request(app).get('/me').set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.user.drive_backup, false);
+
+    const token = await adminToken();
+    res = await request(app)
+      .post(`/admin/users/${user}/drive-backup`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ enabled: true, code: codeNow(1) });
+    assert.equal(res.status, 200);
+
+    res = await request(app).get('/me').set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(res.body.user.drive_backup, true);
+    res = await request(app).get('/admin/users').set('Authorization', `Bearer ${token}`);
+    assert.equal(res.body.users[0].drive_backup, true);
+  });
+
+  test('Drive backup: needs a real boolean, a fresh code and a known account', async () => {
+    const user = await seedUser();
+    const token = await adminToken();
+    let res = await request(app)
+      .post(`/admin/users/${user}/drive-backup`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ enabled: true });
+    assert.equal(res.status, 403);
+    res = await request(app)
+      .post(`/admin/users/${user}/drive-backup`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ enabled: 'yes', code: codeNow(1) });
+    assert.equal(res.status, 400);
+    resetAdminLoginState();
+    res = await request(app)
+      .post('/admin/users/00000000-0000-0000-0000-000000000000/drive-backup')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ enabled: true, code: codeNow(1) });
+    assert.equal(res.status, 404);
+    // A shopkeeper's own token cannot grant it to himself.
+    res = await request(app)
+      .post(`/admin/users/${user}/drive-backup`)
+      .set('Authorization', `Bearer ${tokenFor(user)}`)
+      .send({ enabled: true, code: codeNow(1) });
+    assert.equal(res.status, 401);
+  });
+
   test('a change with a wrong code is refused', async () => {
     const user = await seedUser();
     const token = await adminToken();

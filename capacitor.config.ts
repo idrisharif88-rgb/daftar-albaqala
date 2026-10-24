@@ -11,6 +11,14 @@ const config: CapacitorConfig = {
     CapacitorHttp: {
       enabled: true,
     },
+    // Google sign-in is used for the Drive backup and nothing else. The plugin
+    // bundles Facebook, Apple and Twitter by default — and Facebook's SDK brings
+    // advertising-ID permissions (AD_ID, ADSERVICES_*) that Play would make us
+    // declare for an app with no ads. Its sync hook turns this into
+    // gradle.properties; editing gradle.properties directly is overwritten.
+    SocialLogin: {
+      providers: { google: true, facebook: false, apple: false, twitter: false },
+    },
   },
 };
 

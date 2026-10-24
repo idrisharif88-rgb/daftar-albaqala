@@ -20,6 +20,14 @@ export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 // those land.
 export const OWNER_BUILD = import.meta.env.VITE_OWNER_BUILD === '1';
 
+// The owner's own login. Owner-only tools («دفتر التحديثات») show on this
+// account and no other. Compared by its last 9 digits, so it matches whether
+// the number was stored with the 967 country code or without.
+export const OWNER_PHONE = '781215102';
+
+export const isOwnerPhone = (phone: string | null | undefined): boolean =>
+  !!phone && phone.replace(/\D/g, '').endsWith(OWNER_PHONE);
+
 export const FEATURES = {
   /** Pencil on the contact screen: edit name / phone / note / role. */
   editContacts: OWNER_BUILD,

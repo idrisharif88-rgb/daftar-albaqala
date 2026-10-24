@@ -17,7 +17,7 @@ export async function setAccountActive(active: boolean): Promise<void> {
 }
 
 /** Where a blocked owner writes to have their number verified. */
-export const SUPPORT_EMAIL = 'idrisharif88@gmail.com';
+export const SUPPORT_EMAIL = 'q.fives.app@gmail.com';
 
 /**
  * Shown when a blocked account tries to record something.

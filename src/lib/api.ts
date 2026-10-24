@@ -81,6 +81,19 @@ export function login(phone: string, password: string): Promise<AuthResult> {
   });
 }
 
+/** The signed-in user — used to learn the phone of a session that predates
+ *  storing it (see storage.ts). */
+export interface Me {
+  id: string;
+  phone: string;
+  /** Google Drive backup, granted per account by the owner (Watcher). */
+  drive_backup: boolean;
+}
+
+export function me(): Promise<{ user: Me }> {
+  return request<{ user: Me }>('/me');
+}
+
 // ---- Account ----
 
 /** Erase this account and everything in it, server-side. Hard delete: the rows

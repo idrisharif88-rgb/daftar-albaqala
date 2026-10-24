@@ -25,7 +25,7 @@ hr { border: 0; border-top: 1px solid #d8dcd8; margin: 40px 0 24px; }
 <body>
 
 <h1>سياسة الخصوصية — دفتر البقالة</h1>
-<p class="updated">آخر تحديث: 24 أغسطس 2026</p>
+<p class="updated">آخر تحديث: 24 أكتوبر 2026</p>
 
 <p>
   «دفتر البقالة» تطبيق لتسجيل الديون والدفعات بين صاحب الدفتر ومن يتعامل معهم.
@@ -40,6 +40,8 @@ hr { border: 0; border-top: 1px solid #d8dcd8; margin: 40px 0 24px; }
 <li><b>الحركات:</b> نوعها (دين أو تسديد)، المبلغ، العملة، الملاحظة، وتاريخها.</li>
 <li><b>قوائم الأسعار والمجموعات:</b> أسماء الأصناف وأسعارها كما أدخلتها.</li>
 <li><b>إعدادات الحساب:</b> اسم المتجر أو اسمك، اللغة، وأسعار الصرف التي تحدّدها.</li>
+<li><b>المرفقات:</b> الملفات التي تختار إرفاقها بحركة (صورة فاتورة ورقية، صورة منتج، إثبات
+      تحويل…). تُرفع إلى خادمنا مع الحركة لتبقى محفوظة.</li>
 </ul>
 
 <h2>ما الذي لا نجمعه</h2>
@@ -48,9 +50,12 @@ hr { border: 0; border-top: 1px solid #d8dcd8; margin: 40px 0 24px; }
       يفتح النظام قائمته الخاصة وتُعيد إلينا جهة واحدة فقط هي التي اخترتها.</li>
 <li><b>لا نرسل ولا نقرأ الرسائل النصية.</b> التطبيق لا يملك إذن الرسائل؛ الإشعار يفتح تطبيق
       الرسائل الخاص بك بنص جاهز، وأنت من يضغط «إرسال».</li>
-<li><b>لا نجمع موقعك، ولا نستخدم الكاميرا أو الميكروفون.</b></li>
+<li><b>لا نجمع موقعك، ولا نستخدم الكاميرا أو الميكروفون.</b> المرفقات تُختار من ملفاتك عبر
+      نافذة النظام، والتطبيق لا يرى غير الملف الذي اخترته.</li>
+<li><b>لا نصل إلى بصمتك.</b> قفل البصمة (اختياري) يتحقق منه نظام أندرويد نفسه، ولا يصل إلى
+      التطبيق إلا جواب «نجح» أو «لم ينجح».</li>
 <li><b>لا يوجد أي تتبّع أو إحصاءات أو إعلانات.</b> لا نستخدم أي أدوات تحليل أو تقارير أعطال
-      من طرف ثالث — ولا سطر واحد منها في التطبيق.</li>
+      أو إعلانات من طرف ثالث — ولا سطر واحد منها في التطبيق.</li>
 </ul>
 
 <h2>أين تُخزَّن</h2>
@@ -59,31 +64,60 @@ hr { border: 0; border-top: 1px solid #d8dcd8; margin: 40px 0 24px; }
 <li><b>على خادمنا</b> عند المزامنة، لغرض واحد: ألا يضيع دفترك إذا ضاع الهاتف. الخادم
       (<span class="ltr">shopbook.shahed.uk</span>) يعمل عبر اتصال مشفَّر (HTTPS)، وبيانات كل
       صاحب دفتر معزولة عن غيره.</li>
+<li><b>في Google Drive الخاص بك</b> — فقط إذا فعّلت النسخ الاحتياطي بنفسك (انظر أدناه).</li>
 </ul>
 
 <h2>ما الذي يخرج من الجهاز، وإلى أين</h2>
 <ul>
-<li><b>إلى خادمنا فقط:</b> ما سبق ذكره أعلاه. لا نرسل شيئاً إلى أي جهة أخرى.</li>
+<li><b>إلى خادمنا:</b> ما سبق ذكره أعلاه. ولا نرسل شيئاً إلى أي جهة أخرى، إلا إلى Google Drive
+      الخاص بك إذا فعّلت النسخ الاحتياطي.</li>
 <li><b>إلى الشخص الذي تبلّغه:</b> عندما تختار إرسال إشعار، يفتح التطبيق واتساب أو تطبيق
       الرسائل لديك بنص جاهز، ثم <b>أنت</b> من يرسله من حسابك أو شريحتك. ما يصل إليه هو نص
       الفاتورة والرصيد. نحن لا نرسل نيابةً عنك، والرسالة تمرّ عبر الخدمة التي اخترتها
       (واتساب أو شركة الاتصالات) وتخضع لسياسة خصوصيتها.</li>
-<li><b>إلى الطابعة:</b> عند الطباعة تُرسل الفاتورة عبر البلوتوث إلى الطابعة المقترنة بجهازك
-      مباشرة، دون مرور بأي شبكة.</li>
+<li><b>إلى الطابعة:</b> الطابعة الحرارية تستلم الفاتورة عبر البلوتوث مباشرة دون مرور بأي شبكة.
+      والطابعة العادية (واي فاي) تستلمها عبر نافذة الطباعة في أندرويد وخدمة الطباعة المثبّتة على
+      هاتفك، وتخضع لسياسة الشركة المصنّعة لتلك الخدمة.</li>
 <li><b>إلى حيث تختار أنت:</b> عند تصدير كشف حساب بصيغة <span class="ltr">PDF</span> أو
 <span class="ltr">Excel</span>، يُنشأ الملف على هاتفك ويُسلَّم لقائمة المشاركة في النظام.
       أنت وحدك من يقرّر إلى أين يذهب.</li>
 </ul>
 
+<h2>النسخ الاحتياطي على Google Drive (اختياري)</h2>
+<ul>
+<li>ميزة إضافية <b>مُعطَّلة افتراضياً</b>، نفعّلها لحسابك عند الطلب، ثم لا يحدث شيء حتى تربط أنت
+      حساب Google الخاص بك وتضغط «نسخ».</li>
+<li>تُحفظ النسخة في <b>مجلد مخفي خاص بالتطبيق</b> داخل Drive الخاص بك. نطلب صلاحية
+      <span class="ltr">drive.appdata</span> وحدها: لا يرى التطبيق أي ملف آخر في حسابك، ولا يمكنه
+      قراءة ملفاتك أو تعديلها.</li>
+<li>محتوى النسخة: الجهات والحركات وقوائم الأسعار والمجموعات والإعدادات. لا تشمل المرفقات ولا
+      كلمة السر.</li>
+<li>تنتقل النسخة <b>مباشرة من هاتفك إلى Google</b>، ولا تمرّ بخادمنا ولا نستطيع قراءتها.
+      يحتفظ التطبيق على هاتفك ببريد حساب Google المربوط (ليعرض لك أيّ حساب مربوط) وبمفتاح دخول
+      مؤقت، ولا يُرسل أيّاً منهما إلى خادمنا.</li>
+<li>لإزالتها: «فك ربط حساب Google» في الإعدادات، ثم احذف بيانات التطبيق المخفية من Google Drive
+      (الإعدادات ← إدارة التطبيقات). تخضع النسخة أيضاً لسياسة خصوصية Google.</li>
+<li>يلتزم استخدام التطبيق للمعلومات الواردة من واجهات Google بسياسة بيانات مستخدمي خدمات
+      واجهات Google، بما فيها متطلبات «الاستخدام المحدود».</li>
+</ul>
+<p>إذا كنت لا تريد استخدام Google، يمكنك بدلاً من ذلك <b>طلب نسخة من بياناتك منّا مباشرة</b>:
+   الإعدادات ← «طلب نسخة من بياناتي»، أو راسلنا على العنوان أدناه.</p>
+
+<h2>من يستطيع الاطلاع على دفترك</h2>
+<p>أنت فقط من داخل التطبيق. لمطوّر التطبيق وحده أداة إدارة تتيح له تفعيل الحسابات وإيقافها
+   والاطلاع على دفتر حساب ما، وهي محمية بكلمة سر ورمز تحقق متغيّر (Authenticator) يُطلب عند كل
+   تعديل. لا تُستخدم إلا لتشغيل الخدمة أو عند طلبك المساعدة، وأي تصحيح لحركة يتم بطلبك.</p>
+
 <h2>لا نبيع بياناتك ولا نشاركها</h2>
-<p>لا تُباع بياناتك ولا تُشارَك مع أي طرف ثالث لأي غرض. لا نصل إليها إلا عند الضرورة التقنية
-   لتشغيل الخدمة أو لطلبك المساعدة.</p>
+<p>لا تُباع بياناتك ولا تُشارَك مع أي طرف ثالث لأي غرض.</p>
 
 <h2>حذف حسابك</h2>
 <p>
   يمكنك حذف حسابك من داخل التطبيق: <b>الإعدادات ← حذف الحساب</b>. عند التأكيد يُحذف حسابك وكل
   ما فيه — الجهات والأرقام والديون والدفعات وقوائم الأسعار والإعدادات — من الخادم ومن الجهاز،
-<b>حذفاً نهائياً لا يمكن التراجع عنه</b>. أو راسلنا على العنوان أدناه وننفّذه نيابةً عنك.
+<b>حذفاً نهائياً لا يمكن التراجع عنه</b>، ومعه المرفقات. أو راسلنا على العنوان أدناه وننفّذه
+  نيابةً عنك. النسخة في Google Drive (إن وُجدت) تخصّ حسابك في Google ولا نستطيع الوصول إليها،
+  فاحذفها من هناك كما هو موضّح أعلاه.
 </p>
 
 <h2>مدة الاحتفاظ بالبيانات</h2>
@@ -104,13 +138,15 @@ hr { border: 0; border-top: 1px solid #d8dcd8; margin: 40px 0 24px; }
 <p>قد نحدّث هذه الصفحة إذا تغيّرت وظائف التطبيق. تاريخ آخر تحديث مذكور في أعلى الصفحة.</p>
 
 <h2>التواصل</h2>
-<p>لأي سؤال عن بياناتك أو لطلب حذفها: <a href="mailto:idrisharif88@gmail.com">idrisharif88@gmail.com</a></p>
+<p>لأي سؤال عن بياناتك، أو لطلب نسخة منها أو حذفها:
+   <a href="mailto:q.fives.app@gmail.com">q.fives.app@gmail.com</a>،
+   أو واتساب <span class="ltr">+967 779412972</span>.</p>
 
 <hr>
 
 <div class="en">
 <h1>Privacy Policy — Daftar Al-Baqala (ShopBook)</h1>
-<p class="updated">Last updated: 24 August 2026</p>
+<p class="updated">Last updated: 24 October 2026</p>
 
 <p>ShopBook records debts and payments between the person keeping the book and the people they
 deal with. The data you enter is yours. This page states exactly what is stored and where.</p>
@@ -123,6 +159,8 @@ deal with. The data you enter is yours. This page states exactly what is stored 
 <li><b>Entries:</b> type (debt or payment), amount, currency, note, and date.</li>
 <li><b>Price lists and saved baskets:</b> item names and prices, as you entered them.</li>
 <li><b>Account settings:</b> shop or owner name, language, and the exchange rates you set.</li>
+<li><b>Attachments:</b> files you choose to attach to an entry (a photo of a paper invoice, a
+      product, a transfer receipt…). They are uploaded to our server with the entry so they are kept.</li>
 </ul>
 
 <h2>What we do not collect</h2>
@@ -131,7 +169,10 @@ deal with. The data you enter is yours. This page states exactly what is stored 
       opens Android's own picker, which returns only the single contact you selected.</li>
 <li><b>We do not send or read SMS.</b> The app holds no SMS permission. A notice opens your own
       messaging app pre-filled; you press send.</li>
-<li><b>No location, no camera, no microphone.</b></li>
+<li><b>No location, no camera, no microphone.</b> Attachments are chosen from your files through
+      the system picker; the app sees only the file you picked.</li>
+<li><b>We never see your fingerprint.</b> The optional fingerprint lock is checked by Android
+      itself; the app receives only "succeeded" or "did not".</li>
 <li><b>No analytics, no crash reporting, no advertising, no tracking of any kind.</b> There is not
       one third-party SDK of that sort in the app.</li>
 </ul>
@@ -143,21 +184,51 @@ deal with. The data you enter is yours. This page states exactly what is stored 
 <li><b>On our server</b> when you sync, for one purpose: so your book survives losing the phone.
       The server (shopbook.shahed.uk) is reached over HTTPS, and each account's data is isolated
       from every other.</li>
+<li><b>In your own Google Drive</b> — only if you turn on the backup yourself (see below).</li>
 </ul>
 
 <h2>What leaves the device</h2>
 <ul>
-<li><b>To our server only:</b> the data listed above. Nothing is sent anywhere else.</li>
+<li><b>To our server:</b> the data listed above. Nothing is sent anywhere else, except to your own
+      Google Drive if you turn on the backup.</li>
 <li><b>To the person you are billing:</b> when you choose to send a notice, the app opens your
       WhatsApp or your messaging app with the text ready, and <b>you</b> send it from your own
       account or SIM. We do not send anything on your behalf. The message travels through whichever
       service you chose — WhatsApp or your mobile carrier — and is subject to that service's own
       privacy policy.</li>
-<li><b>To your printer:</b> the receipt goes over Bluetooth directly to the printer you paired,
-      touching no network.</li>
+<li><b>To your printer:</b> a thermal printer receives the receipt over Bluetooth directly,
+      touching no network. An ordinary (Wi-Fi) printer receives it through Android's print dialog
+      and the printing service installed on your phone, under that service maker's own policy.</li>
 <li><b>To wherever you choose:</b> when you export a statement as PDF or Excel, the file is created
       on your phone and handed to the system share sheet. You alone decide where it goes.</li>
 </ul>
+
+<h2>Google Drive backup (optional)</h2>
+<ul>
+<li>An extra that is <b>off by default</b>. We enable it for your account on request, and even
+      then nothing happens until you link your own Google account and tap "back up".</li>
+<li>The backup is saved in the app's <b>hidden app-data folder</b> in your Drive. We request the
+      <code>drive.appdata</code> scope only: the app cannot see, read or change any other file in
+      your account.</li>
+<li>It contains your contacts, entries, price lists, saved baskets and settings — not
+      attachments, not your password.</li>
+<li>It goes <b>straight from your phone to Google</b>; it never passes through our server and we
+      cannot read it. The app keeps the linked Google account's email (to show which account is
+      linked) and a short-lived access token on your phone only, and sends neither to our server.</li>
+<li>To remove it: "Unlink Google account" in Settings, then delete the app's hidden data from
+      Google Drive (Settings → Manage apps). The backup is also subject to Google's privacy policy.</li>
+<li>The app's use and transfer of information received from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services
+      User Data Policy</a>, including the Limited Use requirements.</li>
+</ul>
+<p>If you would rather not use Google, you can <b>ask us for a copy of your data directly</b>:
+Settings → "Request a copy of my data", or write to us at the address below.</p>
+
+<h2>Who can see your book</h2>
+<p>Only you, inside the app. The app's developer alone has an admin tool to activate or suspend
+accounts and to view an account's book; it is protected by a password and a rotating authenticator
+code required for every change. It is used only to run the service or when you ask for help, and
+any correction to an entry is made at your request.</p>
 
 <h2>We do not sell or share your data</h2>
 <p>Your data is never sold and never shared with any third party for any purpose.</p>
@@ -165,8 +236,9 @@ deal with. The data you enter is yours. This page states exactly what is stored 
 <h2>Deleting your account</h2>
 <p>You can delete your account inside the app: <b>Settings → Delete account</b>. On confirmation,
 your account and everything in it — contacts, numbers, debts, payments, price lists and settings —
-is erased from the server and from the device. This is permanent and cannot be undone. You may
-also write to us and we will do it for you.</p>
+is erased from the server and from the device, attachments included. This is permanent and cannot
+be undone. You may also write to us and we will do it for you. A Google Drive backup, if you made
+one, belongs to your Google account and is out of our reach — delete it there as described above.</p>
 
 <h2>How long we keep your data</h2>
 <p>We keep your data for as long as your account exists. When you delete your account from inside
@@ -187,8 +259,9 @@ under 13.</p>
 top.</p>
 
 <h2>Contact</h2>
-<p>For any question about your data, or to request its deletion:
-<a href="mailto:idrisharif88@gmail.com">idrisharif88@gmail.com</a></p>
+<p>For any question about your data, or to request a copy or its deletion:
+<a href="mailto:q.fives.app@gmail.com">q.fives.app@gmail.com</a>, or WhatsApp
+<span class="ltr">+967 779412972</span>.</p>
 </div>
 
 </body>

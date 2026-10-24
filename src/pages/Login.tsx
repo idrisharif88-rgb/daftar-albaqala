@@ -1,12 +1,15 @@
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonItem, IonLabel,
   IonInput, IonInputPasswordToggle, IonButton, IonText, IonSegment, IonSegmentButton,
-  IonNote, IonSpinner,
+  IonNote, IonSpinner, IonCheckbox,
 } from '@ionic/react';
 import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
 import { phoneInput } from '../lib/digits';
+import { openUrl } from '../lib/notify';
+import { PRIVACY_URL } from '../config';
 
 type Mode = 'login' | 'register';
 
@@ -14,10 +17,16 @@ type Mode = 'login' | 'register';
 // AuthProvider stores the JWT and the router (App.tsx) swaps to the home view.
 const Login: React.FC = () => {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  // The Welcome screen's "new account" button links here with ?register=1.
+  const location = useLocation();
+  const startRegister = new URLSearchParams(location.search).get('register') === '1';
+  const [mode, setMode] = useState<Mode>(startRegister ? 'register' : 'login');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [storeName, setStoreName] = useState('');
+  // A new account must accept the privacy policy first — it says what the app
+  // stores, where it goes, and who can see it. Login does not ask again.
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,6 +39,10 @@ const Login: React.FC = () => {
     }
     if (mode === 'register' && !storeName.trim()) {
       setError('أدخل اسم المتجر');
+      return;
+    }
+    if (mode === 'register' && !agreed) {
+      setError('يجب الموافقة على سياسة الخصوصية لإنشاء حساب');
       return;
     }
     setBusy(true);
@@ -112,6 +125,24 @@ const Login: React.FC = () => {
               <IonInputPasswordToggle slot="end" />
             </IonInput>
           </IonItem>
+
+          {mode === 'register' && (
+            <IonItem lines="none">
+              <IonCheckbox
+                checked={agreed}
+                onIonChange={(e) => setAgreed(e.detail.checked)}
+                labelPlacement="end"
+                justify="start"
+              >
+                أوافق على سياسة الخصوصية
+              </IonCheckbox>
+              {/* Beside the box, not inside its label: a tap on the label
+                  toggles the box, so a link there could never just open. */}
+              <IonButton slot="end" fill="clear" size="small" onClick={() => void openUrl(PRIVACY_URL)}>
+                قراءة
+              </IonButton>
+            </IonItem>
+          )}
 
           {error && (
             <IonNote color="danger" className="ion-padding-start">

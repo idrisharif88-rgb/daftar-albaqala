@@ -3,6 +3,16 @@ import { createRoot } from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import { defineCustomElements } from 'jeep-sqlite/loader';
 import App from './App';
+import { initAppScale } from './lib/appScale';
+import { applyAppearance, initialAppearance } from './theme/appearance';
+
+// The saved display size and the colour/night look go on <html> before the
+// first paint, so the app does not open at one size or colour and jump.
+initAppScale();
+{
+  const { accent, night } = initialAppearance();
+  applyAppearance(accent, night);
+}
 
 // On the web, @capacitor-community/sqlite runs SQLite as WebAssembly (sql.js)
 // through the <jeep-sqlite> web component. Register that component here; the

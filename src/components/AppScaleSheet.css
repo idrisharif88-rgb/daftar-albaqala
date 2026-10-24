@@ -1,0 +1,188 @@
+/* «حجم العرض» — copied from «خماسيات», on this app's theme tokens.
+   A small centred dialog: the modal sizes to its content. */
+ion-modal.app-scale-modal {
+  --width: min(92%, 420px);
+  --height: auto;
+  --border-radius: 18px;
+}
+ion-modal.app-scale-modal .ion-page {
+  position: relative;
+  display: block;
+  contain: content;
+}
+
+.app-scale-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  background: var(--app-surface);
+  color: var(--ion-text-color);
+}
+
+.app-scale-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-scale-head h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ion-color-primary);
+}
+.app-scale-close {
+  border: none;
+  background: transparent;
+  color: var(--ion-text-color);
+  font-size: 20px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.app-scale-preview {
+  padding: 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  background: var(--ion-background-color);
+}
+
+.app-scale-sample {
+  margin: 0 0 10px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.7;
+  text-align: center;
+  color: var(--ion-text-color);
+}
+
+.app-scale-preview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-scale-chip {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ion-color-primary);
+}
+
+.app-scale-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ion-color-primary);
+  color: var(--ion-color-primary-contrast);
+  font-weight: 900;
+}
+
+.app-scale-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-scale-end {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ion-color-primary);
+  background: var(--app-surface);
+  color: var(--ion-color-primary);
+  font-family: inherit;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.app-scale-end.small { font-size: 14px; }
+.app-scale-end.large { font-size: 24px; }
+.app-scale-end:disabled { opacity: 0.35; cursor: default; }
+.app-scale-end:not(:disabled):active { transform: scale(0.94); }
+
+.app-scale-track {
+  position: relative;
+  flex: 1;
+  height: 32px;
+}
+
+.app-scale-ticks {
+  position: absolute;
+  inset: 0 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.app-scale-ticks span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(var(--ion-text-color-rgb), 0.25);
+}
+
+.app-scale-ticks span.on { background: var(--ion-color-primary); }
+
+.app-scale-track input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.app-scale-track input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+    var(--ion-color-primary) var(--fill),
+    rgba(var(--ion-text-color-rgb), 0.25) var(--fill));
+}
+
+.app-scale-track input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;
+  border-radius: 50%;
+  border: 3px solid var(--app-surface);
+  background: var(--ion-color-primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.app-scale-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-scale-value {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--ion-text-color);
+}
+
+.app-scale-reset {
+  border: none;
+  background: none;
+  color: var(--ion-color-primary);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.app-scale-reset:disabled { color: var(--app-muted); cursor: default; }
