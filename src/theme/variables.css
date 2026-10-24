@@ -248,7 +248,10 @@ ion-item { --background: var(--app-surface); }
 .welcome {
   max-width: 480px;
   margin-inline: auto;
-  padding: 16px 16px 20px;
+  /* The page has no header, so the content starts under the phone's status
+     bar — the green card was cut off by it. Clear that bar explicitly. */
+  padding: calc(16px + max(var(--ion-safe-area-top, 0px), env(safe-area-inset-top, 0px))) 16px
+           calc(20px + max(var(--ion-safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px)));
   display: flex;
   flex-direction: column;
   gap: 16px;
