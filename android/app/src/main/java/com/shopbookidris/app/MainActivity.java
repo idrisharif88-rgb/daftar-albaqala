@@ -20,6 +20,7 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(OutboundPlugin.class);
         registerPlugin(SystemPrintPlugin.class);
         registerPlugin(FilePickerPlugin.class);
+        registerPlugin(DevicePinPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

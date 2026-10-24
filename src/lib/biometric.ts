@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 import { BiometricAuth, BiometryError, BiometryErrorType } from '@aparajita/capacitor-biometric-auth';
 
 // Fingerprint unlock. The password still signs the account in — this guards a
@@ -7,14 +7,12 @@ import { BiometricAuth, BiometryError, BiometryErrorType } from '@aparajita/capa
 // customer's debts. Off by default; the owner turns it on in Settings, per
 // device (localStorage, never synced — the finger is on this phone).
 //
-// The phone's PIN/pattern is deliberately NOT offered inside the prompt
-// (allowDeviceCredential: false). On Android 10 and older that option does not
-// add a button to the fingerprint sheet: it launches Settings' own
-// ConfirmDeviceCredentialActivity, a separate full-screen grey page that covers
-// the app's lock screen — the owner saw the green lock, then a blank page with
-// a fingerprint on it. Without it, the fingerprint sheet slides up over the
-// lock screen itself. A cut finger or a wet hand still never locks the owner
-// out: the lock screen's «الدخول بكلمة المرور» is the fallback.
+// Fingerprint and the phone's PIN are two SEPARATE choices on Daftar's lock
+// screen, the owner's call. The fingerprint prompt is therefore asked for the
+// finger alone (allowDeviceCredential: false): on Android 10 that option does
+// not add a PIN button to the sheet, it swaps the sheet for Settings' combined
+// full-screen page, which covered the green lock screen. The PIN has its own
+// button and its own check (verifyDevicePin, DevicePinPlugin.java).
 
 const KEY = 'daftar.biometric';
 
@@ -28,18 +26,22 @@ export function setBiometricEnabled(on: boolean): void {
   } catch { /* stays as it was */ }
 }
 
-/** Can this phone check a fingerprint (or at least its screen lock)? */
-export async function biometricAvailable(): Promise<boolean> {
-  if (!Capacitor.isNativePlatform()) return false;
+/** What this phone can check: an enrolled fingerprint, its screen lock, both
+ *  or neither. The lock screen offers a button for each one that exists. */
+export async function unlockMethods(): Promise<{ finger: boolean; pin: boolean }> {
+  if (!Capacitor.isNativePlatform()) return { finger: false, pin: false };
   try {
     const r = await BiometricAuth.checkBiometry();
-    // Only a phone with a fingerprint enrolled: the PIN is no longer accepted
-    // in the prompt (see above), so a phone with just a screen lock would show
-    // a prompt nobody could pass.
-    return r.isAvailable;
+    return { finger: r.isAvailable, pin: r.deviceIsSecure };
   } catch {
-    return false;
+    return { finger: false, pin: false };
   }
+}
+
+/** Can this phone check anything at all — a fingerprint or its screen lock? */
+export async function biometricAvailable(): Promise<boolean> {
+  const m = await unlockMethods();
+  return m.finger || m.pin;
 }
 
 export class BiometricCancelled extends Error {}
@@ -96,4 +98,24 @@ export async function verifyFinger(): Promise<void> {
     }
     throw new Error('تعذّر التحقق من البصمة.');
   }
+}
+
+// ---- The phone's PIN / pattern, on its own ----
+
+interface DevicePinPlugin {
+  confirm(): Promise<{ confirmed: boolean }>;
+}
+const DevicePin = registerPlugin<DevicePinPlugin>('DevicePin');
+
+/** Ask for the phone's screen lock. Resolves on success; throws
+ *  BiometricCancelled when the owner backs out. Android shows its own screen —
+ *  full-screen on older Samsungs — and the app never sees the PIN itself. */
+export async function verifyDevicePin(): Promise<void> {
+  let confirmed = false;
+  try {
+    ({ confirmed } = await DevicePin.confirm());
+  } catch (err) {
+    throw new Error(err instanceof Error && err.message ? err.message : 'تعذّر التحقق من رمز الهاتف.');
+  }
+  if (!confirmed) throw new BiometricCancelled();
 }
