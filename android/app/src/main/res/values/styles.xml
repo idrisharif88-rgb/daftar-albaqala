@@ -19,7 +19,14 @@
     </style>
 
 
+    <!-- Launch window: plain brand green, no stock logo. The animated opening
+         screen (SplashIntro.tsx) takes over from it. On Android 12+ the
+         system splash API is used instead, so it gets the same green and no
+         icon there too. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="android:background">@drawable/launch_green</item>
+        <item name="windowSplashScreenBackground">@color/colorPrimary</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

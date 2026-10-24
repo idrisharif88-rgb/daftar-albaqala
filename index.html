@@ -24,6 +24,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   </head>
   <body>
+    <!-- Green from the first frame: covers the gap between Android's green
+         launch window and the animated opening screen (SplashIntro.tsx), which
+         removes this as soon as it mounts. Without it the WebView shows white. -->
+    <div id="boot-splash" style="position:fixed;inset:0;z-index:300000;background:radial-gradient(120% 80% at 50% 38%,#1b5e20 0%,#0f3d14 100%)"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

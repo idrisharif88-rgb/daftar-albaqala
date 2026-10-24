@@ -4,6 +4,9 @@ const config: CapacitorConfig = {
   appId: 'com.shopbookidris.app',
   appName: 'دفتر البقالة',
   webDir: 'dist',
+  // The WebView's own colour before the page paints — brand green, so a cold
+  // start goes green (launch window) → green (page) with no white frame.
+  backgroundColor: '#1b5e20',
   plugins: {
     // Route fetch/XHR through native HTTP instead of the WebView, so calls to
     // the droplet (https://shopbook.shahed.uk) aren't blocked by CORS. The dev

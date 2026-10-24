@@ -3,6 +3,7 @@ import { IonButton, IonIcon } from '@ionic/react';
 import { fingerPrint, keypadOutline } from 'ionicons/icons';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from '../lib/auth';
+import { whenSplashDone } from './SplashIntro';
 import {
   biometricEnabled, unlockMethods, verifyFinger, verifyDevicePin, BiometricCancelled,
   consumeExpectedReturn,
@@ -88,7 +89,9 @@ const BiometricGate: React.FC = () => {
   // quickest way in. Cancelling it leaves this page with both buttons.
   useEffect(() => {
     if (!locked) return;
-    void unlockMethods().then((m) => {
+    // After the opening screen: Samsung's sheet over the rolling basket would
+    // be two things on screen at once again.
+    void whenSplashDone().then(unlockMethods).then((m) => {
       setMethods(m);
       if (m.finger) void unlock('finger');
       else if (!m.pin) setLocked(false);

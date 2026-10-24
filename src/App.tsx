@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import Welcome from './pages/Welcome';
 import UpdatesNotebook from './pages/UpdatesNotebook';
 import BiometricGate from './components/BiometricGate';
+import SplashIntro from './components/SplashIntro';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
 import { runSync } from './data/sync';
@@ -190,6 +191,7 @@ const App: React.FC = () => (
         <DriveDailyBackup />
         <Routes />
         <BiometricGate />
+        <SplashIntro />
       </AuthProvider>
     </AppearanceProvider>
   </IonApp>
