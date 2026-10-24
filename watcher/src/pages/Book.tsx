@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton,
-  IonSearchbar, IonRefresher, IonRefresherContent, IonSpinner, useIonViewWillEnter, useIonRouter,
+  IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton, IonButton,
+  IonIcon, IonSearchbar, IonRefresher, IonRefresherContent, IonSpinner,
+  useIonViewWillEnter, useIonRouter, useIonToast,
 } from '@ionic/react';
-import { ApiError, Contact, getBook } from '../lib/api';
+import { downloadOutline } from 'ionicons/icons';
+import { ApiError, Contact, exportBook, getBook } from '../lib/api';
 import { ROLE_AR, balanceText } from '../lib/format';
 import { digitsOnly } from '../lib/digits';
 
@@ -17,7 +19,9 @@ const Book: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [exporting, setExporting] = useState(false);
   const router = useIonRouter();
+  const [presentToast] = useIonToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -33,6 +37,27 @@ const Book: React.FC = () => {
   // Reload on every visit: coming back from a contact, its balance may have changed.
   useIonViewWillEnter(() => { void load(); }, [load]);
 
+  // Hand the whole book over as a spreadsheet — what a grocer gets when he asks
+  // for a copy of his data. The server sends it in one response; the file is
+  // built here, so nothing is stored on the droplet to go stale or leak.
+  const exportToFile = useCallback(async () => {
+    setExporting(true);
+    try {
+      const book = await exportBook(id);
+      const { exportBookToFile } = await import('../lib/exportBook');
+      await exportBookToFile(book);
+    } catch (err) {
+      presentToast({
+        message: err instanceof ApiError ? err.message
+          : err instanceof Error ? err.message : 'تعذّر تصدير الدفتر',
+        duration: 2500,
+        color: 'danger',
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [id, presentToast]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const qDigits = digitsOnly(q);
@@ -47,6 +72,13 @@ const Book: React.FC = () => {
         <IonToolbar>
           <IonButtons slot="start"><IonBackButton defaultHref="/accounts" text="" /></IonButtons>
           <IonTitle>{title}</IonTitle>
+          <IonButtons slot="end">
+            <IonButton onClick={() => void exportToFile()} disabled={exporting || !contacts}>
+              {exporting
+                ? <IonSpinner name="crescent" />
+                : <IonIcon slot="icon-only" icon={downloadOutline} />}
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
       <IonContent>
