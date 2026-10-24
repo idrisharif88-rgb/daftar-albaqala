@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton, IonButton,
   IonIcon, IonSearchbar, IonRefresher, IonRefresherContent, IonSpinner,
-  useIonViewWillEnter, useIonRouter, useIonToast,
+  useIonViewWillEnter, useIonRouter, useIonToast, useIonActionSheet,
 } from '@ionic/react';
 import { downloadOutline } from 'ionicons/icons';
 import { ApiError, Contact, exportBook, getBook } from '../lib/api';
@@ -22,6 +22,7 @@ const Book: React.FC = () => {
   const [exporting, setExporting] = useState(false);
   const router = useIonRouter();
   const [presentToast] = useIonToast();
+  const [presentSheet] = useIonActionSheet();
 
   const load = useCallback(async () => {
     setError(null);
@@ -37,15 +38,24 @@ const Book: React.FC = () => {
   // Reload on every visit: coming back from a contact, its balance may have changed.
   useIonViewWillEnter(() => { void load(); }, [load]);
 
-  // Hand the whole book over as a spreadsheet — what a grocer gets when he asks
-  // for a copy of his data. The server sends it in one response; the file is
-  // built here, so nothing is stored on the droplet to go stale or leak.
-  const exportToFile = useCallback(async () => {
+  // Hand the whole book over as a file — what a grocer gets when he asks for a
+  // copy of his data. The server sends it in one response; the file is built
+  // here, so nothing is stored on the droplet to go stale or leak.
+  //
+  // Two formats, because they answer different questions: the PDF is the copy
+  // he READS, the spreadsheet the one he (or whoever helps him) can sum, sort
+  // and filter. Neither is a substitute for the other, so he is asked.
+  const exportAs = useCallback(async (format: 'pdf' | 'excel') => {
     setExporting(true);
     try {
       const book = await exportBook(id);
-      const { exportBookToFile } = await import('../lib/exportBook');
-      await exportBookToFile(book);
+      if (format === 'pdf') {
+        const { exportBookToPdf } = await import('../lib/pdfBook');
+        await exportBookToPdf(book);
+      } else {
+        const { exportBookToFile } = await import('../lib/exportBook');
+        await exportBookToFile(book);
+      }
     } catch (err) {
       presentToast({
         message: err instanceof ApiError ? err.message
@@ -57,6 +67,17 @@ const Book: React.FC = () => {
       setExporting(false);
     }
   }, [id, presentToast]);
+
+  const chooseFormat = useCallback(() => {
+    presentSheet({
+      header: 'تصدير الدفتر',
+      buttons: [
+        { text: 'ملف PDF', handler: () => { void exportAs('pdf'); } },
+        { text: 'ملف Excel', handler: () => { void exportAs('excel'); } },
+        { text: 'إلغاء', role: 'cancel' },
+      ],
+    });
+  }, [presentSheet, exportAs]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,7 +94,7 @@ const Book: React.FC = () => {
           <IonButtons slot="start"><IonBackButton defaultHref="/accounts" text="" /></IonButtons>
           <IonTitle>{title}</IonTitle>
           <IonButtons slot="end">
-            <IonButton onClick={() => void exportToFile()} disabled={exporting || !contacts}>
+            <IonButton onClick={chooseFormat} disabled={exporting || !contacts}>
               {exporting
                 ? <IonSpinner name="crescent" />
                 : <IonIcon slot="icon-only" icon={downloadOutline} />}

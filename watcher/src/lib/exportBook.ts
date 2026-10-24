@@ -1,10 +1,8 @@
-import { Capacitor } from '@capacitor/core';
 // Type-only: erased at build time, so the writer itself is still loaded on
 // demand below (the import() in exportBookToFile).
 import type { Row as XlsxRow, Sheet } from 'write-excel-file/browser';
-import { Filesystem, Directory } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 import type { BookExport, ExportedContact, ExportedEntry } from './api';
+import { deliverFile, safeName, today } from './deliverFile';
 import { ROLE_AR, dateTime } from './format';
 
 // One account's whole book as a spreadsheet — what the owner hands a grocer who
@@ -161,44 +159,6 @@ export async function exportBookToFile(book: BookExport): Promise<void> {
 
   const blob = await writeXlsxFile(sheets, { fontFamily: 'Arial', fontSize: 11 }).toBlob();
 
-  // `/ \ : * ? " < > |` are illegal in a filename; Arabic itself is fine.
-  const safe = (s: string) => s.replace(/[/\\:*?"<>|]/g, '').trim().replace(/\s+/g, '_');
-  const who = safe(book.account.store_name || book.account.phone).slice(0, 40) || 'حساب';
-  const day = new Date().toISOString().slice(0, 10);
-  await deliver(blob, `دفتر-${who}-${day}.xlsx`, `دفتر ${who}`);
-}
-
-// Download in the browser; on the phone write to the cache dir and hand the
-// file to the system share sheet (WhatsApp, Drive, email — the owner picks).
-async function deliver(blob: Blob, filename: string, title: string): Promise<void> {
-  if (Capacitor.getPlatform() === 'web') {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    return;
-  }
-  const written = await Filesystem.writeFile({
-    path: filename, data: await blobToBase64(blob), directory: Directory.Cache,
-  });
-  try {
-    await Share.share({ title, url: written.uri });
-  } catch {
-    // The file exists; what failed is finding something to open it with — or
-    // the owner simply backed out of the sheet, which is not an error worth
-    // shouting about.
-    throw new Error('تعذّر إرسال الملف. تأكد من وجود تطبيق يفتح ملفات Excel.');
-  }
-}
-
-// FileReader gives a data: URL; the plugin wants the payload without the prefix.
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('failed to read workbook'));
-    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
-    reader.readAsDataURL(blob);
-  });
+  const who = safeName(book.account.store_name || book.account.phone) || 'حساب';
+  await deliverFile(blob, `دفتر-${who}-${today()}.xlsx`, `دفتر ${who}`);
 }
