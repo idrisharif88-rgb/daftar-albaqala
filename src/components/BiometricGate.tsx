@@ -27,7 +27,7 @@ import {
 const AWAY_MS = 5 * 60_000;
 
 const BiometricGate: React.FC = () => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [locked, setLocked] = useState(() => isAuthenticated && biometricEnabled());
   const [error, setError] = useState<string | null>(null);
   const [methods, setMethods] = useState({ finger: false, pin: false });
@@ -116,9 +116,6 @@ const BiometricGate: React.FC = () => {
             فتح برمز الهاتف
           </IonButton>
         )}
-        <IonButton expand="block" fill="clear" onClick={logout}>
-          الدخول بكلمة المرور
-        </IonButton>
       </div>
     </div>
   );
