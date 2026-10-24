@@ -91,8 +91,14 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const mq = darkQuery();
     if (!mq) return undefined;
     const onChange = (e: MediaQueryListEvent) => setNight(e.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    // Older WebViews (and the test environment) only have the deprecated
+    // addListener on a MediaQueryList, not addEventListener.
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
   }, []);
 
   const cycleAccent = useCallback(() => {
