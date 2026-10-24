@@ -24,6 +24,19 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   </head>
   <body>
+    <!-- The opening screen's first picture, painted before any script runs:
+         the same green and the same basket, in the same spot, as Android's
+         launch window (launch_green.xml) and SplashIntro.tsx, which removes
+         this the moment it mounts. Inline on purpose — no stylesheet has
+         loaded yet. -->
+    <div id="boot-splash" style="position:fixed;inset:0;z-index:300000;background:#1b5e20">
+      <div style="position:absolute;top:50%;left:50%;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:26px;background:rgba(255,255,255,.14);display:grid;place-items:center">
+        <svg viewBox="0 0 64 64" fill="none" width="56" height="56">
+          <path d="M8 12h7l6 28h28l6-20H18" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="25" cy="50" r="4.5" fill="#fff"/><circle cx="45" cy="50" r="4.5" fill="#fff"/>
+        </svg>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

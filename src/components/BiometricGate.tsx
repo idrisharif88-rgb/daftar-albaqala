@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { IonButton, IonIcon } from '@ionic/react';
-import { fingerPrint } from 'ionicons/icons';
+import { fingerPrint, keypadOutline } from 'ionicons/icons';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from '../lib/auth';
+import { whenSplashDone } from './SplashIntro';
 import {
-  biometricEnabled, biometricAvailable, verifyFinger, BiometricCancelled,
+  biometricEnabled, unlockMethods, verifyFinger, verifyDevicePin, BiometricCancelled,
   consumeExpectedReturn,
 } from '../lib/biometric';
 
@@ -27,25 +28,32 @@ import {
 const AWAY_MS = 5 * 60_000;
 
 const BiometricGate: React.FC = () => {
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [locked, setLocked] = useState(() => isAuthenticated && biometricEnabled());
   const [error, setError] = useState<string | null>(null);
+  const [methods, setMethods] = useState({ finger: false, pin: false });
   const prompting = useRef(false);
   const leftAt = useRef<number | null>(null);
 
-  const unlock = useCallback(async () => {
+  // Two separate ways in, the owner's choice: the fingerprint (Android's small
+  // sheet slides up over this green page) or the phone's PIN (Android's own
+  // screen — full-screen on older Samsungs; an app cannot shrink it).
+  const unlock = useCallback(async (how: 'finger' | 'pin') => {
     if (prompting.current) return;
     prompting.current = true;
     setError(null);
     try {
+      const m = await unlockMethods();
+      setMethods(m);
       // A phone whose fingerprint and screen lock were both removed since the
       // lock was turned on can verify nothing — do not lock the owner out.
-      if (!(await biometricAvailable())) { setLocked(false); return; }
-      await verifyFinger();
+      if (!m.finger && !m.pin) { setLocked(false); return; }
+      if (how === 'finger' && m.finger) await verifyFinger();
+      else await verifyDevicePin();
       setLocked(false);
     } catch (err) {
       if (!(err instanceof BiometricCancelled)) {
-        setError(err instanceof Error ? err.message : 'تعذّر التحقق من البصمة.');
+        setError(err instanceof Error ? err.message : 'تعذّر التحقق.');
       }
     } finally {
       prompting.current = false;
@@ -77,8 +85,18 @@ const BiometricGate: React.FC = () => {
     if (biometricEnabled()) setLocked(true);
   }, [isAuthenticated]);
 
-  // Ask for the finger as soon as the lock shows.
-  useEffect(() => { if (locked) void unlock(); }, [locked, unlock]);
+  // As soon as the lock shows, offer the fingerprint sheet over it — the
+  // quickest way in. Cancelling it leaves this page with both buttons.
+  useEffect(() => {
+    if (!locked) return;
+    // After the opening screen: Samsung's sheet over the rolling basket would
+    // be two things on screen at once again.
+    void whenSplashDone().then(unlockMethods).then((m) => {
+      setMethods(m);
+      if (m.finger) void unlock('finger');
+      else if (!m.pin) setLocked(false);
+    });
+  }, [locked, unlock]);
 
   if (!locked) return null;
 
@@ -89,10 +107,18 @@ const BiometricGate: React.FC = () => {
         <h1>دفتر البقالة</h1>
         <p>الدفتر مقفل</p>
         {error && <p className="bio-gate__error">{error}</p>}
-        <IonButton expand="block" onClick={() => void unlock()}>فتح بالبصمة</IonButton>
-        <IonButton expand="block" fill="clear" onClick={logout}>
-          الدخول بكلمة المرور
-        </IonButton>
+        {methods.finger && (
+          <IonButton expand="block" onClick={() => void unlock('finger')}>
+            <IonIcon slot="start" icon={fingerPrint} />
+            فتح بالبصمة
+          </IonButton>
+        )}
+        {methods.pin && (
+          <IonButton expand="block" fill="outline" onClick={() => void unlock('pin')}>
+            <IonIcon slot="start" icon={keypadOutline} />
+            فتح برمز الهاتف
+          </IonButton>
+        )}
       </div>
     </div>
   );

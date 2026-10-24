@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android's launch window: brand green with the basket tile at the centre —
+     the same picture the opening screen (SplashIntro) starts on, in the same
+     spot, so the hand-over from this window to the app has nothing to jump.
+     It replaces Capacitor's stock splash.png (a blue logo on white). -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1B5E20" />
+        </shape>
+    </item>
+    <!-- The tile: white at 14% over the green, 96dp, radius 26dp. -->
+    <item android:gravity="center" android:width="96dp" android:height="96dp"
+        android:bottom="@dimen/splash_offset">
+        <shape android:shape="rectangle">
+            <solid android:color="#24FFFFFF" />
+            <corners android:radius="26dp" />
+        </shape>
+    </item>
+    <item android:gravity="center" android:width="56dp" android:height="56dp"
+        android:bottom="@dimen/splash_offset"
+        android:drawable="@drawable/splash_cart" />
+</layer-list>

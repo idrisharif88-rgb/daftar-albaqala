@@ -35,7 +35,8 @@ import { useAppScale } from '../lib/appScale';
 import AppScaleSheet from '../components/AppScaleSheet';
 import BackupSection from '../components/BackupSection';
 import {
-  biometricEnabled, setBiometricEnabled, biometricAvailable, verifyFinger, BiometricCancelled,
+  biometricEnabled, setBiometricEnabled, unlockMethods, verifyFinger, verifyDevicePin,
+  BiometricCancelled,
 } from '../lib/biometric';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
@@ -131,7 +132,8 @@ const Settings: React.FC = () => {
       setBioOn(false);
       return;
     }
-    if (!(await biometricAvailable())) {
+    const methods = await unlockMethods();
+    if (!methods.finger && !methods.pin) {
       setBioOn(false);
       await presentToast({
         message: 'لا توجد بصمة أو قفل شاشة على هذا الجهاز',
@@ -141,7 +143,9 @@ const Settings: React.FC = () => {
       return;
     }
     try {
-      await verifyFinger();
+      // Prove it works before turning it on — with the finger when there is
+      // one, else the phone's PIN, the same two ways the lock screen offers.
+      if (methods.finger) await verifyFinger(); else await verifyDevicePin();
       setBiometricEnabled(true);
       setBioOn(true);
     } catch (err) {
