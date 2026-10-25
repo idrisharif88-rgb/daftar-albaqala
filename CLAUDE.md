@@ -1128,8 +1128,11 @@ until the owner manually activates, so an unverified account is inert).
 ## Status — BUILT (Phase 22: Google Cloud live + device prefs sync) (2026-10-25)
 - **Google Cloud project created** (owner's Gmail, External, published, scope `drive.appdata`,
   branding → GitHub Pages privacy URL). Web client ID in `.env.production`; Android client =
-  `com.shopbookidris.app` + the laptop's **debug** SHA-1. A release/Play build needs its SHA-1
-  added as another Android client. Drive backup verified on the phone.
+  `com.shopbookidris.app`, **three** Android clients (2026-10-25): `daftar-android-debug` (laptop
+  `~/.android/debug.keystore`), `daftar-android-release` (upload key `~/keys/Shopbook/Shopbook.jks`)
+  and `daftar-android-play` (Play App Signing key — Play Console → سلامة التطبيق → توقيع التطبيق).
+  Phones installed from Play carry Google's key, not ours — without the Play client, sign-in fails
+  there. Drive backup verified on the phone (debug build).
 - **Accent colour, display size, fingerprint lock and the updates notebook now sync with the
   account** (`src/lib/prefKeys.ts`, `src/data/devicePrefs.ts`): still read from localStorage
   (pre-paint), mirrored into `app_meta` under keys `ui_accent`/`ui_scale`/`biometric`/
