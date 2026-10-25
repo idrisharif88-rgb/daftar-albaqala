@@ -8,6 +8,7 @@ import {
   loadNotes, storeNotes, saveNote, toggleDone, removeNote, sortedNotes, type Note,
 } from '../data/updatesNotebook';
 import { ShareCancelledError } from '../lib/shareTarget';
+import { onPrefsArrived } from '../lib/prefKeys';
 import './UpdatesNotebook.css';
 
 // «دفتر التحديثات» — the owner's notes on what to add or fix, written while he
@@ -116,6 +117,11 @@ const UpdatesNotebook: React.FC = () => {
   const picking = picked !== null;
   const selected = picking ? all.filter((n) => picked.has(n.id)) : [];
   const allPicked = picking && selected.length === all.length;
+
+  // Notes written on another phone, arriving with a sync.
+  useEffect(() => onPrefsArrived((keys) => {
+    if (keys.includes('updates_notebook')) setNotes(loadNotes());
+  }), []);
 
   // Hardware back closes the editor, then the picking mode, before leaving.
   useEffect(() => {

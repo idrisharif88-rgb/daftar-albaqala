@@ -1,14 +1,15 @@
 import { useSyncExternalStore } from 'react';
+import { DEVICE_PREFS, onPrefsArrived, prefChanged } from './prefKeys';
 
 // «حجم العرض» — make the whole app bigger or smaller, like Ctrl +/−. Copied
 // from «خماسيات».
 //
-// A device setting, not synced: 100 is the phone's own size (the WebView already
-// follows Android's font-size setting), and what suits a Note 9 is wrong on a
-// tablet. It is CSS `zoom` on <html>. vh/vw would grow with the zoom and run off
+// Synced with the account (lib/prefKeys.ts), so a reinstall keeps it. 100 is
+// the phone's own size (the WebView already follows Android's font-size
+// setting); a size too big for this screen is capped by loadScale. It is CSS `zoom` on <html>. vh/vw would grow with the zoom and run off
 // the screen, so --vh/--vw/--dvh are set here, divided back down — use those,
 // never a bare `50vh`.
-export const SCALE_KEY = 'daftar.app-scale';
+export const SCALE_KEY = DEVICE_PREFS.ui_scale;
 export const ALL_SCALE_STEPS = [80, 85, 90, 95, 100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155];
 export const DEFAULT_SCALE = 100;
 
@@ -99,11 +100,18 @@ export function initAppScale(): void {
   current = loadScale();
   applyScale(current);
   window.addEventListener('resize', () => applyScale(current));
+  onPrefsArrived((keys) => {
+    if (!keys.includes('ui_scale')) return;
+    current = loadScale();
+    applyScale(current);
+    listeners.forEach((l) => l());
+  });
 }
 
 function setScale(next: number): void {
   current = next;
   saveScale(next);
+  prefChanged('ui_scale');
   applyScale(next);
   listeners.forEach((l) => l());
 }

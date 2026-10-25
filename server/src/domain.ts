@@ -34,12 +34,26 @@ export const SYNCABLE_SETTING_KEYS = new Set([
   'rate_USD',
   'rate_GOLD',
   'rates_updated_at',
+  // Device preferences that follow the account to a new phone or a reinstall
+  // (migration 009): the accent colour, the display size, the fingerprint
+  // lock, and the owner's updates notebook (a JSON list of notes).
+  'ui_accent',
+  'ui_scale',
+  'biometric',
+  'updates_notebook',
 ]);
 
 // Matches the VARCHAR(512) the column is declared as — checked here so an
 // oversized value is REPORTED to the client rather than silently truncated by
 // MySQL into a different value than the one the owner typed.
 export const MAX_SETTING_VALUE_LENGTH = 512;
+
+// The notebook is the one setting that is a document rather than a word: it
+// gets its own ceiling (the column is MEDIUMTEXT since migration 009).
+const LONG_SETTING_LIMITS: Record<string, number> = { updates_notebook: 200_000 };
+
+export const maxSettingLength = (key: string): number =>
+  LONG_SETTING_LIMITS[key] ?? MAX_SETTING_VALUE_LENGTH;
 
 // A saved basket's membership travels as JSON text (see migration 004). The
 // server stores it without reading inside it, so the only thing it can

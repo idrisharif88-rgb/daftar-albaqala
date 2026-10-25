@@ -3,7 +3,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import {
-  DEFAULT_CURRENCY, DEFAULT_ROLE, MAX_GROUP_LINES_LENGTH, MAX_SETTING_VALUE_LENGTH,
+  DEFAULT_CURRENCY, DEFAULT_ROLE, MAX_GROUP_LINES_LENGTH, maxSettingLength,
   SYNCABLE_SETTING_KEYS, VALID_CURRENCIES, VALID_ROLES, VALID_TXN_TYPES,
 } from '../domain';
 
@@ -369,7 +369,7 @@ router.post(
         const updatedAt = s.updated_at ? new Date(s.updated_at as string) : new Date();
         if (!SYNCABLE_SETTING_KEYS.has(key) ||
             Number.isNaN(updatedAt.getTime()) ||
-            (value !== null && value.length > MAX_SETTING_VALUE_LENGTH)) {
+            (value !== null && value.length > maxSettingLength(key))) {
           result.settings.rejected.push({ id: key, reason: 'invalid' });
           continue;
         }

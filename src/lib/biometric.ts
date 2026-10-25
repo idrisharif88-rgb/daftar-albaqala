@@ -1,11 +1,13 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { BiometricAuth, BiometryError, BiometryErrorType } from '@aparajita/capacitor-biometric-auth';
+import { DEVICE_PREFS, prefChanged } from './prefKeys';
 
 // Fingerprint unlock. The password still signs the account in — this guards a
 // phone that is ALREADY signed in, which is the real risk for a ledger: the
 // session lasts 30 days, and anyone holding the unlocked phone could read every
-// customer's debts. Off by default; the owner turns it on in Settings, per
-// device (localStorage, never synced — the finger is on this phone).
+// customer's debts. Off by default; the owner turns it on in Settings. Synced
+// with the account (lib/prefKeys.ts), so a new phone locks too — one that can
+// check neither a finger nor a PIN is let through (BiometricGate).
 //
 // Fingerprint and the phone's PIN are two SEPARATE choices on Daftar's lock
 // screen, the owner's call. The fingerprint prompt is therefore asked for the
@@ -14,7 +16,7 @@ import { BiometricAuth, BiometryError, BiometryErrorType } from '@aparajita/capa
 // full-screen page, which covered the green lock screen. The PIN has its own
 // button and its own check (verifyDevicePin, DevicePinPlugin.java).
 
-const KEY = 'daftar.biometric';
+const KEY = DEVICE_PREFS.biometric;
 
 export function biometricEnabled(): boolean {
   try { return localStorage.getItem(KEY) === '1'; } catch { return false; }
@@ -24,6 +26,7 @@ export function setBiometricEnabled(on: boolean): void {
   try {
     if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY);
   } catch { /* stays as it was */ }
+  prefChanged('biometric');
 }
 
 /** What this phone can check: an enrolled fingerprint, its screen lock, both

@@ -2,11 +2,14 @@
 // written while he uses it. Copied from «خماسيات». Shown to his account only
 // (isOwner in lib/auth.tsx).
 //
-// Kept in localStorage on this device, deliberately NOT in `app_meta`: that is
-// wiped on every account switch (data/owner.ts), and the owner switches to test
-// accounts — his notes must outlive that.
+// Kept in localStorage, deliberately NOT only in `app_meta`: that is wiped on
+// every account switch (data/owner.ts), and the owner switches to test
+// accounts — his notes must outlive that. It is ALSO synced with his account
+// (lib/prefKeys.ts), so a reinstall or a new phone gets the notes back.
 //
 // Pure functions; the page holds the state.
+
+import { DEVICE_PREFS, prefChanged } from '../lib/prefKeys';
 
 export interface Note {
   id: string;
@@ -17,7 +20,7 @@ export interface Note {
   updatedAt: number;
 }
 
-export const NOTEBOOK_STORAGE_KEY = 'daftar-updates-notebook-v1';
+export const NOTEBOOK_STORAGE_KEY = DEVICE_PREFS.updates_notebook;
 
 const clean = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
@@ -76,5 +79,7 @@ export function storeNotes(notes: Note[]): void {
     localStorage.setItem(NOTEBOOK_STORAGE_KEY, JSON.stringify(notes));
   } catch {
     // Storage full or blocked: the notes stay on screen for this session.
+    return;
   }
+  prefChanged('updates_notebook');
 }

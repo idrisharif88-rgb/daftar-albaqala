@@ -110,6 +110,27 @@ describe('settings sync', () => {
     assert.deepEqual(res.body.settings.rejected, [{ id: 'store_name', reason: 'invalid' }]);
   });
 
+  test('device preferences travel, and the notebook may be long', async () => {
+    const notebook = JSON.stringify([{ id: 'n-1', title: 'ملاحظة', text: 'س'.repeat(20_000) }]);
+    const res = await request(app).post('/sync/push').set(AUTH(tokenA)).send({
+      settings: [
+        { key: 'ui_accent', value: 'gold', updated_at: '2026-07-30T10:00:00Z' },
+        { key: 'ui_scale', value: '110', updated_at: '2026-07-30T10:00:00Z' },
+        { key: 'biometric', value: '1', updated_at: '2026-07-30T10:00:00Z' },
+        { key: 'updates_notebook', value: notebook, updated_at: '2026-07-30T10:00:00Z' },
+      ],
+    });
+    assert.deepEqual(res.body.settings.rejected, []);
+    assert.equal((await readSetting(userA, 'updates_notebook')).value, notebook);
+    assert.equal((await readSetting(userA, 'ui_accent')).value, 'gold');
+
+    // The long ceiling is the notebook's alone.
+    const short = await request(app).post('/sync/push').set(AUTH(tokenA)).send({
+      settings: [{ key: 'ui_accent', value: 'x'.repeat(600), updated_at: '2026-07-30T11:00:00Z' }],
+    });
+    assert.deepEqual(short.body.settings.rejected, [{ id: 'ui_accent', reason: 'invalid' }]);
+  });
+
   test('pull returns the account settings on every page, cursor or not', async () => {
     await request(app).post('/sync/push').set(AUTH(tokenA)).send({
       settings: [{ key: 'owner_name', value: 'إدريس', updated_at: '2026-07-30T10:00:00Z' }],

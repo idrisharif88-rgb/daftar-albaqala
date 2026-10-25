@@ -1,4 +1,5 @@
 import { getStampedMeta, setMetaRaw } from './meta';
+import { adoptPrefs, seedPrefs } from './devicePrefs';
 
 // The account settings that travel with the account instead of with the phone:
 // the name a notification is signed with, and the exchange rates the riyal
@@ -22,6 +23,11 @@ export const SYNCABLE_KEYS = [
   'rate_USD',
   'rate_GOLD',
   'rates_updated_at',
+  // Device preferences (lib/prefKeys.ts): live in localStorage, mirrored here.
+  'ui_accent',
+  'ui_scale',
+  'biometric',
+  'updates_notebook',
 ] as const;
 
 /** One setting on the wire. `updated_at` is the phone clock that wrote it. */
@@ -45,10 +51,11 @@ function millis(iso: string): number {
 }
 
 /** Everything this device would like the account to know. Sent on every push:
- *  there are seven short strings, so there is nothing to gain by tracking which
+ *  there are a dozen values, so there is nothing to gain by tracking which
  *  of them changed, and sending them all means a device whose earlier push was
  *  lost repairs itself on the next run. */
 export async function getLocalSettings(): Promise<SettingRow[]> {
+  await seedPrefs();
   const stamped = await getStampedMeta([...SYNCABLE_KEYS]);
   const rows: SettingRow[] = [];
   for (const key of SYNCABLE_KEYS) {
@@ -74,7 +81,7 @@ export async function applyServerSettings(rows: SettingRow[]): Promise<number> {
   if (incoming.length === 0) return 0;
 
   const stamped = await getStampedMeta(incoming.map((r) => r.key));
-  let changed = 0;
+  const changed: string[] = [];
   for (const row of incoming) {
     if (row.value === null) continue;
     const local = stamped[row.key];
@@ -90,7 +97,8 @@ export async function applyServerSettings(rows: SettingRow[]): Promise<number> {
     // local edit, and re-dating it would let a value that has already lost an
     // argument win the next one.
     await setMetaRaw(row.key, row.value, remoteAt);
-    changed++;
+    changed.push(row.key);
   }
-  return changed;
+  await adoptPrefs(changed);
+  return changed.length;
 }
