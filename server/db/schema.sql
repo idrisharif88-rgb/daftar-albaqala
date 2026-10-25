@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE TABLE IF NOT EXISTS user_settings (
   user_id     CHAR(36)     NOT NULL,
   `key`       VARCHAR(64)  NOT NULL,
-  value       VARCHAR(512) NULL,
+  value       MEDIUMTEXT   NULL,                        -- (009) دفتر التحديثات أطول من 512
   updated_at  DATETIME     NOT NULL,                   -- ساعة الهاتف (للدمج)
 
   -- ساعة السيرفر (لا تُستخدم في المؤشّر، لكن للتتبّع والتشخيص)

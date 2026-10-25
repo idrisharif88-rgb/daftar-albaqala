@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonInput, IonSelect, IonSelectOption,
@@ -32,6 +32,7 @@ import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { numericInput } from '../lib/digits';
 import { useAppearance, ACCENT_NAMES } from '../theme/appearance';
 import { useAppScale } from '../lib/appScale';
+import { onPrefsArrived } from '../lib/prefKeys';
 import AppScaleSheet from '../components/AppScaleSheet';
 import BackupSection from '../components/BackupSection';
 import {
@@ -63,6 +64,9 @@ const Settings: React.FC = () => {
   const { scale, setScale } = useAppScale();
   const [scaleOpen, setScaleOpen] = useState(false);
   const [bioOn, setBioOn] = useState(biometricEnabled);
+  useEffect(() => onPrefsArrived((keys) => {
+    if (keys.includes('biometric')) setBioOn(biometricEnabled());
+  }), []);
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   // The printer invoices go to — chosen once here, used for every invoice:

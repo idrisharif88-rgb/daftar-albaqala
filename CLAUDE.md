@@ -1124,3 +1124,19 @@ until the owner manually activates, so an unverified account is inert).
 - **Secrets** live only in `server/.env` on the server (git-ignored). Never commit real passwords.
 - **Every** database query MUST filter by `user_id`.
 - Build in **vertical slices**: each step is verified working on the real server before moving on.
+
+## Status — BUILT (Phase 22: Google Cloud live + device prefs sync) (2026-10-25)
+- **Google Cloud project created** (owner's Gmail, External, published, scope `drive.appdata`,
+  branding → GitHub Pages privacy URL). Web client ID in `.env.production`; Android client =
+  `com.shopbookidris.app` + the laptop's **debug** SHA-1. A release/Play build needs its SHA-1
+  added as another Android client. Drive backup verified on the phone.
+- **Accent colour, display size, fingerprint lock and the updates notebook now sync with the
+  account** (`src/lib/prefKeys.ts`, `src/data/devicePrefs.ts`): still read from localStorage
+  (pre-paint), mirrored into `app_meta` under keys `ui_accent`/`ui_scale`/`biometric`/
+  `updates_notebook` and carried by the settings sync. Unsynced local values are seeded at the
+  epoch so they never beat a real edit elsewhere; the notebook seeds only into the owner's
+  account. Notebook = whole-value last-write-wins (no per-note merge).
+- ⚠️ **MIGRATION 009 REQUIRED** before deploying (`user_settings.value` → MEDIUMTEXT):
+  `sudo mysql -u root -p daftar_db < server/db/migrations/009_long_settings.sql`, then
+  `git pull` + `pm2 restart daftar-api`, THEN ship the APK (an old server refuses the new keys).
+  Applied locally to `daftar_test` ✓. Server tests 103/103, frontend 58/58.

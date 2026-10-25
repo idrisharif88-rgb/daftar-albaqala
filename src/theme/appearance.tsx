@@ -1,11 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { DEVICE_PREFS, onPrefsArrived, prefChanged } from '../lib/prefKeys';
 
 // The app's look: an accent colour and day/night — copied from «خماسيات».
 //
-//   - The COLOUR is the owner's choice, kept on this device (localStorage, not
-//     synced — like «حجم العرض», it is about this screen, not about the book).
+//   - The COLOUR is the owner's choice, kept in localStorage and synced with
+//     the account (lib/prefKeys.ts), so a new phone comes up in his colour.
 //     One tap in Settings moves to the next: green → gold → orange → green.
 //   - NIGHT follows the phone. On launch the app takes Android's dark-mode
 //     setting, and whenever the phone switches, the app switches with it. The
@@ -36,7 +37,7 @@ const BAR_COLOR: Record<Accent, string> = {
   orange: '#9a3412',
 };
 
-const ACCENT_KEY = 'daftar.accent';
+const ACCENT_KEY = DEVICE_PREFS.ui_accent;
 
 function loadAccent(): Accent {
   try {
@@ -85,6 +86,11 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   useEffect(() => { applyAppearance(accent, night); }, [accent, night]);
 
+  // The colour chosen on another phone, arriving with a sync.
+  useEffect(() => onPrefsArrived((keys) => {
+    if (keys.includes('ui_accent')) setAccent(loadAccent());
+  }), []);
+
   // Follow the phone: each time Android's dark mode flips, the app flips too —
   // even after the owner flipped it by hand.
   useEffect(() => {
@@ -105,6 +111,7 @@ export const AppearanceProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAccent((current) => {
       const next = nextAccent(current);
       try { localStorage.setItem(ACCENT_KEY, next); } catch { /* still applied */ }
+      prefChanged('ui_accent');
       return next;
     });
   }, []);
