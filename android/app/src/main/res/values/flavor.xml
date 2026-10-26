@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What differs between the two apps on the Android side. The contractor
+     flavor overrides these in src/contractor/res/values/flavor.xml. -->
+<resources>
+    <!-- Launch window + Android 12 splash colour; matches the opening screen. -->
+    <color name="splashBackground">#1B5E20</color>
+    <!-- false = NativeSplash draws the basket; true = it plays the flavor's
+         scene (public/splash/loader.html) in its own WebView. -->
+    <bool name="scene_splash">false</bool>
+</resources>

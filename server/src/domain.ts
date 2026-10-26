@@ -12,8 +12,17 @@ export const VALID_TXN_TYPES = new Set(['debt', 'payment']);
 export const VALID_CURRENCIES = new Set(['YER', 'SAR', 'USD', 'GOLD']);
 export const DEFAULT_CURRENCY = 'YER';
 
-// What a contact is to the owner of the book.
-export const VALID_ROLES = new Set(['customer', 'supplier', 'partner']);
+// What a contact is to the owner of the book. Two apps share this server, and
+// each has its own codes (src/flavors/ on the phone), so one account used in
+// both keeps two books that never mix:
+//   دفتر البقالة:  customer, supplier, partner
+//   دفتر المقاول: worker, client, broker, materials
+// A code missing here is rewritten to DEFAULT_ROLE on sync — which would move
+// a contractor's contact into the grocery book. Deploy this BEFORE the app.
+export const VALID_ROLES = new Set([
+  'customer', 'supplier', 'partner',
+  'worker', 'client', 'broker', 'materials',
+]);
 export const DEFAULT_ROLE = 'customer';
 
 // Settings that belong to the ACCOUNT and therefore sync between the owner's

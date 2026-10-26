@@ -7,7 +7,8 @@ const config: CapacitorConfig = {
   // Brand green behind the page. The WebView itself is held invisible until
   // its first frame is ready (MainActivity.holdWebViewUntilPainted), so the
   // launch window's basket is what shows meanwhile — never black, never white.
-  backgroundColor: '#1b5e20',
+  // Per app: `npm run android:contractor` runs `cap sync` with VITE_FLAVOR set.
+  backgroundColor: process.env.VITE_FLAVOR === 'contractor' ? '#2B2B2B' : '#1b5e20',
   plugins: {
     // Route fetch/XHR through native HTTP instead of the WebView, so calls to
     // the droplet (https://shopbook.shahed.uk) aren't blocked by CORS. The dev

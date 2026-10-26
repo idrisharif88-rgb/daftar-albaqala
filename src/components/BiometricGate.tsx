@@ -4,6 +4,7 @@ import { fingerPrint, keypadOutline } from 'ionicons/icons';
 import { App as CapacitorApp } from '@capacitor/app';
 import { useAuth } from '../lib/auth';
 import { whenSplashDone } from './SplashIntro';
+import { FLAVOR } from '../flavors';
 import {
   biometricEnabled, unlockMethods, verifyFinger, verifyDevicePin, BiometricCancelled,
   consumeExpectedReturn,
@@ -104,7 +105,7 @@ const BiometricGate: React.FC = () => {
     <div className="bio-gate" dir="rtl">
       <div className="bio-gate__box">
         <IonIcon icon={fingerPrint} className="bio-gate__icon" />
-        <h1>دفتر البقالة</h1>
+        <h1>{FLAVOR.appName}</h1>
         <p>الدفتر مقفل</p>
         {error && <p className="bio-gate__error">{error}</p>}
         {methods.finger && (

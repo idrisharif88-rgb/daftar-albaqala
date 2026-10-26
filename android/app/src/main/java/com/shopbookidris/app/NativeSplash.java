@@ -43,10 +43,17 @@ final class NativeSplash {
     private static final long SHOW_MS = 3600;   // basket + name, then the sample book
     private static final long GIVE_UP_MS = 8000; // a page that never reports in
 
+    // A flavor's own scene (R.bool.scene_splash): a self-contained HTML file
+    // from the web build, played in a WebView of its own. SCENE_MS must match
+    // `scene.ms` in src/flavors/ — the file's timeline is 6 s.
+    private static final String SCENE_URL = "file:///android_asset/public/splash/loader.html";
+    private static final long SCENE_MS = 6200;
+
     private final Activity activity;
     private final Bridge bridge;
     private final long startedAt = System.currentTimeMillis();
     private FrameLayout overlay;
+    private WebView sceneWeb;
     private boolean pageReady = false;
     private boolean shown = false;
     private boolean leaving = false;
@@ -62,7 +69,9 @@ final class NativeSplash {
 
     private void start() {
         ViewGroup content = activity.findViewById(android.R.id.content);
-        overlay = build();
+        boolean scene = activity.getResources().getBoolean(R.bool.scene_splash);
+        long showMs = scene ? SCENE_MS : SHOW_MS;
+        overlay = scene ? buildScene() : build();
         content.addView(overlay, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -73,8 +82,9 @@ final class NativeSplash {
                 view.postDelayed(() -> { pageReady = true; maybeLeave(); }, 200);
             }
         });
-        overlay.postDelayed(() -> { shown = true; maybeLeave(); }, SHOW_MS);
-        overlay.postDelayed(() -> { pageReady = true; shown = true; maybeLeave(); }, GIVE_UP_MS);
+        overlay.postDelayed(() -> { shown = true; maybeLeave(); }, showMs);
+        overlay.postDelayed(() -> { pageReady = true; shown = true; maybeLeave(); },
+                Math.max(GIVE_UP_MS, showMs + 2000));
     }
 
     private void maybeLeave() {
@@ -83,6 +93,7 @@ final class NativeSplash {
         overlay.animate().alpha(0f).setDuration(350).withEndAction(() -> {
             ViewGroup parent = (ViewGroup) overlay.getParent();
             if (parent != null) parent.removeView(overlay);
+            if (sceneWeb != null) { sceneWeb.destroy(); sceneWeb = null; }
             // The fingerprint lock waits for this (whenSplashDone, SplashIntro.tsx).
             bridge.getWebView().evaluateJavascript(
                     "window.__nativeSplashDone=true;"
@@ -121,6 +132,28 @@ final class NativeSplash {
         t.setTypeface(face);
         t.setIncludeFontPadding(false);
         return t;
+    }
+
+    /**
+     * The scene splash. Its own WebView, not the app's: the app's page takes
+     * ~1.5 s to start, while this file is pure CSS and paints at once. Until it
+     * does, the overlay shows the scene's own background colour, which is also
+     * the launch window's — so there is still nothing to flash.
+     */
+    private FrameLayout buildScene() {
+        int bg = activity.getResources().getColor(R.color.splashBackground, null);
+        FrameLayout root = new FrameLayout(activity);
+        root.setBackgroundColor(bg);
+        root.setClickable(true);
+        WebView web = sceneWeb = new WebView(activity);
+        web.setBackgroundColor(bg);
+        web.setVerticalScrollBarEnabled(false);
+        web.setHorizontalScrollBarEnabled(false);
+        web.setOnTouchListener((v, e) -> true); // a picture, not a page
+        web.loadUrl(SCENE_URL);
+        root.addView(web, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        return root;
     }
 
     private FrameLayout build() {

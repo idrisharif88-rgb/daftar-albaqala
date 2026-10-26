@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth';
 import { openWhatsApp } from '../lib/notify';
 import { GOOGLE_ENABLED, linkedEmail, unlinkGoogle } from '../lib/googleDrive';
 import { backupNow, restoreBackup, lastBackupAt } from '../data/driveBackup';
+import { FLAVOR } from '../flavors';
 
 // The owner's WhatsApp — where «طلب نسخة من بياناتي» goes. Same number as the
 // activation request in Settings.
@@ -44,7 +45,7 @@ const BackupSection: React.FC<{ senderName: string }> = ({ senderName }) => {
   const requestCopy = async () => {
     const who = senderName ? `\nالاسم: ${senderName}` : '';
     const opened = await openWhatsApp(
-      OWNER_WHATSAPP, `مرحباً، أرجو إرسال نسخة من بياناتي في تطبيق دفتر البقالة.${who}`,
+      OWNER_WHATSAPP, `مرحباً، أرجو إرسال نسخة من بياناتي في تطبيق ${FLAVOR.appName}.${who}`,
     );
     if (!opened) {
       await presentToast({ message: 'واتساب غير مثبّت على هذا الجهاز', color: 'warning', duration: 2500 });

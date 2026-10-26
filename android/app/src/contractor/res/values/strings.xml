@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- دفتر المقاول — overrides src/main/res/values/strings.xml for the contractor flavor. -->
+<resources>
+    <string name="app_name">دفتر المقاول</string>
+    <string name="title_activity_main">دفتر المقاول</string>
+    <string name="package_name">com.shopbookidris.contractor</string>
+    <string name="custom_url_scheme">com.shopbookidris.contractor</string>
+</resources>

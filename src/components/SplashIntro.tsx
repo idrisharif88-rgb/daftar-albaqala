@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import './SplashIntro.css';
+import { FLAVOR } from '../flavors';
 
 // The animated opening screen, played once per launch, over everything.
 //
@@ -46,8 +47,11 @@ if (NATIVE) {
   setTimeout(() => resolveDone(), 10000);
 }
 
-// Once per launch: a hot reload or a remount must not replay it.
+// Once per launch: a hot reload or a remount must not replay it. The clock is
+// shared too — React's development mode runs the effect twice, and a second
+// run that skipped the timers left the intro on screen for good.
 let played = NATIVE;
+let startedAt = 0;
 
 const SplashIntro: React.FC = () => {
   const [phase, setPhase] = useState<'showing' | 'leaving' | 'gone'>(
@@ -58,15 +62,28 @@ const SplashIntro: React.FC = () => {
     // The plain green placeholder in index.html has done its job.
     document.getElementById('boot-splash')?.remove();
     if (NATIVE) return;
-    if (played) { resolveDone(); return; }
     played = true;
-    const show = reducedMotion() ? 300 : SHOW_MS;
-    const leave = setTimeout(() => setPhase('leaving'), show);
-    const gone = setTimeout(() => { setPhase('gone'); resolveDone(); }, show + FADE_MS);
+    startedAt ||= Date.now();
+    const elapsed = Date.now() - startedAt;
+    const show = reducedMotion() ? 300 : FLAVOR.scene?.ms ?? SHOW_MS;
+    const leave = setTimeout(() => setPhase('leaving'), Math.max(0, show - elapsed));
+    const gone = setTimeout(() => { setPhase('gone'); resolveDone(); },
+      Math.max(0, show + FADE_MS - elapsed));
     return () => { clearTimeout(leave); clearTimeout(gone); resolveDone(); };
   }, []);
 
   if (phase === 'gone') return null;
+
+  if (FLAVOR.scene) {
+    return (
+      <div
+        className={`splash-intro splash-intro--scene${phase === 'leaving' ? ' splash-intro--leaving' : ''}`}
+        aria-hidden="true"
+      >
+        <iframe src={FLAVOR.scene.src} title="" tabIndex={-1} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -82,8 +99,8 @@ const SplashIntro: React.FC = () => {
         </svg>
       </div>
       <div className="splash-intro__below">
-        <h1 className="splash-intro__name">دفتر البقالة</h1>
-        <p className="splash-intro__tag">ديونك ودفعاتك، في دفتر واحد</p>
+        <h1 className="splash-intro__name">{FLAVOR.appName}</h1>
+        <p className="splash-intro__tag">{FLAVOR.tagline}</p>
         <div className="splash-intro__bar"><span /></div>
       </div>
 

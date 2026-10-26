@@ -1,5 +1,5 @@
 import { getManyMeta, setManyMeta } from './meta';
-import { DEFAULT_ROLE, isContactRole, type ContactRole } from './roles';
+import { DEFAULT_ROLE, isContactRole, isVisibleRole, type ContactRole } from './roles';
 
 // App settings live in the `app_meta` key/value table (same store as the sync
 // cursor and the exchange rates).
@@ -48,7 +48,8 @@ export async function getSettings(): Promise<Settings> {
     language: meta[KEYS.language] ?? DEFAULTS.language,
     // Only an explicit '0' disables it; missing key = default ON.
     notifyCustomers: meta[KEYS.notifyCustomers] !== '0',
-    defaultRole: isContactRole(role) ? role : DEFAULTS.defaultRole,
+    // A default saved by the other build is not one this build can offer.
+    defaultRole: isContactRole(role) && isVisibleRole(role) ? role : DEFAULTS.defaultRole,
   };
 }
 

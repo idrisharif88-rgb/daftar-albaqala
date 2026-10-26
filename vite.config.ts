@@ -2,13 +2,30 @@
 
 import legacy from '@vitejs/plugin-legacy'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
+
+// index.html is the grocery build's. For the contractor build, swap what is
+// painted before any script runs — the name, and the green basket placeholder
+// (its scene opens on dark grey, so a green flash would come first).
+function contractorHtml(): Plugin {
+  return {
+    name: 'contractor-html',
+    transformIndexHtml(html) {
+      if (process.env.VITE_FLAVOR !== 'contractor') return html
+      return html
+        .replaceAll('دفتر البقالة', 'دفتر المقاول')
+        .replace(/<div id="boot-splash"[\s\S]*?<\/svg>\s*<\/div>\s*<\/div>/,
+          '<div id="boot-splash" style="position:fixed;inset:0;z-index:300000;background:#2B2B2B"></div>')
+    },
+  }
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
-    legacy()
+    legacy(),
+    contractorHtml(),
   ],
   // jeep-sqlite is a Stencil component that lazy-loads its own chunks; Vite's
   // dep pre-bundler mangles them ("file does not exist in deps directory").
