@@ -1201,5 +1201,15 @@ Branch `two-builds`. Not yet device-tested, server change not yet deployed.
   - ⚠️ Lesson: a new package id needs its OWN Google OAuth client, and anything keyed by the
     Google project (Drive appDataFolder) or the account (synced settings) is shared between
     the apps unless given its own key.
+- **Activation per app (2026-10-26, migration 010):** one login (phone + password) works in
+  both apps, but each app is activated on its own. Every request carries `X-App` (`FLAVOR.id`,
+  `src/lib/api.ts`); `requireSubscription` reads `subscription_status` for grocery (or no
+  header — older builds) and `users.contractor_status` for contractor. `suspended` still blocks
+  the whole account in both. Watcher: «تفعيل المقاول» per account
+  (`POST /admin/users/:id/status {app:'contractor', status:'active'|'none'}`).
+  ⚠️ After deploying, every account — the owner's too — starts NOT activated for the contractor
+  app until switched on in the Watcher.
+- **Auto-sync heartbeat:** the `online` event never fired after airplane mode on the Note 9;
+  while the last run was `offline`/`error`, AutoSync retries every 15 s with the app visible.
 - **Still to do for the contractor app:** release + Play Google OAuth clients, signing/versioning
   for release, a Play listing, and the owner's review of the role wording in `src/flavors/contractor.ts`.

@@ -12,7 +12,16 @@ type Row = Record<string, unknown>;
 // has not expired (subscription_expires_at is null = no expiry, or in the future).
 // Otherwise we refuse with 402 Payment Required so the app can prompt to subscribe.
 //
+// TWO APPS, one account: each app sends `X-App` and is activated on its own.
+// «دفتر البقالة» (no header — every older build) reads subscription_status;
+// «دفتر المقاول» reads contractor_status. A suspended account is refused in
+// both — suspension is of the person, not of one app.
+//
 // Must sit AFTER requireAuth (needs req.userId).
+export function appOf(req: { headers: Record<string, unknown> }): 'grocery' | 'contractor' {
+  return req.headers['x-app'] === 'contractor' ? 'contractor' : 'grocery';
+}
+
 export async function requireSubscription(
   req: AuthedRequest,
   res: Response,
@@ -20,7 +29,7 @@ export async function requireSubscription(
 ) {
   try {
     const [rows] = await pool.query(
-      'SELECT subscription_status, subscription_expires_at FROM users WHERE id = ?',
+      'SELECT subscription_status, subscription_expires_at, contractor_status FROM users WHERE id = ?',
       [req.userId]
     );
     const user = (rows as Row[])[0];
@@ -28,8 +37,12 @@ export async function requireSubscription(
       return res.status(401).json({ error: 'user not found' });
     }
 
-    const status = user.subscription_status;
-    const expiresAt = user.subscription_expires_at
+    const contractor = appOf(req) === 'contractor';
+    const status = user.subscription_status === 'suspended' ? 'suspended'
+      : contractor ? user.contractor_status : user.subscription_status;
+    // The expiry date belongs to the grocery subscription; the contractor
+    // app's activation has none (the owner switches it on and off by hand).
+    const expiresAt = !contractor && user.subscription_expires_at
       ? new Date(user.subscription_expires_at as string)
       : null;
     const expired = expiresAt !== null && expiresAt.getTime() <= Date.now();

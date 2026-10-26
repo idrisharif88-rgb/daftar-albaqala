@@ -5,7 +5,9 @@ import {
   IonSpinner, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
 import { logOutOutline, refreshOutline } from 'ionicons/icons';
-import { Account, ApiError, Status, listAccounts, setAccountStatus, setDriveBackup } from '../lib/api';
+import {
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup,
+} from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
@@ -111,6 +113,54 @@ const Accounts: React.FC = () => {
     } finally {
       setBusyId(null);
     }
+  };
+
+  // «دفتر المقاول» is activated on its own — one login, two apps, two
+  // activations. Same gate as every other change: confirm, then a fresh code.
+  const doContractor = async (a: Account, active: boolean, code: string) => {
+    setBusyId(a.id);
+    try {
+      await setContractorStatus(a.id, active, code);
+      presentToast({
+        message: active ? 'تم تفعيل دفتر المقاول' : 'تم إلغاء تفعيل دفتر المقاول',
+        duration: 1800,
+        color: active ? 'success' : 'medium',
+      });
+      await load();
+    } catch (err) {
+      presentToast({
+        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        duration: 2500,
+        color: 'danger',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const changeContractor = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const activating = a.contractor_status !== 'active';
+    presentAlert({
+      header: 'دفتر المقاول',
+      message: activating
+        ? `تفعيل «دفتر المقاول» لـ«${who}»؟ تعمل مزامنته، ودفتر البقالة يبقى كما هو.`
+        : `إلغاء تفعيل «دفتر المقاول» لـ«${who}»؟ تتوقف مزامنته فقط. بياناته تبقى محفوظة.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: activating ? 'تفعيل' : 'إلغاء التفعيل',
+          role: activating ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('دفتر المقاول').then((code) => {
+                if (code) void doContractor(a, activating, code);
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
   };
 
   // Google Drive backup: an extra granted per account. Same gate as every other
@@ -241,7 +291,12 @@ const Accounts: React.FC = () => {
                   <div className="acct__name">{a.store_name || 'بدون اسم'}</div>
                   <div className="acct__phone">{a.phone}</div>
                 </div>
-                <span className={`badge badge--${s}`}>{STATUS_AR[s]}</span>
+                <div className="acct__badges">
+                  <span className={`badge badge--${s}`}>{STATUS_AR[s]}</span>
+                  {a.contractor_status === 'active' && s !== 'suspended' && (
+                    <span className="badge badge--contractor">المقاول مفعّل</span>
+                  )}
+                </div>
               </div>
               <div className="acct__meta">
                 جهات: {a.customers_count} · حركات: {a.transactions_count}
@@ -267,6 +322,17 @@ const Accounts: React.FC = () => {
                     onClick={() => change(a, 'suspended')}
                   >
                     إيقاف
+                  </IonButton>
+                )}
+                {s !== 'suspended' && (
+                  <IonButton
+                    size="small"
+                    fill={a.contractor_status === 'active' ? 'solid' : 'outline'}
+                    color="warning"
+                    disabled={busyId === a.id}
+                    onClick={() => changeContractor(a)}
+                  >
+                    {a.contractor_status === 'active' ? 'المقاول: مفعّل' : 'تفعيل المقاول'}
                   </IonButton>
                 )}
                 <IonButton

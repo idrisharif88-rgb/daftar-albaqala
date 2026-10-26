@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_status      ENUM('none','active','expired','suspended') NOT NULL DEFAULT 'none',
   subscription_expires_at  DATETIME        NULL,
   drive_backup             TINYINT(1)      NOT NULL DEFAULT 0,       -- نسخ Google Drive: يمنحه المالك (008)
+  contractor_status        VARCHAR(16)     NOT NULL DEFAULT 'none',  -- تفعيل «دفتر المقاول» (010)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,

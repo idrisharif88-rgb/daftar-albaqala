@@ -18,7 +18,7 @@ import SplashIntro from './components/SplashIntro';
 import { FLAVOR } from './flavors';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
-import { runSync } from './data/sync';
+import { getSyncHealth, runSync } from './data/sync';
 import { dailyBackupIfDue } from './data/driveBackup';
 import { GOOGLE_ENABLED, linkedEmail } from './lib/googleDrive';
 
@@ -55,21 +55,20 @@ const AutoSync: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     void runSync();
-    // Android reports «online» the moment the radio is back, a few seconds
-    // before DNS and routes actually work — so the first try usually fails and
-    // left the warning triangle up until a manual tap. Retry a few times,
-    // stopping at the first run that gets through.
-    const RETRY_MS = [3000, 8000, 20000];
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const attempt = async (i: number) => {
-      const { status } = await runSync();
-      if ((status === 'offline' || status === 'error') && i < RETRY_MS.length) {
-        timer = setTimeout(() => void attempt(i + 1), RETRY_MS[i]);
-      }
-    };
-    const onOnline = () => { clearTimeout(timer); void attempt(0); };
+    const onOnline = () => void runSync();
     window.addEventListener('online', onOnline);
-    return () => { clearTimeout(timer); window.removeEventListener('online', onOnline); };
+    // The `online` event alone is not enough: on the owner's Note 9 it never
+    // fired after airplane mode, and the warning triangle stayed up until a
+    // tap. So while the last run failed for lack of a network, try again every
+    // 15 s — only with the app on screen, and never for a refusal (402) or a
+    // partial push, which retrying would not fix.
+    const heartbeat = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void getSyncHealth().then((h) => {
+        if (h.status === 'offline' || h.status === 'error') void runSync();
+      });
+    }, 15000);
+    return () => { clearInterval(heartbeat); window.removeEventListener('online', onOnline); };
   }, [isAuthenticated]);
   return null;
 };

@@ -76,6 +76,9 @@ export interface Account {
   subscription_expires_at: string | null;
   /** Google Drive backup — an extra the owner grants per account. */
   drive_backup: boolean;
+  /** «دفتر المقاول»'s own activation ('active' | 'none'); subscription_status
+   *  is the grocery app's, and 'suspended' there blocks both apps. */
+  contractor_status: string;
   created_at: string;
   customers_count: number;
   transactions_count: number;
@@ -92,6 +95,13 @@ export function adminLogin(phone: string, password: string, code: string): Promi
 export async function listAccounts(): Promise<Account[]> {
   const res = await request<{ users: Account[] }>('/admin/users');
   return res.users;
+}
+
+export function setContractorStatus(id: string, active: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ app: 'contractor', status: active ? 'active' : 'none', code }),
+  });
 }
 
 export function setAccountStatus(id: string, status: 'active' | 'suspended', code: string): Promise<unknown> {
