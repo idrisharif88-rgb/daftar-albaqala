@@ -7,8 +7,8 @@ android {
         applicationId "com.shopbookidris.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
-        versionName "1.9"
+        versionCode 11
+        versionName "2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -39,6 +39,27 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+// Each app's web screens live in its own source set (src/<flavor>/assets),
+// moved there by scripts/flavor-assets.sh. Refuse to build a variant whose
+// screens are missing or belong to the other app — and refuse while a stray
+// copy sits in the shared main/assets, which would end up inside BOTH apps.
+android.applicationVariants.all { variant ->
+    def flavor = variant.flavorName
+    def check = tasks.register("check${variant.name.capitalize()}WebScreens") {
+        def label = file("src/${flavor}/assets/flavor.txt")
+        def stray = file("src/main/assets/public")
+        doLast {
+            if (stray.exists()) {
+                throw new GradleException("Web screens found in src/main/assets — run: npm run android:${flavor}")
+            }
+            if (!label.exists() || label.text.trim() != flavor) {
+                throw new GradleException("No ${flavor} web screens in src/${flavor}/assets — run: npm run android:${flavor}")
+            }
+        }
+    }
+    variant.mergeAssetsProvider.configure { dependsOn check }
 }
 
 repositories {
