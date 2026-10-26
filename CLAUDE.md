@@ -1181,6 +1181,25 @@ Branch `two-builds`. Not yet device-tested, server change not yet deployed.
   background from `VITE_FLAVOR` (so `android:contractor` runs `cap sync` with it set).
 - **Fixed in passing:** the web intro never closed under `npm run dev` (React StrictMode ran
   its effect twice; the second run skipped the timers). Dev only — APKs were unaffected.
-- **Still to do for the contractor app:** its own launcher icon, a Google Android
-  OAuth client for `com.shopbookidris.contractor` (Drive backup fails without it), a Play
-  listing, and the owner's review of the role wording in `src/flavors/contractor.ts`.
+- **Round 2 (2026-10-26, device-tested on the Note 9):**
+  - **Two books, kept apart everywhere:** phone uniqueness, invoice/notice numbers
+    (`docNumber.ts`), the Drive backup file (`FLAVOR.driveBackupFile`) and the store/owner
+    name (`FLAVOR.nameKeys` → `contractor_store_name` / `contractor_owner_name`, on the server
+    allowlist too — **deploy the server before the app**). Display size, fingerprint lock and
+    rates stay shared on purpose.
+  - **Contractor wording:** contact-facing labels + `balanceSentence` per role
+    («المقاول مدين لك بـ … من أجرك»), the same in WhatsApp, SMS and the printed receipt.
+  - **Icon:** front-view loader, bucket raised with sand (contractor `res/`).
+  - **Speed:** a contact's history, the price list and the invoice draw 50 rows at a time
+    (`IonInfiniteScroll`); invoice rows are memoised. Cause was rendering — 422 rows on one
+    contact — not memory or the DB.
+  - **Sync:** after `online`, retries at 3/8/20 s (Android reports online before DNS works).
+  - **Watcher:** knows the contractor roles; each account's book has a tab per app; export
+    is per tab.
+  - **Google:** Android OAuth client `daftar-contractor-debug` created (debug SHA-1). Release +
+    Play clients still needed before publishing.
+  - ⚠️ Lesson: a new package id needs its OWN Google OAuth client, and anything keyed by the
+    Google project (Drive appDataFolder) or the account (synced settings) is shared between
+    the apps unless given its own key.
+- **Still to do for the contractor app:** release + Play Google OAuth clients, signing/versioning
+  for release, a Play listing, and the owner's review of the role wording in `src/flavors/contractor.ts`.

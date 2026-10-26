@@ -55,9 +55,21 @@ const AutoSync: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated) return;
     void runSync();
-    const onOnline = () => void runSync();
+    // Android reports «online» the moment the radio is back, a few seconds
+    // before DNS and routes actually work — so the first try usually fails and
+    // left the warning triangle up until a manual tap. Retry a few times,
+    // stopping at the first run that gets through.
+    const RETRY_MS = [3000, 8000, 20000];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = async (i: number) => {
+      const { status } = await runSync();
+      if ((status === 'offline' || status === 'error') && i < RETRY_MS.length) {
+        timer = setTimeout(() => void attempt(i + 1), RETRY_MS[i]);
+      }
+    };
+    const onOnline = () => { clearTimeout(timer); void attempt(0); };
     window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
+    return () => { clearTimeout(timer); window.removeEventListener('online', onOnline); };
   }, [isAuthenticated]);
   return null;
 };

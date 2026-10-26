@@ -110,7 +110,11 @@ export function setDriveBackup(id: string, enabled: boolean, code: string): Prom
 
 // ---- One account's book (slice 2) ----
 
-export type Role = 'customer' | 'supplier' | 'partner';
+// One account can keep two books: «دفتر البقالة» and «دفتر المقاول» each have
+// their own role codes (src/flavors/ in the shop app).
+export type Role =
+  | 'customer' | 'supplier' | 'partner'
+  | 'worker' | 'client' | 'broker' | 'materials';
 export type TxnType = 'debt' | 'payment';
 
 export interface Balance {
@@ -218,6 +222,9 @@ export interface BookExport {
   customers: ExportedContact[];
   transactions: ExportedEntry[];
   exported_at: string;
+  /** Set by the Watcher, not the server: which of the account's two books
+   *  this file holds — «دفتر البقالة» or «دفتر المقاول». */
+  book_label?: string;
 }
 
 export function exportBook(userId: string): Promise<BookExport> {

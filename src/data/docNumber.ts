@@ -1,5 +1,6 @@
 import { getDB } from './db';
 import { getMeta, setMeta } from './meta';
+import { VISIBLE_ROLE_CODES } from './roles';
 
 // The numbers this book hands out — «رقم الفاتورة» and «رقم الإشعار».
 //
@@ -41,12 +42,17 @@ const INVOICE: Series = { key: 'invoice_seq', prefix: 'فاتورة رقم ' };
 const NOTICE: Series = { key: 'notice_seq', prefix: 'إشعار رقم ' };
 
 /** The highest number of this series the ledger itself can account for.
- *  Survives a reinstall, because the entries are pulled back from the server. */
+ *  Survives a reinstall, because the entries are pulled back from the server.
+ *  Only THIS app's book counts: one account used in both apps syncs the other
+ *  app's entries down too, and its numbers are another book's series. */
 async function highestInLedger(series: Series): Promise<number> {
   const db = await getDB();
+  const marks = VISIBLE_ROLE_CODES.map(() => '?').join(', ');
   const res = await db.query(
-    `SELECT note FROM transactions WHERE note LIKE ?`,
-    [`${series.prefix}%`],
+    `SELECT t.note FROM transactions t
+       JOIN customers c ON c.id = t.customer_id
+      WHERE t.note LIKE ? AND c.role IN (${marks})`,
+    [`${series.prefix}%`, ...VISIBLE_ROLE_CODES],
   );
   const pattern = new RegExp(`^${series.prefix}(\\d+)`);
   let highest = 0;

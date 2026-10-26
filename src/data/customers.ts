@@ -62,13 +62,17 @@ export async function getCustomer(id: string): Promise<Customer | null> {
   return row ? toCustomer(row) : null;
 }
 
-// True if an active customer already uses this phone (excluding `exceptId`).
+// True if an active contact IN THIS BUILD's book already uses this phone
+// (excluding `exceptId`). The other app's book doesn't count: the same person
+// can be a grocer's customer and a contractor's worker, and a number hidden
+// from this screen must not block it with a duplicate nobody can see.
 export async function phoneExists(phone: string, exceptId?: string): Promise<boolean> {
   const db = await getDB();
+  const marks = VISIBLE_ROLE_CODES.map(() => '?').join(', ');
   const res = await db.query(
     `SELECT id FROM customers
-      WHERE phone = ? AND deleted_at IS NULL AND id <> ?`,
-    [phone, exceptId ?? '']
+      WHERE phone = ? AND deleted_at IS NULL AND id <> ? AND role IN (${marks})`,
+    [phone, exceptId ?? '', ...VISIBLE_ROLE_CODES]
   );
   return (res.values ?? []).length > 0;
 }

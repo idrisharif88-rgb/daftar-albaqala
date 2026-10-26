@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonIcon,
   IonSearchbar, IonNote, IonFooter, IonLoading, IonModal, IonChip,
   IonItemSliding, IonItemOptions, IonItemOption,
+  IonInfiniteScroll, IonInfiniteScrollContent,
   useIonViewWillEnter, useIonAlert, useIonRouter, useIonToast,
 } from '@ionic/react';
 import {
@@ -52,6 +53,42 @@ import type { InvoiceLine } from '../lib/receipt';
 // in full first, as an invoice, and only «تأكيد» opens the two ways of
 // recording it.
 
+
+// Rows of the price list drawn per page.
+const LIST_PAGE = 50;
+
+// One line of the price list with its ± stepper. Memoised: a tap changes one
+// count, and redrawing every row of a long list for it made the stepper lag on
+// the owner's phone.
+const InvoiceRow = memo(function InvoiceRow({ item, count, onBump }: {
+  item: Item;
+  count: number;
+  onBump: (item: Item, delta: number) => void;
+}) {
+  return (
+    <IonItem>
+      <IonLabel>
+        <h2>{item.name}</h2>
+        <p>{formatAmount(item.price, item.currency)}</p>
+      </IonLabel>
+      <div slot="end" className="qty-stepper">
+        <IonButton
+          fill="clear"
+          onClick={() => onBump(item, -1)}
+          disabled={count === 0}
+          aria-label="إنقاص"
+        >
+          <IonIcon slot="icon-only" icon={removeCircle} />
+        </IonButton>
+        <span className="qty-stepper__count">{count}</span>
+        <IonButton fill="clear" onClick={() => onBump(item, 1)} aria-label="زيادة">
+          <IonIcon slot="icon-only" icon={addCircle} />
+        </IonButton>
+      </div>
+    </IonItem>
+  );
+});
+
 const Invoice: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const router = useIonRouter();
@@ -60,6 +97,10 @@ const Invoice: React.FC = () => {
   const [groups, setGroups] = useState<ItemGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // Rows drawn so far: the first page, then more on scroll — the same reason as
+  // the contact's history (a long list drawn at once is slow on an old phone).
+  // Search still looks through the whole list.
+  const [shown, setShown] = useState(LIST_PAGE);
   const [busy, setBusy] = useState<string | null>(null);
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [presentAlert] = useIonAlert();
@@ -135,6 +176,11 @@ const Invoice: React.FC = () => {
       return copy;
     });
   };
+  // A stable handle on the latest `bump`, so the memoised rows below keep the
+  // same prop and only the row whose count changed redraws on a tap.
+  const bumpRef = useRef(bump);
+  bumpRef.current = bump;
+  const onBump = useCallback((item: Item, delta: number) => bumpRef.current(item, delta), []);
 
   const clearBasket = () => {
     setQty({});
@@ -289,7 +335,7 @@ const Invoice: React.FC = () => {
         currency: invoiceCurrency,
         issuedAt,
         rates,
-        balanceLines: printedBalanceLines(balances, rates),
+        balanceLines: printedBalanceLines(balances, rates, role),
       }, target);
     } catch (err) {
       presentAlert({
@@ -435,33 +481,19 @@ const Invoice: React.FC = () => {
             <p className="ion-text-center ion-padding">الصنف غير مسجل</p>
           </IonText>
         ) : (
+          <>
           <IonList>
-            {visible.map((item) => {
-              const count = qty[item.id] ?? 0;
-              return (
-                <IonItem key={item.id}>
-                  <IonLabel>
-                    <h2>{item.name}</h2>
-                    <p>{formatAmount(item.price, item.currency)}</p>
-                  </IonLabel>
-                  <div slot="end" className="qty-stepper">
-                    <IonButton
-                      fill="clear"
-                      onClick={() => bump(item, -1)}
-                      disabled={count === 0}
-                      aria-label="إنقاص"
-                    >
-                      <IonIcon slot="icon-only" icon={removeCircle} />
-                    </IonButton>
-                    <span className="qty-stepper__count">{count}</span>
-                    <IonButton fill="clear" onClick={() => bump(item, 1)} aria-label="زيادة">
-                      <IonIcon slot="icon-only" icon={addCircle} />
-                    </IonButton>
-                  </div>
-                </IonItem>
-              );
-            })}
+            {visible.slice(0, shown).map((item) => (
+              <InvoiceRow key={item.id} item={item} count={qty[item.id] ?? 0} onBump={onBump} />
+            ))}
           </IonList>
+          <IonInfiniteScroll
+            disabled={shown >= visible.length}
+            onIonInfinite={(e) => { setShown((n) => n + LIST_PAGE); void e.target.complete(); }}
+          >
+            <IonInfiniteScrollContent />
+          </IonInfiniteScroll>
+          </>
         )}
 
         <IonLoading isOpen={busy !== null} message={busy ?? ''} />

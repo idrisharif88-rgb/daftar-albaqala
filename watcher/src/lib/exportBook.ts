@@ -138,6 +138,7 @@ export async function exportBookToFile(book: BookExport): Promise<void> {
   }
   totalsData.push([]);
   totalsData.push([text('الحساب'), text(book.account.store_name || book.account.phone)]);
+  if (book.book_label) totalsData.push([text('الدفتر'), text(book.book_label)]);
   totalsData.push([text('تاريخ النسخة'), text(dateTime(book.exported_at))]);
 
   const sheets = [
@@ -160,5 +161,6 @@ export async function exportBookToFile(book: BookExport): Promise<void> {
   const blob = await writeXlsxFile(sheets, { fontFamily: 'Arial', fontSize: 11 }).toBlob();
 
   const who = safeName(book.account.store_name || book.account.phone) || 'حساب';
-  await deliverFile(blob, `دفتر-${who}-${today()}.xlsx`, `دفتر ${who}`);
+  const label = book.book_label ?? 'دفتر';
+  await deliverFile(blob, `${safeName(label)}-${who}-${today()}.xlsx`, `${label} — ${who}`);
 }

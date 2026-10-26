@@ -251,7 +251,7 @@ function paginate(blocks: Block[]): Block[][] {
 function drawPageHeader(ctx: Ctx, book: BookExport, issuedAt: string): void {
   const who = book.account.store_name || book.account.phone;
   text(ctx, who, PAGE_W / 2, 84, { size: 42, bold: true, color: GREEN });
-  text(ctx, 'نسخة من الدفتر', PAGE_W / 2, 138, { size: 26, color: MUTED });
+  text(ctx, `نسخة من ${book.book_label ?? 'الدفتر'}`, PAGE_W / 2, 138, { size: 26, color: MUTED });
   const right = PAGE_W - MARGIN;
   text(ctx, `الهاتف: ${book.account.phone}`, right, 190, { size: 22, align: 'right' });
   text(ctx, `تاريخ الإصدار: ${issuedAt}`, MARGIN, 190, { size: 22, align: 'left' });
@@ -331,7 +331,7 @@ export async function exportBookToPdf(book: BookExport): Promise<void> {
   const who = safeName(book.account.store_name || book.account.phone) || 'حساب';
   await deliverFile(
     pdf.output('datauristring').split(',')[1],
-    `دفتر-${who}-${today()}.pdf`,
-    `دفتر ${who}`,
+    `${safeName(book.book_label ?? 'دفتر')}-${who}-${today()}.pdf`,
+    `${book.book_label ?? 'دفتر'} — ${who}`,
   );
 }

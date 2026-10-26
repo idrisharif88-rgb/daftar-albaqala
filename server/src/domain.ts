@@ -38,6 +38,10 @@ export const DEFAULT_ROLE = 'customer';
 export const SYNCABLE_SETTING_KEYS = new Set([
   'store_name',
   'owner_name',
+  // «دفتر المقاول»'s own names: one account used in both apps must not sign a
+  // contractor's messages with the grocery's store name.
+  'contractor_store_name',
+  'contractor_owner_name',
   'language',
   'rate_SAR',
   'rate_USD',

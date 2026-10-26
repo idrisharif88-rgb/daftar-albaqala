@@ -5,6 +5,7 @@ import {
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
   IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, IonLoading,
   IonSelect, IonSelectOption, IonDatetime, useIonViewWillEnter,
+  IonInfiniteScroll, IonInfiniteScrollContent,
   useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import {
@@ -84,10 +85,27 @@ interface PendingFile {
 }
 const MAX_PENDING_FILES = 5;
 
+// History rows drawn per page — see `shown` below.
+const HISTORY_PAGE = 50;
+
+// One formatter for every row. `toLocaleString('ar')` builds a new one per
+// call, which across hundreds of rows is measurable on an old phone; these
+// options give the same text it did.
+const ENTRY_DATE = new Intl.DateTimeFormat('ar', {
+  year: 'numeric', month: 'numeric', day: 'numeric',
+  hour: 'numeric', minute: 'numeric', second: 'numeric',
+});
+
 const CustomerDetail: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [txns, setTxns] = useState<Transaction[]>([]);
+  // How many history rows are drawn. A busy shop has hundreds of entries, and
+  // drawing them all at once (each row is several Ionic components) is what
+  // made opening such a contact slow on the owner's Note 9 — 422 rows. The
+  // newest page shows first; scrolling down draws the next. Balances and the
+  // totals still come from the WHOLE history, never from what is drawn.
+  const [shown, setShown] = useState(HISTORY_PAGE);
   const [balances, setBalances] = useState<CurrencyBalance[]>([]);
   const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
   const [loading, setLoading] = useState(true);
@@ -284,7 +302,7 @@ const CustomerDetail: React.FC = () => {
         note: doc.rest,
         issuedAt: new Date(t.occurred_at),
         rates,
-        balanceLines: printedBalanceLines(balancesUpTo(txns, t.id), rates),
+        balanceLines: printedBalanceLines(balancesUpTo(txns, t.id), rates, role),
       }, target);
     } catch (err) {
       presentAlert({
@@ -725,25 +743,26 @@ const CustomerDetail: React.FC = () => {
                 <p className="ion-text-center ion-padding">لا توجد حركات بعد.</p>
               </IonText>
             ) : (
+              <>
               <IonList>
-                {txns.map((t) => (
+                {txns.slice(0, shown).map((t) => {
+                  const conversion = describeConversion(t.amount, t.currency, rates);
+                  return (
                   <IonItem key={t.id}>
                     <IonLabel>
                       <h2 style={{ color: `var(--ion-color-${directionColor(role, t.type)})` }}>
                         {directionLabel(role, t.type)}
                       </h2>
                       {t.note && <p>{t.note}</p>}
-                      <p>{new Date(t.occurred_at).toLocaleString('ar')}</p>
+                      <p>{ENTRY_DATE.format(new Date(t.occurred_at))}</p>
                     </IonLabel>
                     <IonText slot="end" color={directionColor(role, t.type)}>
                       <div style={{ textAlign: 'end' }}>
                         <strong>{formatAmount(t.amount, t.currency)}</strong>
                         {/* Foreign-currency and gold entries also show what they
                             are worth today — the native figure stays the record. */}
-                        {describeConversion(t.amount, t.currency, rates) && (
-                          <div style={{ fontSize: '0.7em', opacity: 0.8 }}>
-                            {describeConversion(t.amount, t.currency, rates)}
-                          </div>
+                        {conversion && (
+                          <div style={{ fontSize: '0.7em', opacity: 0.8 }}>{conversion}</div>
                         )}
                       </div>
                     </IonText>
@@ -770,8 +789,19 @@ const CustomerDetail: React.FC = () => {
                       ) : null}
                     </button>
                   </IonItem>
-                ))}
+                  );
+                })}
               </IonList>
+              <IonInfiniteScroll
+                disabled={shown >= txns.length}
+                onIonInfinite={(e) => {
+                  setShown((n) => n + HISTORY_PAGE);
+                  void e.target.complete();
+                }}
+              >
+                <IonInfiniteScrollContent />
+              </IonInfiniteScroll>
+              </>
             )}
           </>
         )}

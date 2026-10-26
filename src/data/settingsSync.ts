@@ -18,6 +18,9 @@ import { adoptPrefs, seedPrefs } from './devicePrefs';
 export const SYNCABLE_KEYS = [
   'store_name',
   'owner_name',
+  // «دفتر المقاول»'s own names (src/flavors/contractor.ts → nameKeys).
+  'contractor_store_name',
+  'contractor_owner_name',
   'language',
   'rate_SAR',
   'rate_USD',
