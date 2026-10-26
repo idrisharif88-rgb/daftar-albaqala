@@ -1153,10 +1153,9 @@ Branch `two-builds`. Not yet device-tested, server change not yet deployed.
   `contractor` (`com.shopbookidris.contractor`, own versionCode); name override in
   `android/app/src/contractor/res/values/strings.xml`. Android Studio now shows variants
   (`groceryRelease` / `contractorRelease`) — pick one in Build Variants.
-- **Build:** `npm run android:grocery` or `npm run android:contractor` (builds the web bundle
-  with the right flavor + `cap sync`), then assemble THAT variant. ⚠️ The web bundle in
-  `android/app/src/main/assets` is shared — assembling a variant after syncing the other one
-  ships the wrong app inside the right icon. Browser dev: `npm run dev:contractor`.
+- **Build:** `npm run android:grocery` / `npm run android:contractor` (web bundle + `cap sync` +
+  move into that app's own `src/<flavor>/assets`), then assemble any variant. Browser dev:
+  `npm run dev:contractor`.
 - **Contractor roles:** `worker` عامل, `client` جهة (the institution paying the contractor),
   `broker` وسيط, `materials` محل مواد (price list + invoices). Role codes are unique per app —
   that is what keeps one account's two books apart: `listCustomers` (and the Excel export)
@@ -1201,6 +1200,14 @@ Branch `two-builds`. Not yet device-tested, server change not yet deployed.
   - ⚠️ Lesson: a new package id needs its OWN Google OAuth client, and anything keyed by the
     Google project (Drive appDataFolder) or the account (synced settings) is shared between
     the apps unless given its own key.
+- **Each app's web screens in its own Android folder (2026-10-26):** `npm run android:<flavor>`
+  now ends with `scripts/flavor-assets.sh`, which moves what `cap sync` put in the shared
+  `src/main/assets` into `src/<flavor>/assets` with a `flavor.txt` label. `app/build.gradle`
+  refuses a variant whose folder is missing or mislabelled, or while a stray copy sits in
+  `main/assets`. WHY: a contractorDebug run from Android Studio after a grocery sync installed
+  «دفتر المقاول» with the grocery screens inside. Now both variants can be built in one go.
+  Sync each app once (`npm run android:grocery` + `npm run android:contractor`), then build any
+  variant from Android Studio.
 - **Activation per app (2026-10-26, migration 010):** one login (phone + password) works in
   both apps, but each app is activated on its own. Every request carries `X-App` (`FLAVOR.id`,
   `src/lib/api.ts`); `requireSubscription` reads `subscription_status` for grocery (or no
