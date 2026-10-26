@@ -57,6 +57,33 @@ export interface RoleDef {
    * order follow this, so a new debt is never painted green.
    */
   growsType: TxnType;
+  /**
+   * Optional: the closing balance as one plain sentence the recipient cannot
+   * misread — «المقاول مدين لك بـ 5,000 ريال يمني من أجرك» — instead of an
+   * amount followed by «(لكم عندنا)». Written for people who don't read
+   * statements of account (a worker on a site); «دفتر المقاول» uses it.
+   * `amount` arrives already formatted, currency named.
+   */
+  balanceSentence?: BalanceSentence;
+}
+
+export interface BalanceSentence {
+  /** «حسابك الآن» — the heading over the sentence in the full message. */
+  heading: string;
+  /** Balance > 0: the contact owes the owner. */
+  theyOwe: (amount: string) => string;
+  /** Balance < 0: the owner owes the contact. */
+  weOwe: (amount: string) => string;
+  settled: string;
+}
+
+/** The balance as a sentence for this role, or null if it has none. */
+export function balanceSentence(role: string, minor: number, amount: string): string | null {
+  const s = roleDef(role).balanceSentence;
+  if (!s) return null;
+  if (minor > 0) return s.theyOwe(amount);
+  if (minor < 0) return s.weOwe(amount);
+  return s.settled;
 }
 
 // The role definitions themselves live with each build (src/flavors/). Every

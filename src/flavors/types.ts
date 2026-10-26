@@ -31,6 +31,18 @@ export interface Flavor {
   /** Solid brand colour for documents (the Excel header row). */
   brandColor: string;
   /**
+   * The Google Drive backup's file name. Both apps share one Google Cloud
+   * project, and Drive's hidden app folder belongs to the PROJECT, not the app —
+   * so with one name each app's daily backup overwrote the other's.
+   */
+  driveBackupFile: string;
+  /**
+   * Where this app keeps the store and owner name in the synced settings. Each
+   * app has its own pair, so one account used in both never signs a
+   * contractor's message with the grocery's name (or the other way round).
+   */
+  nameKeys: { store: string; owner: string };
+  /**
    * The contact kinds this build offers and SHOWS, in tab order. Each build
    * has its own role codes, so one account used in both apps keeps two books
    * that never mix: a contact is visible only in the build that owns its role.

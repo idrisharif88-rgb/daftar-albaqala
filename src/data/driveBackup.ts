@@ -3,6 +3,7 @@ import { getMeta } from './meta';
 import { getLocalSettings, applyServerSettings, type SettingRow } from './settingsSync';
 import { runSync } from './sync';
 import { getAccessToken, findFile, saveFile, readFile } from '../lib/googleDrive';
+import { FLAVOR } from '../flavors';
 
 // The book, backed up to the grocer's own Google Drive — an extra the owner
 // grants per account from the Watcher (users.drive_backup, read via GET /me).
@@ -18,7 +19,7 @@ import { getAccessToken, findFile, saveFile, readFile } from '../lib/googleDrive
 // append-only, so an entry is only ever added. Everything restored is marked
 // unsynced, so the next sync carries it to the server too.
 
-const FILE_NAME = 'daftar-backup.json';
+const FILE_NAME = FLAVOR.driveBackupFile;
 const LAST_KEY = 'daftar.drive-last';
 export const DAY_MS = 24 * 60 * 60 * 1000;
 

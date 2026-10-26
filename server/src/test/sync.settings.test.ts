@@ -66,6 +66,20 @@ describe('settings sync', () => {
     assert.equal((await readSetting(userA, 'rate_SAR')).value, '140');
   });
 
+  // One account, two apps: each keeps its own store name side by side.
+  test('the contractor app\'s names are stored apart from the grocery\'s', async () => {
+    const res = await request(app).post('/sync/push').set(AUTH(tokenA)).send({
+      settings: [
+        { key: 'store_name', value: 'بقالة الأمل', updated_at: '2026-07-30T10:00:00Z' },
+        { key: 'contractor_store_name', value: 'مقاولات الأمل', updated_at: '2026-07-30T10:00:00Z' },
+        { key: 'contractor_owner_name', value: 'إدريس', updated_at: '2026-07-30T10:00:00Z' },
+      ],
+    });
+    assert.deepEqual(res.body.settings.rejected, []);
+    assert.equal((await readSetting(userA, 'store_name')).value, 'بقالة الأمل');
+    assert.equal((await readSetting(userA, 'contractor_store_name')).value, 'مقاولات الأمل');
+  });
+
   test('a newer edit overwrites, an older one does not', async () => {
     await request(app).post('/sync/push').set(AUTH(tokenA)).send({
       settings: [{ key: 'rate_SAR', value: '140', updated_at: '2026-07-30T12:00:00Z' }],

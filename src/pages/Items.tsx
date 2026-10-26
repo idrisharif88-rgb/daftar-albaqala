@@ -5,6 +5,7 @@ import {
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
   IonInput, IonNote, IonSearchbar, IonIcon, IonFab, IonFabButton,
   IonItemSliding, IonItemOptions, IonItemOption,
+  IonInfiniteScroll, IonInfiniteScrollContent,
   IonSelect, IonSelectOption, useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
 import { add, trashOutline, createOutline } from 'ionicons/icons';
@@ -22,6 +23,10 @@ import { numericInput } from '../lib/digits';
 
 // The price list for ONE contact — «أصناف متجر ماجد».
 //
+
+// Rows of the price list drawn per page.
+const LIST_PAGE = 50;
+
 // This is a price list, not a stock list. Nothing here counts what is on a
 // shelf: the owner of this book is the one BUYING. The price is simply the last
 // price paid, kept so that recording the same purchase again is a tap instead
@@ -32,6 +37,10 @@ const Items: React.FC = () => {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  // Rows drawn so far: the first page, then more on scroll — the same reason as
+  // the contact's history (a long list drawn at once is slow on an old phone).
+  // Search still looks through the whole list.
+  const [shown, setShown] = useState(LIST_PAGE);
 
   const modal = useRef<HTMLIonModalElement>(null);
   const [editing, setEditing] = useState<Item | null>(null);
@@ -177,8 +186,9 @@ const Items: React.FC = () => {
             <p className="ion-text-center ion-padding">الصنف غير مسجل</p>
           </IonText>
         ) : (
+          <>
           <IonList>
-            {visible.map((item) => (
+            {visible.slice(0, shown).map((item) => (
               <IonItemSliding key={item.id}>
                 <IonItem button onClick={() => openForm(item)}>
                   <IonLabel>
@@ -203,6 +213,13 @@ const Items: React.FC = () => {
               </IonItemSliding>
             ))}
           </IonList>
+          <IonInfiniteScroll
+            disabled={shown >= visible.length}
+            onIonInfinite={(e) => { setShown((n) => n + LIST_PAGE); void e.target.complete(); }}
+          >
+            <IonInfiniteScrollContent />
+          </IonInfiniteScroll>
+          </>
         )}
 
         <IonFab slot="fixed" vertical="bottom" horizontal="start">

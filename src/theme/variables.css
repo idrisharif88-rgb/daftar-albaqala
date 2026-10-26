@@ -835,3 +835,13 @@ ion-input input, ion-textarea textarea, ion-searchbar input,
 ion-select::part(text), ion-select::part(placeholder) {
   font-weight: 700;
 }
+
+/* «دفتر المقاول»: no orange block behind the chosen option in a picker's list
+   (الصفة etc.) — Ionic tints it with the primary colour, which in this theme
+   is a loud orange. The choice is shown in bold instead. */
+:root[data-accent="loader"] ion-select-popover ion-item.item-radio-checked {
+  --background: transparent;
+  --background-focused-opacity: 0;
+  --background-hover-opacity: 0;
+  font-weight: 800;
+}

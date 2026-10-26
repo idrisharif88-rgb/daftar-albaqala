@@ -1,5 +1,6 @@
 import { getManyMeta, setManyMeta } from './meta';
 import { DEFAULT_ROLE, isContactRole, isVisibleRole, type ContactRole } from './roles';
+import { FLAVOR } from '../flavors';
 
 // App settings live in the `app_meta` key/value table (same store as the sync
 // cursor and the exchange rates).
@@ -32,8 +33,8 @@ const DEFAULTS: Settings = {
 
 // app_meta keys
 const KEYS: Record<keyof Settings, string> = {
-  storeName: 'store_name',
-  ownerName: 'owner_name',
+  storeName: FLAVOR.nameKeys.store,
+  ownerName: FLAVOR.nameKeys.owner,
   language: 'language',
   notifyCustomers: 'notify_customers',
   defaultRole: 'default_role',

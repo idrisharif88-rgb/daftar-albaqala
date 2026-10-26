@@ -10,7 +10,7 @@ import {
   ApiError, Contact as ContactRow, Entry, Role,
   getContact, updateContact, deleteContact, deleteEntry, reverseEntry,
 } from '../lib/api';
-import { ROLE_AR, balanceText, dateTime, money } from '../lib/format';
+import { ROLE_AR, balanceText, dateTime, money, roleBadge, rolesInSameBook } from '../lib/format';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
 
@@ -162,7 +162,7 @@ const Contact: React.FC = () => {
                 <div className="acct__name">{contact.name}</div>
                 <div className="acct__phone">{contact.phone}</div>
               </div>
-              <span className="badge badge--role">{ROLE_AR[contact.role] ?? contact.role}</span>
+              <span className="badge badge--role">{roleBadge(contact.role)}</span>
             </div>
             <div className="acct__meta">
               الرصيد: {contact.balances.length === 0 ? 'مسدد' : contact.balances.map(balanceText).join(' · ')}
@@ -220,7 +220,7 @@ const Contact: React.FC = () => {
               <IonItem>
                 <IonSelect label="النوع" labelPlacement="stacked" value={form.role} interface="action-sheet"
                   onIonChange={(e) => setForm((f) => ({ ...f, role: e.detail.value as Role }))}>
-                  {(Object.keys(ROLE_AR) as Role[]).map((r) => (
+                  {rolesInSameBook(contact?.role ?? form.role).map((r) => (
                     <IonSelectOption key={r} value={r}>{ROLE_AR[r]}</IonSelectOption>
                   ))}
                 </IonSelect>

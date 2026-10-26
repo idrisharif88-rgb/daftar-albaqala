@@ -404,9 +404,56 @@ const single = (role: string, type: 'debt' | 'payment', note = '') => ({
 describe('printedBalanceLines', () => {
   it('is the SMS balance block, word for word', () => {
     const input = invoiceInput(2);
-    const lines = printedBalanceLines(input.balances, input.rates);
+    const lines = printedBalanceLines(input.balances, input.rates, input.role);
     expect(buildSmsMessage(input).endsWith(lines.join('\n'))).toBe(true);
     expect(lines[lines.length - 1]).toBe('(لكم عندنا)');
+  });
+});
+
+// «دفتر المقاول» (2026-10-26, approved from a preview): the balance is one
+// plain sentence saying who owes whom, written for a worker on a site.
+describe('buildMessage — دفتر المقاول wording', () => {
+  const wage = { ...single('worker', 'payment'), balances: [yer(-5000)] };
+
+  it('a worker’s wage, exactly as approved', () => {
+    expect(buildMessage(wage).split('\n')).toEqual([
+      '🧾 إشعار حركة رقم 5',
+      '📅 الاثنين 2026-09-07 — 02:47 م',
+      'المقاول: إدريس أحمد',
+      '━━━━━━━━━━━━',
+      '✅ أُضيفت إلى أجرك: 5,000 ريال يمني',
+      '━━━━━━━━━━━━',
+      '💰 حسابك الآن:',
+      'المقاول مدين لك بـ 5,000 ريال يمني من أجرك',
+      'خمسة آلاف ريال',
+    ]);
+  });
+
+  it('says it the other way round when the worker took more than he earned', () => {
+    const msg = buildMessage({ ...single('worker', 'debt'), balances: [yer(1000)] });
+    expect(msg).toContain('💵 استلمت من المقاول: 5,000 ريال يمني');
+    expect(msg).toContain('عليك للمقاول 1,000 ريال يمني (استلمت أكثر من أجرك)');
+  });
+
+  it('a settled account says so in words', () => {
+    expect(buildMessage({ ...wage, balances: [] })).toContain('💰 حسابك مع المقاول مسدد ✔');
+  });
+
+  it('each contact kind has its own sentence', () => {
+    expect(buildMessage({ ...single('client', 'debt'), balances: [yer(500000)] }))
+      .toContain('المتبقي عليكم للمقاول 500,000 ريال يمني');
+    expect(buildMessage({ ...single('broker', 'payment'), balances: [yer(-50000)] }))
+      .toContain('المقاول مدين لك بـ 50,000 ريال يمني من عمولتك');
+    expect(buildMessage({ ...single('materials', 'payment'), balances: [yer(-40000)] }))
+      .toContain('المقاول مدين لكم بـ 40,000 ريال يمني');
+  });
+
+  it('the SMS and the printed receipt carry the same sentence', () => {
+    const sms = buildSmsMessage(wage);
+    expect(sms).toContain('المقاول مدين لك بـ 5,000 ريال يمني من أجرك');
+    expect(sms).not.toContain('لكم عندنا');
+    expect(printedBalanceLines(wage.balances, wage.rates, 'worker')[0])
+      .toBe('المقاول مدين لك بـ 5,000 ريال يمني من أجرك');
   });
 });
 

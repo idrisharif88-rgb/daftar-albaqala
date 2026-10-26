@@ -5,7 +5,7 @@ import {
   type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
 import {
-  contactBalanceLabel, contactBalancePhrase, contactDirectionLabel, roleDef,
+  balanceSentence, contactBalanceLabel, contactBalancePhrase, contactDirectionLabel, roleDef,
 } from '../data/roles';
 import { tafqeetBaseMinor } from './tafqeet';
 import type { TxnType } from '../data/transactions';
@@ -189,7 +189,7 @@ export function buildMessage(opts: MessageInput, words = true): string {
       `إجمالي الفاتورة: ${formatAmountFull(amount, currency)}`,
       'الدفع: آجل (دين)',
       RULE,
-      ...invoiceBalance(balances, rates),
+      ...invoiceBalance(balances, rates, role),
       // The note is NOT repeated: for an invoice it holds the same breakdown
       // the items above already spell out.
     ].join('\n');
@@ -206,7 +206,7 @@ export function buildMessage(opts: MessageInput, words = true): string {
       ...entryLines(role, type, amount, currency, rates),
       ...(note && note.trim() ? [RULE, `ملاحظة: ${note.trim()}`] : []),
       RULE,
-      ...invoiceBalance(balances, rates),
+      ...invoiceBalance(balances, rates, role),
     ].join('\n');
   }
 
@@ -287,8 +287,9 @@ function balanceLines(balances: CurrencyBalance[], rates: Rates, words = true): 
 // عندنا)» — rather than a word tacked onto the amount, because on a document
 // handed across a counter it reads as a statement of account instead of a
 // demand.
-function invoiceBalance(balances: CurrencyBalance[], rates: Rates): string[] {
-  if (balances.length === 0) return ['💰 الحساب مسدد'];
+function invoiceBalance(balances: CurrencyBalance[], rates: Rates, role: string): string[] {
+  const sentence = roleDef(role).balanceSentence;
+  if (balances.length === 0) return [`💰 ${sentence ? sentence.settled : 'الحساب مسدد'}`];
 
   const lines: string[] = [];
   const convertible = balances.filter((b) => hasRate(rates, b.currency));
@@ -310,8 +311,16 @@ function invoiceBalance(balances: CurrencyBalance[], rates: Rates): string[] {
     const { minor: totalMinor, complete } = totalInBase(balances, rates);
     // Say so rather than quietly understating the debt when a rate is missing.
     const partial = complete ? '' : ' (عدا ما لم يُحدَّد سعره)';
+    const total = `${formatAmountFull(Math.abs(totalMinor), BASE_CURRENCY)}${partial}`;
+    const said = balanceSentence(role, totalMinor, total);
+    if (said !== null && sentence) {
+      // One plain sentence — who owes whom — under its own heading.
+      lines.push(`${perCurrency ? '' : '💰 '}${sentence.heading}:`, said);
+      if (totalMinor !== 0) lines.push(tafqeetBaseMinor(Math.abs(totalMinor)));
+      return lines;
+    }
     const heading = perCurrency ? 'الرصيد الحالي' : '💰 الرصيد الحالي';
-    lines.push(`${heading}: ${formatAmountFull(Math.abs(totalMinor), BASE_CURRENCY)}${partial}`);
+    lines.push(`${heading}: ${total}`);
     lines.push(tafqeetBaseMinor(Math.abs(totalMinor)));
     lines.push(`(${contactBalancePhrase(totalMinor)})`);
   }
@@ -359,9 +368,10 @@ function compactStamp(d: Date): string {
 // The closing balance, stripped to the figures. No emoji, and no per-currency
 // ≈-in-riyals line: the riyal total is right underneath it.
 function compactBalance(
-  balances: CurrencyBalance[], rates: Rates, words: boolean,
+  balances: CurrencyBalance[], rates: Rates, words: boolean, role: string,
 ): string[] {
-  if (balances.length === 0) return ['الحساب مسدد'];
+  const sentence = roleDef(role).balanceSentence;
+  if (balances.length === 0) return [sentence ? sentence.settled : 'الحساب مسدد'];
 
   const lines: string[] = [];
   const canTotal = balances.some((b) => hasRate(rates, b.currency));
@@ -377,7 +387,14 @@ function compactBalance(
   if (canTotal) {
     const { minor, complete } = totalInBase(balances, rates);
     const partial = complete ? '' : ' (عدا ما لم يُحدَّد سعره)';
-    lines.push(`الرصيد: ${formatAmountFull(Math.abs(minor), BASE_CURRENCY)}${partial}`);
+    const total = `${formatAmountFull(Math.abs(minor), BASE_CURRENCY)}${partial}`;
+    const said = balanceSentence(role, minor, total);
+    if (said !== null) {
+      lines.push(said);
+      if (words && minor !== 0) lines.push(tafqeetBaseMinor(Math.abs(minor)));
+      return lines;
+    }
+    lines.push(`الرصيد: ${total}`);
     if (words) lines.push(tafqeetBaseMinor(Math.abs(minor)));
     lines.push(`(${contactBalancePhrase(minor)})`);
   }
@@ -409,7 +426,7 @@ function compactInvoice(o: MessageInput, invoice: InvoiceInfo, level: number): s
   );
   const foot = [
     `الإجمالي: ${formatAmountFull(o.amount, o.currency)} (دين)`,
-    ...compactBalance(o.balances, o.rates, level < 3),
+    ...compactBalance(o.balances, o.rates, level < 3, o.role),
   ];
 
   if (level < 4) return [...lines, ...items, ...foot].join('\n');
@@ -435,8 +452,10 @@ function compactInvoice(o: MessageInput, invoice: InvoiceInfo, level: number): s
  * words, «(لكم عندنا)» — for the printed receipt, so paper and message agree.
  * `balances` must already include the entry being printed.
  */
-export function printedBalanceLines(balances: CurrencyBalance[], rates: Rates): string[] {
-  return compactBalance(balances, rates, true);
+export function printedBalanceLines(
+  balances: CurrencyBalance[], rates: Rates, role: string,
+): string[] {
+  return compactBalance(balances, rates, true, role);
 }
 
 /** «و3 أصناف أخرى» — the items the SMS had no room for. */
@@ -460,7 +479,7 @@ function compactNotice(o: MessageInput, notice: NoticeInfo, level: number): stri
     ...(level < 2 && sender ? [`${roleDef(o.role).senderLabelAr}: ${sender}`] : []),
     ...entryLines(o.role, o.type, o.amount, o.currency, o.rates),
     ...(noteText ? [`ملاحظة: ${noteText}`] : []),
-    ...compactBalance(o.balances, o.rates, level < 3),
+    ...compactBalance(o.balances, o.rates, level < 3, o.role),
   ].join('\n');
 
   const whole = build(note);

@@ -8,6 +8,8 @@ export const grocery: Flavor = {
   pitch: 'سجّل الديون والمدفوعات، واطبع الفواتير — يعمل بدون إنترنت.',
   accents: ['green', 'gold', 'orange'],
   brandColor: '#1B5E20',
+  driveBackupFile: 'daftar-backup.json', // existing backups keep working
+  nameKeys: { store: 'store_name', owner: 'owner_name' },
   roles: [
     {
       // Someone who buys from the owner — the original case.

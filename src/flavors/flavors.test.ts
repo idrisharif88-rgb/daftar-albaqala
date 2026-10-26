@@ -8,6 +8,17 @@ describe('flavors', () => {
     expect(new Set(codes).size).toBe(codes.length);
   });
 
+  // Drive's hidden folder is per Google project, which both apps share.
+  it('back up to different Drive files', () => {
+    const names = ALL_FLAVORS.map((f) => f.driveBackupFile);
+    expect(new Set(names).size).toBe(names.length);
+  });
+
+  it('keep their store and owner names apart', () => {
+    const keys = ALL_FLAVORS.flatMap((f) => [f.nameKeys.store, f.nameKeys.owner]);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
   it('only reference roles they define', () => {
     for (const f of ALL_FLAVORS) {
       const own = new Set(f.roles.map((r) => r.role));

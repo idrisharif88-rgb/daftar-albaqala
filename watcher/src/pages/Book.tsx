@@ -3,15 +3,23 @@ import { useParams } from 'react-router-dom';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonBackButton, IonButton,
   IonIcon, IonSearchbar, IonRefresher, IonRefresherContent, IonSpinner,
+  IonSegment, IonSegmentButton, IonLabel,
   useIonViewWillEnter, useIonRouter, useIonToast, useIonActionSheet,
 } from '@ionic/react';
 import { downloadOutline } from 'ionicons/icons';
 import { ApiError, Contact, exportBook, getBook } from '../lib/api';
-import { ROLE_AR, balanceText } from '../lib/format';
+import { ROLE_AR, balanceText, isContractorRole } from '../lib/format';
 import { digitsOnly } from '../lib/digits';
 
 // One account's book: its live contacts, each with a balance per currency.
 // Tapping a contact opens its entries (Contact.tsx).
+//
+// One account can keep TWO books — «دفتر البقالة» and «دفتر المقاول» — told
+// apart by role code, exactly as each app tells them apart. A tab per book, so
+// the same person as a grocery partner and a contractor's worker are never two
+// rows of one list.
+
+type BookTab = 'grocery' | 'contractor';
 
 const Book: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +27,7 @@ const Book: React.FC = () => {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [tab, setTab] = useState<BookTab>('grocery');
   const [exporting, setExporting] = useState(false);
   const router = useIonRouter();
   const [presentToast] = useIonToast();
@@ -45,10 +54,23 @@ const Book: React.FC = () => {
   // Two formats, because they answer different questions: the PDF is the copy
   // he READS, the spreadsheet the one he (or whoever helps him) can sum, sort
   // and filter. Neither is a substitute for the other, so he is asked.
+  // Which book a contact belongs to — by role code, as each app decides.
+  const inTab = useCallback((c: { role: string }, t: BookTab) =>
+    isContractorRole(c.role) === (t === 'contractor'), []);
+
   const exportAs = useCallback(async (format: 'pdf' | 'excel') => {
     setExporting(true);
     try {
-      const book = await exportBook(id);
+      // Only the open tab's book — the two apps' books never share a file.
+      const whole = await exportBook(id);
+      const customers = whole.customers.filter((c) => inTab(c, tab));
+      const ids = new Set(customers.map((c) => c.id));
+      const book = {
+        ...whole,
+        customers,
+        transactions: whole.transactions.filter((t) => ids.has(t.customer_id)),
+        book_label: tab === 'contractor' ? 'دفتر المقاول' : 'دفتر البقالة',
+      };
       if (format === 'pdf') {
         const { exportBookToPdf } = await import('../lib/pdfBook');
         await exportBookToPdf(book);
@@ -66,7 +88,7 @@ const Book: React.FC = () => {
     } finally {
       setExporting(false);
     }
-  }, [id, presentToast]);
+  }, [id, presentToast, tab, inTab]);
 
   const chooseFormat = useCallback(() => {
     presentSheet({
@@ -79,13 +101,19 @@ const Book: React.FC = () => {
     });
   }, [presentSheet, exportAs]);
 
+
+  const counts = useMemo(() => ({
+    grocery: (contacts ?? []).filter((c) => inTab(c, 'grocery')).length,
+    contractor: (contacts ?? []).filter((c) => inTab(c, 'contractor')).length,
+  }), [contacts, inTab]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const qDigits = digitsOnly(q);
-    return (contacts ?? []).filter((c) =>
+    return (contacts ?? []).filter((c) => inTab(c, tab) && (
       !q || c.name.toLowerCase().includes(q) || (qDigits !== '' && c.phone.includes(qDigits))
-    );
-  }, [contacts, query]);
+    ));
+  }, [contacts, query, tab, inTab]);
 
   return (
     <IonPage>
@@ -100,6 +128,16 @@ const Book: React.FC = () => {
                 : <IonIcon slot="icon-only" icon={downloadOutline} />}
             </IonButton>
           </IonButtons>
+        </IonToolbar>
+        <IonToolbar>
+          <IonSegment value={tab} onIonChange={(e) => setTab(e.detail.value as BookTab)}>
+            <IonSegmentButton value="grocery">
+              <IonLabel>دفتر البقالة ({counts.grocery})</IonLabel>
+            </IonSegmentButton>
+            <IonSegmentButton value="contractor">
+              <IonLabel>دفتر المقاول ({counts.contractor})</IonLabel>
+            </IonSegmentButton>
+          </IonSegment>
         </IonToolbar>
       </IonHeader>
       <IonContent>
