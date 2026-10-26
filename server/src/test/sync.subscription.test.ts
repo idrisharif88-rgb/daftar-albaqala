@@ -59,6 +59,48 @@ describe('/sync subscription enforcement', () => {
     assert.equal(res.status, 402);
   });
 
+  // One account, two apps, two activations (migration 010).
+  const pull = (user: string, appId?: string) => {
+    const r = request(app).get('/sync/pull').set('Authorization', `Bearer ${tokenFor(user)}`);
+    return appId ? r.set('X-App', appId) : r;
+  };
+  const setContractor = (user: string, status: string) =>
+    pool.query('UPDATE users SET contractor_status = ? WHERE id = ?', [status, user]);
+
+  test('an account active for the grocery app is NOT active for the contractor app', async () => {
+    const user = await seedUser({ status: 'active' });
+    assert.equal((await pull(user)).status, 200);
+    assert.equal((await pull(user, 'grocery')).status, 200);
+    const res = await pull(user, 'contractor');
+    assert.equal(res.status, 402);
+    assert.equal(res.body.subscription_status, 'none');
+  });
+
+  test('the contractor app is activated on its own', async () => {
+    const user = await seedUser({ status: 'none' });
+    await setContractor(user, 'active');
+    assert.equal((await pull(user, 'contractor')).status, 200);
+    assert.equal((await pull(user)).status, 402); // the grocery app still is not
+  });
+
+  test('a suspended account is refused in both apps', async () => {
+    const user = await seedUser({ status: 'active' });
+    await setContractor(user, 'active');
+    await pool.query("UPDATE users SET subscription_status = 'suspended' WHERE id = ?", [user]);
+    assert.equal((await pull(user)).status, 402);
+    const res = await pull(user, 'contractor');
+    assert.equal(res.status, 402);
+    assert.equal(res.body.subscription_status, 'suspended');
+  });
+
+  test('the grocery expiry date does not touch the contractor app', async () => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const user = await seedUser({ status: 'active', expiresAt: yesterday });
+    await setContractor(user, 'active');
+    assert.equal((await pull(user)).status, 402);
+    assert.equal((await pull(user, 'contractor')).status, 200);
+  });
+
   test('active with future expiry date is allowed', async () => {
     const nextYear = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const user = await seedUser({ status: 'active', expiresAt: nextYear });

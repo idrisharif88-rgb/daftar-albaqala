@@ -30,8 +30,8 @@ ion-header ion-segment-button {
 .acct__name { font-weight: 700; font-size: 1.05rem; }
 .acct__phone { direction: ltr; unicode-bidi: isolate; color: #4a5a4a; }
 .acct__meta { color: #6b7a6b; font-size: 0.85rem; margin-top: 6px; line-height: 1.6; }
-.acct__actions { display: flex; gap: 8px; margin-top: 8px; }
-.acct__actions ion-button { flex: 1; margin: 0; }
+.acct__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.acct__actions ion-button { flex: 1 1 40%; margin: 0; }
 
 .badge { border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
 .badge--active { background: #1b5e20; color: #fff; }
@@ -88,3 +88,7 @@ ion-input input.native-input::placeholder {
 
 /* Confirmations carry two paragraphs; Ionic shows the message as plain text. */
 .alert-message { white-space: pre-line; }
+
+/* «دفتر المقاول» activation, beside the account's own status. */
+.acct__badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.badge--contractor { background: #ff6f00; color: #1a1a1a; }

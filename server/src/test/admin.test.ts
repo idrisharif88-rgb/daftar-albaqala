@@ -130,6 +130,34 @@ describe('/admin', () => {
     assert.equal(typeof res.body.users[0].customers_count, 'number');
   });
 
+  test('activates «دفتر المقاول» on its own, leaving the grocery app as it was', async () => {
+    const user = await seedUser({ status: 'none' });
+    const token = await adminToken();
+    let res = await request(app)
+      .post(`/admin/users/${user}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ app: 'contractor', status: 'active', code: codeNow(1) });
+    assert.equal(res.status, 200);
+
+    res = await request(app).get('/admin/users').set('Authorization', `Bearer ${token}`);
+    const row = res.body.users.find((u: { id: string }) => u.id === user);
+    assert.equal(row.contractor_status, 'active');
+    assert.equal(row.subscription_status, 'none');
+
+    const pull = (appId: string) => request(app).get('/sync/pull')
+      .set('Authorization', `Bearer ${tokenFor(user)}`).set('X-App', appId);
+    assert.equal((await pull('contractor')).status, 200);
+    assert.equal((await pull('grocery')).status, 402);
+
+    // Suspending is not a per-app status.
+    resetAdminLoginState();
+    res = await request(app)
+      .post(`/admin/users/${user}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ app: 'contractor', status: 'suspended', code: codeNow(1) });
+    assert.equal(res.status, 400);
+  });
+
   test('activate, then suspend: suspended cannot log in or sync', async () => {
     const user = await seedUser({ status: 'none' });
     await pool.query('UPDATE users SET password_hash = ? WHERE id = ?', [

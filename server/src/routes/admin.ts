@@ -82,7 +82,8 @@ router.get(
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query(
       `SELECT u.id, u.phone, u.store_name, u.plan,
-              u.subscription_status, u.subscription_expires_at, u.drive_backup, u.created_at,
+              u.subscription_status, u.subscription_expires_at, u.drive_backup,
+              u.contractor_status, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -131,11 +132,28 @@ router.post(
 const SETTABLE = new Set(['active', 'suspended']);
 
 // POST /admin/users/:id/status  { status: 'active' | 'suspended' }
+//                               { app: 'contractor', status: 'active' | 'none' }
+// Without `app` it is the account (and the grocery app). With app=contractor it
+// switches «دفتر المقاول» on or off for this account only; suspending stays an
+// account-wide act, done without `app`.
 router.post(
   '/users/:id/status',
   requireAdminCode,
   asyncHandler(async (req, res) => {
     const status = String(req.body?.status ?? '');
+    if (req.body?.app === 'contractor') {
+      if (status !== 'active' && status !== 'none') {
+        return res.status(400).json({ error: "contractor status must be 'active' or 'none'" });
+      }
+      const [r] = await pool.query(
+        'UPDATE users SET contractor_status = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+        [status, req.params.id],
+      );
+      if ((r as { affectedRows: number }).affectedRows === 0) {
+        return res.status(404).json({ error: 'user not found' });
+      }
+      return res.json({ id: req.params.id, contractor_status: status });
+    }
     if (!SETTABLE.has(status)) {
       return res.status(400).json({ error: "status must be 'active' or 'suspended'" });
     }

@@ -1,5 +1,6 @@
 import { API_BASE } from '../config';
 import { getToken } from './storage';
+import { FLAVOR } from '../flavors';
 
 // Thin fetch wrapper around the backend. Attaches the JWT (when present) and
 // turns non-2xx responses into a typed ApiError the UI can branch on — most
@@ -30,6 +31,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
+  // Which app is asking: the server activates each app separately (one
+  // account can use both). Older builds send nothing and count as grocery.
+  headers['X-App'] = FLAVOR.id;
 
   let res: Response;
   try {
