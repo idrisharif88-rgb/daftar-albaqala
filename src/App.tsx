@@ -15,6 +15,7 @@ import Welcome from './pages/Welcome';
 import UpdatesNotebook from './pages/UpdatesNotebook';
 import BiometricGate from './components/BiometricGate';
 import SplashIntro from './components/SplashIntro';
+import { FLAVOR } from './flavors';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
 import { runSync } from './data/sync';
@@ -112,7 +113,7 @@ const HardwareBack: React.FC = () => {
         confirming.current = true;
         void presentAlert({
           header: 'إغلاق التطبيق',
-          message: 'هل تريد إغلاق دفتر البقالة؟',
+          message: `هل تريد إغلاق ${FLAVOR.appName}؟`,
           cssClass: 'exit-alert',
           buttons: [
             { text: 'بقاء', role: 'cancel', cssClass: 'alert-stay' },

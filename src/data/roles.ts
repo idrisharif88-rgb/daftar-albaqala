@@ -1,3 +1,4 @@
+import { ALL_FLAVORS, FLAVOR } from '../flavors';
 import type { TxnType } from './transactions';
 
 // What a contact is to the owner of the book.
@@ -18,7 +19,11 @@ import type { TxnType } from './transactions';
 //   - CONTACT-facing (SMS / WhatsApp) — read from the side of the recipient, so
 //     «أخذت منه» becomes «أخذت منك».
 
-export type ContactRole = 'customer' | 'supplier' | 'partner';
+export type ContactRole =
+  // دفتر البقالة
+  | 'customer' | 'supplier' | 'partner'
+  // دفتر المقاول
+  | 'worker' | 'client' | 'broker' | 'materials';
 
 export interface RoleDef {
   role: ContactRole;
@@ -54,41 +59,38 @@ export interface RoleDef {
   growsType: TxnType;
 }
 
-export const ROLES: RoleDef[] = [
-  {
-    // Someone who buys from the owner — the original case.
-    role: 'customer', labelAr: 'زبون', pluralAr: 'زبائن', senderLabelAr: 'المتجر',
-    plusAr: 'تسجيل دين', minusAr: 'تسديد دفعة',
-    plusContactAr: 'تسجيل دين', minusContactAr: 'تسديد دفعة',
-    growsType: 'debt',
-  },
-  {
-    // A shop the owner buys FROM. Same two words as a customer — a debt is a
-    // debt — but the sign is mirrored: goods taken on credit lower the balance,
-    // so «تسجيل دين» is the minus direction here.
-    role: 'supplier', labelAr: 'صاحب متجر', pluralAr: 'أصحاب المتاجر', senderLabelAr: 'الزبون',
-    plusAr: 'تسديد دفعة', minusAr: 'تسجيل دين',
-    plusContactAr: 'تسديد دفعة', minusContactAr: 'تسجيل دين',
-    growsType: 'payment',
-  },
-  {
-    // Peer trade — money moves both ways, so the wording is plainly personal.
-    role: 'partner', labelAr: 'شريك', pluralAr: 'شركاء', senderLabelAr: 'الشريك',
-    plusAr: 'دفعت له', minusAr: 'أخذت منه',
-    plusContactAr: 'دفعت لك', minusContactAr: 'أخذت منك',
-    growsType: 'payment',
-  },
-];
+// The role definitions themselves live with each build (src/flavors/). Every
+// build KNOWS every role, so a contact made in the other app survives a sync
+// untouched; it only SHOWS and offers its own.
+const ALL_ROLES: RoleDef[] = ALL_FLAVORS.flatMap((f) => f.roles);
 
-export const DEFAULT_ROLE: ContactRole = 'customer';
+/** The roles this build offers — tabs, pickers, settings. */
+export const ROLES: RoleDef[] = FLAVOR.roles;
 
-const BY_ROLE = new Map<string, RoleDef>(ROLES.map((r) => [r.role, r]));
+export const DEFAULT_ROLE: ContactRole = FLAVOR.defaultRole;
+
+const BY_ROLE = new Map<string, RoleDef>(ALL_ROLES.map((r) => [r.role, r]));
+const VISIBLE = new Set<string>(ROLES.map((r) => r.role));
+
+/** True when this build shows contacts of this role. A contact belonging to
+ *  the other app stays in the local database (and syncs) but is not listed. */
+export function isVisibleRole(role: string): boolean {
+  return VISIBLE.has(role);
+}
+
+/** Codes of the roles this build shows, for SQL `IN (...)` filters. */
+export const VISIBLE_ROLE_CODES: ContactRole[] = ROLES.map((r) => r.role);
+
+/** Whether contacts of this role get a price list and invoices. */
+export function hasPriceList(role: string): boolean {
+  return (FLAVOR.catalogRoles as string[]).includes(role);
+}
 
 export function isContactRole(value: unknown): value is ContactRole {
   return typeof value === 'string' && BY_ROLE.has(value);
 }
 
-/** Unknown roles degrade to customer — a contact synced from a newer app
+/** Unknown roles degrade to this build's default — a contact synced from a newer app
  *  version must never make an older one unusable. */
 export function roleDef(role: string): RoleDef {
   return BY_ROLE.get(role) ?? BY_ROLE.get(DEFAULT_ROLE)!;
@@ -161,7 +163,7 @@ export function ownerBalanceLabel(minor: number): string {
  * than guess at it now.
  */
 export function usesMovementNotice(role: string): boolean {
-  return role === 'supplier' || role === 'partner';
+  return (FLAVOR.noticeRoles as string[]).includes(role);
 }
 
 /** Contact-facing, for notifications: what it means for the recipient. */

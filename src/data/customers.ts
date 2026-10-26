@@ -1,6 +1,6 @@
 import { getDB, persist } from './db';
 import { uuidv4 } from './uuid';
-import { DEFAULT_ROLE, isContactRole, type ContactRole } from './roles';
+import { DEFAULT_ROLE, VISIBLE_ROLE_CODES, isContactRole, type ContactRole } from './roles';
 
 // Contact repository — the only code that reads/writes the local `customers`
 // table. Enforces the rules from CLAUDE.md: UUID PKs, app-layer phone
@@ -40,11 +40,17 @@ function toCustomer(row: Record<string, unknown>): Customer {
   };
 }
 
-// List active (non-deleted) contacts, alphabetical.
+// List active (non-deleted) contacts of THIS build, alphabetical. A contact
+// whose role belongs to the other app (one account used in both) is kept and
+// synced, just not shown here.
 export async function listCustomers(): Promise<Customer[]> {
   const db = await getDB();
+  const marks = VISIBLE_ROLE_CODES.map(() => '?').join(', ');
   const res = await db.query(
-    `SELECT ${COLS} FROM customers WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE`
+    `SELECT ${COLS} FROM customers
+      WHERE deleted_at IS NULL AND role IN (${marks})
+      ORDER BY name COLLATE NOCASE`,
+    VISIBLE_ROLE_CODES,
   );
   return ((res.values ?? []) as Record<string, unknown>[]).map(toCustomer);
 }

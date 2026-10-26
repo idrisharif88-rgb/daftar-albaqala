@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { DEVICE_PREFS, onPrefsArrived, prefChanged } from '../lib/prefKeys';
+import { FLAVOR } from '../flavors';
 
 // The app's look: an accent colour and day/night — copied from «خماسيات».
 //
@@ -15,14 +16,18 @@ import { DEVICE_PREFS, onPrefsArrived, prefChanged } from '../lib/prefKeys';
 // Both land on <html>: `data-accent` and Ionic's `.ion-palette-dark` class. The
 // colours themselves live in theme/variables.css.
 
-export type Accent = 'green' | 'gold' | 'orange';
+// `loader` is «دفتر المقاول»'s fixed colour — the wheel loader's orange on
+// charcoal. Which accents a build offers is the flavor's call (src/flavors/);
+// a colour synced from the other app that this build doesn't offer is ignored.
+export type Accent = 'green' | 'gold' | 'orange' | 'loader';
 
-export const ACCENTS: Accent[] = ['green', 'gold', 'orange'];
-export const DEFAULT_ACCENT: Accent = 'green';
+export const ACCENTS: Accent[] = FLAVOR.accents;
+export const DEFAULT_ACCENT: Accent = ACCENTS[0];
 export const ACCENT_NAMES: Record<Accent, string> = {
   green: 'أخضر',
   gold: 'ذهبي',
   orange: 'برتقالي',
+  loader: 'برتقالي الشيول',
 };
 
 export const nextAccent = (current: Accent): Accent =>
@@ -35,6 +40,7 @@ const BAR_COLOR: Record<Accent, string> = {
   green: '#1b5e20',
   gold: '#7a6000',
   orange: '#9a3412',
+  loader: '#2B2B2B',
 };
 
 const ACCENT_KEY = DEVICE_PREFS.ui_accent;

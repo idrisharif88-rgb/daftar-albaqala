@@ -1,0 +1,151 @@
+<!doctype html>
+<!-- «دفتر المقاول» opening scene: the wheel loader (شيول) scoops sand, turns,
+     and dumps it into a truck, then the name rises. Pure CSS — no script — so
+     it plays the moment it is drawn. ONE file serves both places it shows:
+     Android's own splash overlay (NativeSplash.java loads it from the APK's
+     assets) and the browser (SplashIntro.tsx puts it in an iframe). The
+     timeline is 6 s; NativeSplash/SplashIntro hold the screen for SCENE_MS. -->
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+@font-face { font-family: Tajawal; font-weight: 700; src: url("../fonts/tajawal-arabic-700.woff2") format("woff2"); }
+:root {
+  --c: #FF6F00; --c2: #c45300; --d: #2B2B2B; --steel: #4a4a4a; --tire: #151515;
+  --sand: #c9a15f; --sand2: #a9813f; --truck: #3d5266; --truck2: #2c3d4e;
+}
+html, body { margin: 0; height: 100%; background: var(--d); overflow: hidden; }
+body { display: grid; align-content: center; justify-items: center; gap: 14px;
+  color: #fff; font-family: Tajawal, "Noto Sans Arabic", sans-serif; font-weight: 700; }
+svg { width: 100%; max-width: 560px; display: block; }
+h1 { margin: 0; font-size: 34px; }
+p { margin: -6px 0 0; font-size: 15px; opacity: .8; }
+h1, p { animation: rise .5s 4.9s both; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+/* ---- the scene: 9 s, one timeline ---- */
+.anim * { animation-duration: 6s; animation-fill-mode: both; animation-timing-function: linear; }
+.loader { transform-box: view-box; transform-origin: 85px 0; animation-name: drive; }
+.arm    { transform-box: view-box; transform-origin: 90px 92px; animation-name: arm; }
+.bucket { transform-box: view-box; transform-origin: 160px 138px; animation-name: bucket; }
+.load   { animation-name: load; }
+.wheel  { transform-box: fill-box; transform-origin: center; animation-name: spin; }
+.pile   { transform-box: view-box; transform-origin: 345px 176px; animation-name: pile; }
+.stream { animation-name: stream; }
+.heap   { transform-box: view-box; transform-origin: 112px 112px; animation-name: heap; }
+
+@keyframes drive {
+  0%   { transform: translateX(-240px) scaleX(1); animation-timing-function: ease-out; }
+  13%  { transform: translateX(115px) scaleX(1); }
+  20%  { transform: translateX(132px) scaleX(1); }
+  28%  { transform: translateX(132px) scaleX(1); animation-timing-function: ease-in-out; }
+  34%  { transform: translateX(118px) scaleX(1); animation-timing-function: ease-in-out; }
+  47%  { transform: translateX(178px) scaleX(-1); animation-timing-function: ease-in-out; }
+  58%  { transform: translateX(150px) scaleX(-1); }
+  100% { transform: translateX(150px) scaleX(-1); }
+}
+@keyframes arm {
+  0%, 20% { transform: rotate(0deg); }
+  28%  { transform: rotate(-12deg); animation-timing-function: ease-in-out; }
+  46%  { transform: rotate(-50deg); }
+  100% { transform: rotate(-50deg); }
+}
+@keyframes bucket {
+  0%, 21% { transform: rotate(0deg); animation-timing-function: ease-in-out; }
+  27%  { transform: rotate(-38deg); }
+  60%  { transform: rotate(-38deg); animation-timing-function: ease-in; }
+  68%  { transform: rotate(58deg); }
+  74%  { transform: rotate(58deg); animation-timing-function: ease-in-out; }
+  84%  { transform: rotate(-30deg); }
+  100% { transform: rotate(-30deg); }
+}
+@keyframes load  { 0%, 21% { opacity: 0; } 24%, 63% { opacity: 1; } 66%, 100% { opacity: 0; } }
+@keyframes spin  {
+  0% { transform: rotate(0deg); } 13% { transform: rotate(820deg); } 20% { transform: rotate(880deg); }
+  28% { transform: rotate(880deg); } 34% { transform: rotate(820deg); } 47% { transform: rotate(700deg); }
+  58% { transform: rotate(800deg); } 100% { transform: rotate(800deg); }
+}
+@keyframes pile  { 0%, 18% { transform: scale(1, 1); } 26%, 100% { transform: scale(.92, .78); } }
+@keyframes stream { 0%, 62% { opacity: 0; transform: translateY(-8px); } 64% { opacity: 1; } 71% { opacity: 1; transform: translateY(10px); } 74%, 100% { opacity: 0; transform: translateY(14px); } }
+@keyframes heap  { 0%, 63% { transform: scaleY(0); } 72%, 100% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .anim *, h1, p { animation: none !important; } }
+</style>
+</head>
+<body>
+  <svg class="anim" viewBox="0 0 400 200" role="img" aria-label="شيول يحمّل رملاً في شاحنة">
+    <rect x="0" y="176" width="400" height="24" fill="#3a3a3a"/>
+    <rect x="0" y="176" width="400" height="2" fill="#555"/>
+
+    <!-- sand pile -->
+    <path class="pile" d="M282 177 Q300 150 322 138 Q345 124 366 140 Q388 156 400 177 Z" fill="var(--sand)"/>
+
+    <!-- dump truck, facing left -->
+    <g>
+      <rect x="6" y="148" width="156" height="10" rx="2" fill="#1d1d1d"/>
+      <path d="M8 148 V112 Q8 100 20 98 H44 Q50 98 50 106 V148 Z" fill="var(--truck)"/>
+      <path d="M14 112 Q14 106 20 105 H40 Q44 105 44 110 V126 H14 Z" fill="#9fc3dc" opacity=".75"/>
+      <rect x="8" y="138" width="6" height="6" rx="1" fill="#ffd36b"/>
+      <path class="heap" d="M66 112 Q88 92 112 88 Q138 92 156 112 Z" fill="var(--sand)"/>
+      <path d="M54 108 H160 L154 148 H58 Z" fill="var(--truck2)"/>
+      <path d="M54 108 H160 L158 116 H55 Z" fill="var(--truck)"/>
+      <path d="M70 120 V142 M90 120 V142 M110 120 V142 M130 120 V142" stroke="var(--truck)" stroke-width="3"/>
+      <g fill="var(--tire)"><circle cx="30" cy="162" r="15"/><circle cx="114" cy="162" r="15"/><circle cx="144" cy="162" r="15"/></g>
+      <g fill="#8a8a8a"><circle cx="30" cy="162" r="6"/><circle cx="114" cy="162" r="6"/><circle cx="144" cy="162" r="6"/></g>
+    </g>
+
+    <!-- falling sand -->
+    <g class="stream" fill="var(--sand)">
+      <circle cx="112" cy="100" r="3"/><circle cx="120" cy="106" r="2.5"/><circle cx="106" cy="110" r="2.5"/>
+      <circle cx="116" cy="116" r="3"/><circle cx="126" cy="98" r="2"/><circle cx="110" cy="120" r="2"/>
+    </g>
+
+    <!-- wheel loader, facing right (local x 0 → 205) -->
+    <g class="loader">
+      <!-- rear: counterweight + engine hood -->
+      <path d="M2 140 V104 Q2 94 12 92 H62 V140 Z" fill="var(--c)"/>
+      <rect x="0" y="126" width="10" height="16" rx="2" fill="var(--steel)"/>
+      <path d="M8 100 H56 M8 108 H56 M8 116 H56" stroke="var(--c2)" stroke-width="2.5"/>
+      <rect x="22" y="70" width="6" height="24" rx="2" fill="var(--steel)"/>
+      <rect x="20" y="66" width="10" height="5" rx="1" fill="#1d1d1d"/>
+      <!-- cab -->
+      <path d="M50 92 L54 40 H96 L100 92 Z" fill="var(--c)"/>
+      <rect x="48" y="36" width="54" height="6" rx="2" fill="var(--c2)"/>
+      <path d="M58 46 H92 L95 88 H56 Z" fill="#9fc3dc" opacity=".75"/>
+      <path d="M75 46 V88" stroke="var(--c)" stroke-width="3"/>
+      <path d="M60 49 H72 L70 60 H59 Z" fill="#fff" opacity=".35"/>
+      <!-- articulation + front frame -->
+      <rect x="60" y="112" width="40" height="28" fill="var(--steel)"/>
+      <circle cx="98" cy="126" r="6" fill="#1d1d1d"/>
+      <path d="M96 116 H150 Q156 116 156 124 V140 H96 Z" fill="var(--c)"/>
+      <!-- wheels -->
+      <g>
+        <circle cx="34" cy="150" r="26" fill="var(--tire)"/>
+        <g class="wheel"><circle cx="34" cy="150" r="24" fill="none" stroke="#2c2c2c" stroke-width="5" stroke-dasharray="7 5"/>
+          <circle cx="34" cy="150" r="12" fill="var(--c)"/><path d="M34 140 V160 M24 150 H44" stroke="var(--c2)" stroke-width="3"/></g>
+        <circle cx="34" cy="150" r="4" fill="#1d1d1d"/>
+        <circle cx="128" cy="150" r="26" fill="var(--tire)"/>
+        <g class="wheel"><circle cx="128" cy="150" r="24" fill="none" stroke="#2c2c2c" stroke-width="5" stroke-dasharray="7 5"/>
+          <circle cx="128" cy="150" r="12" fill="var(--c)"/><path d="M128 140 V160 M118 150 H138" stroke="var(--c2)" stroke-width="3"/></g>
+        <circle cx="128" cy="150" r="4" fill="#1d1d1d"/>
+      </g>
+      <!-- lift arm + bucket -->
+      <g class="arm">
+        <path d="M104 120 L132 110" stroke="#9a9a9a" stroke-width="5" stroke-linecap="round"/>
+        <path d="M84 86 Q90 84 96 90 L166 134 Q168 142 160 144 L88 100 Q82 94 84 86 Z" fill="var(--c)"/>
+        <circle cx="90" cy="92" r="5" fill="#1d1d1d"/>
+        <g class="bucket">
+          <g class="load"><path d="M150 122 Q168 104 192 116 Q204 124 200 136 L156 130 Z" fill="var(--sand)"/>
+            <circle cx="170" cy="112" r="3" fill="var(--sand2)"/><circle cx="184" cy="116" r="2.5" fill="var(--sand2)"/></g>
+          <path d="M148 116 C138 140 144 168 162 176 L206 176 L208 168 L198 132 Q184 118 148 116 Z" fill="var(--c)"/>
+          <path d="M148 116 Q184 118 198 132 L208 168" fill="none" stroke="var(--c2)" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M154 128 C150 146 154 160 166 168" fill="none" stroke="var(--c2)" stroke-width="2" opacity=".7"/>
+          <rect x="196" y="172" width="12" height="4" rx="1" fill="#bdbdbd"/>
+          <circle cx="160" cy="138" r="4.5" fill="#1d1d1d"/>
+        </g>
+      </g>
+    </g>
+  </svg>
+  <h1>دفتر المقاول</h1>
+  <p>العمال والمستخلصات والمواد</p>
+</body>
+</html>

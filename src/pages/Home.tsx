@@ -20,6 +20,7 @@ import BalanceSummary from '../components/BalanceSummary';
 import BookTotals from '../components/BookTotals';
 import { SyncWarning, SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
 import { phoneInput } from '../lib/digits';
+import { FLAVOR } from '../flavors';
 
 // A contact plus its locally-computed running balances (one per currency).
 interface Row {
@@ -160,7 +161,7 @@ const Home: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>{storeName || 'دفتر البقالة'}</IonTitle>
+          <IonTitle>{storeName || FLAVOR.appName}</IonTitle>
           <IonButtons slot="start">
             <IonButton routerLink="/settings">
               <IonIcon slot="icon-only" icon={settingsOutline} />

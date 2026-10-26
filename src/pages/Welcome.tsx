@@ -1,9 +1,10 @@
 import { IonContent, IonPage, IonButton, IonIcon, useIonRouter } from '@ionic/react';
 import {
   book, receipt, print, chatbubbles, documentText, cloud,
-  logoWhatsapp, call, mail, cart,
+  logoWhatsapp, call, mail, cart, construct,
 } from 'ionicons/icons';
 import { openWhatsApp, openEmail, openUrl } from '../lib/notify';
+import { FLAVOR } from '../flavors';
 
 // The first screen a signed-out grocer sees. It says what the app is for and
 // gives a way to reach us — activation is manual, so a new (or suspended)
@@ -15,7 +16,7 @@ const WELCOME_WHATSAPP = '779412972';
 const WELCOME_CALL = '781215102';
 const WELCOME_EMAIL = 'q.fives.app@gmail.com';
 
-const CONTACT_MESSAGE = 'مرحباً، لدي استفسار حول تطبيق دفتر البقالة.';
+const CONTACT_MESSAGE = `مرحباً، لدي استفسار حول تطبيق ${FLAVOR.appName}.`;
 
 const FEATURES = [
   { icon: book, title: 'دفتر الديون' },
@@ -35,9 +36,9 @@ const Welcome: React.FC = () => {
         <div className="welcome">
 
           <div className="welcome-hero">
-            <div className="welcome-logo"><IonIcon icon={cart} /></div>
-            <h1>دفتر البقالة</h1>
-            <p>سجّل الديون والمدفوعات، واطبع الفواتير — يعمل بدون إنترنت.</p>
+            <div className="welcome-logo"><IonIcon icon={FLAVOR.id === 'contractor' ? construct : cart} /></div>
+            <h1>{FLAVOR.appName}</h1>
+            <p>{FLAVOR.pitch}</p>
           </div>
 
           <div className="welcome-grid">
@@ -71,7 +72,7 @@ const Welcome: React.FC = () => {
               </button>
               <button
                 className="welcome-circ"
-                onClick={() => void openEmail(WELCOME_EMAIL, 'استفسار — دفتر البقالة', CONTACT_MESSAGE)}
+                onClick={() => void openEmail(WELCOME_EMAIL, `استفسار — ${FLAVOR.appName}`, CONTACT_MESSAGE)}
               >
                 <span className="welcome-circ__ic welcome-circ__mail"><IonIcon icon={mail} /></span>
                 بريد

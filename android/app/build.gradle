@@ -16,6 +16,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Two apps from one codebase (src/flavors/ holds the web side). Each has
+    // its own applicationId, so both install side by side and are separate
+    // listings on Play. The web bundle is NOT per flavor: build it with the
+    // matching VITE_FLAVOR before assembling — `npm run android:contractor`.
+    flavorDimensions = ["app"]
+    productFlavors {
+        grocery {
+            dimension "app"
+            applicationId "com.shopbookidris.app"
+        }
+        contractor {
+            dimension "app"
+            applicationId "com.shopbookidris.contractor"
+            versionCode 1
+            versionName "0.1"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false

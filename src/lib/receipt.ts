@@ -1,6 +1,7 @@
 import { formatMinor } from '../data/money';
 import { currencyDef, totalInBase, type Rates } from '../data/currencies';
 import { tafqeetBaseMinor } from './tafqeet';
+import { FLAVOR } from '../flavors';
 
 // Renders a purchase as an 80mm thermal receipt and turns it into the bytes an
 // ESC/POS printer understands.
@@ -200,7 +201,7 @@ export async function renderReceipt(o: ReceiptOptions, scale = 1): Promise<HTMLC
   const centre = PAPER_DOTS / 2;
   let y = 34;
 
-  text(ctx, o.storeName || 'دفتر البقالة', centre, y, { size: 34, align: 'center' });
+  text(ctx, o.storeName || FLAVOR.appName, centre, y, { size: 34, align: 'center' });
   y += LINE_H + 6;
   text(ctx, o.entryLabel, centre, y, { size: 28, align: 'center' });
   y += LINE_H;
@@ -285,7 +286,7 @@ export async function renderReceipt(o: ReceiptOptions, scale = 1): Promise<HTMLC
   y += GAP;
   rule(ctx, y, true);
   y += GAP + 10;
-  text(ctx, 'دفتر البقالة', centre, y, { size: 24, align: 'center' });
+  text(ctx, FLAVOR.appName, centre, y, { size: 24, align: 'center' });
 
   return canvas;
 }
@@ -361,7 +362,7 @@ export async function renderEntryReceipt(
   const centre = PAPER_DOTS / 2;
   let y = 34;
 
-  text(ctx, o.storeName || 'دفتر البقالة', centre, y, { size: 34, align: 'center' });
+  text(ctx, o.storeName || FLAVOR.appName, centre, y, { size: 34, align: 'center' });
   y += LINE_H + 6;
   text(ctx, o.entryLabel, centre, y, { size: 28, align: 'center' });
   y += LINE_H;
@@ -420,7 +421,7 @@ export async function renderEntryReceipt(
   y += GAP;
   rule(ctx, y, true);
   y += GAP + 10;
-  text(ctx, 'دفتر البقالة', centre, y, { size: 24, align: 'center' });
+  text(ctx, FLAVOR.appName, centre, y, { size: 24, align: 'center' });
   y += 48; // room below the footer, so the cut does not graze it
 
   const canvas = document.createElement('canvas');

@@ -110,6 +110,24 @@
   --app-muted: #7a6b62;
 }
 
+/* Loader («دفتر المقاول», fixed) — the wheel loader: safety orange #FF6F00 on
+   its charcoal #2B2B2B. Dark text on the orange, as on the machine: white on
+   it would be 2.9:1, black is 7:1. */
+:root[data-accent="loader"] {
+  --ion-color-primary: #ff6f00;
+  --ion-color-primary-rgb: 255, 111, 0;
+  --ion-color-primary-contrast: #1a1a1a;
+  --ion-color-primary-contrast-rgb: 26, 26, 26;
+  --ion-color-primary-shade: #e06200;
+  --ion-color-primary-tint: #ff7d1a;
+  --ion-background-color: #fffaf5;
+  --ion-background-color-rgb: 255, 250, 245;
+  --app-bar: #2b2b2b;
+  --app-surface: #fffaf5;
+  --app-accent-soft: #ffe6d1;
+  --app-muted: #776a5f;
+}
+
 /* Night — the dark surfaces are shared; each colour goes bright, and text ON
    the colour goes dark. */
 :root.ion-palette-dark {
@@ -140,6 +158,14 @@
   --ion-color-primary-contrast-rgb: 26, 20, 0;
   --ion-color-primary-shade: #e0bd00;
   --ion-color-primary-tint: #ffdb1a;
+}
+:root.ion-palette-dark[data-accent="loader"] {
+  --ion-color-primary: #ff8a1f;
+  --ion-color-primary-rgb: 255, 138, 31;
+  --ion-color-primary-contrast: #1a0d00;
+  --ion-color-primary-contrast-rgb: 26, 13, 0;
+  --ion-color-primary-shade: #e07a1b;
+  --ion-color-primary-tint: #ff9635;
 }
 :root.ion-palette-dark[data-accent="orange"] {
   --ion-color-primary: #fb923c;

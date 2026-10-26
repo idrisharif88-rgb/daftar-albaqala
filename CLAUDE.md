@@ -1143,3 +1143,44 @@ until the owner manually activates, so an unverified account is inert).
   `sudo mysql -u root -p daftar_db < server/db/migrations/009_long_settings.sql`, then
   `git pull` + `pm2 restart daftar-api`, THEN ship the APK (an old server refuses the new keys).
   Applied locally to `daftar_test` ✓. Server tests 103/103, frontend 58/58.
+
+## Status — BUILT (Phase 23: two apps from one codebase — «دفتر المقاول») (2026-10-26)
+Branch `two-builds`. Not yet device-tested, server change not yet deployed.
+- **Flavors.** `src/flavors/` holds what differs per app: name, tagline, contact roles + their
+  wording, default role, which roles get a price list (`catalogRoles`) and «إشعار حركة»
+  (`noticeRoles`). Picked at BUILD time by `VITE_FLAVOR` (unset = grocery). Everything else is
+  shared. Android: `productFlavors` `grocery` (`com.shopbookidris.app`, unchanged) and
+  `contractor` (`com.shopbookidris.contractor`, own versionCode); name override in
+  `android/app/src/contractor/res/values/strings.xml`. Android Studio now shows variants
+  (`groceryRelease` / `contractorRelease`) — pick one in Build Variants.
+- **Build:** `npm run android:grocery` or `npm run android:contractor` (builds the web bundle
+  with the right flavor + `cap sync`), then assemble THAT variant. ⚠️ The web bundle in
+  `android/app/src/main/assets` is shared — assembling a variant after syncing the other one
+  ships the wrong app inside the right icon. Browser dev: `npm run dev:contractor`.
+- **Contractor roles:** `worker` عامل, `client` جهة (the institution paying the contractor),
+  `broker` وسيط, `materials` محل مواد (price list + invoices). Role codes are unique per app —
+  that is what keeps one account's two books apart: `listCustomers` (and the Excel export)
+  show only this build's roles; the rest stay in SQLite and keep syncing. Every build KNOWS
+  all roles (`roleDef`), so the other app's contacts are never rewritten.
+- ⚠️ **Deploy the server first** (`server/src/domain.ts` VALID_ROLES gained the 4 codes; no
+  migration — `role` is VARCHAR). An old server rewrites unknown roles to `customer`, which
+  would move contractor contacts into the grocery book. Old grocery APKs (≤1.9) do the same
+  locally if one account is used in both apps.
+- **Opening scene (contractor):** `public/splash/loader.html` — a wheel loader (شيول, safety
+  orange `#FF6F00` on `#2B2B2B`) scoops sand, turns, dumps it into a truck; pure CSS, 6 s. ONE
+  file, two players: Android's `NativeSplash` loads it into its own WebView when
+  `R.bool.scene_splash` is true (contractor `res/values/flavor.xml`), the browser's
+  `SplashIntro` shows it in an iframe (`FLAVOR.scene`). Launch window + Android 12 splash use
+  `@color/splashBackground` (green / dark grey per flavor); `vite.config.ts` swaps index.html's
+  green boot placeholder and name for the contractor build. Every «دفتر البقالة» in the UI now
+  reads `FLAVOR.appName`.
+- **Colour (contractor):** fixed accent `loader` — orange `#FF6F00` (dark text on it, 7:1),
+  charcoal header/status bar `#2B2B2B` (`variables.css`, `appearance.tsx`). `FLAVOR.accents`
+  decides what a build offers; one entry hides Settings' «لون التطبيق». Android `colorPrimary*`
+  overridden in `src/contractor/res/values/colors.xml`; `capacitor.config.ts` picks the WebView
+  background from `VITE_FLAVOR` (so `android:contractor` runs `cap sync` with it set).
+- **Fixed in passing:** the web intro never closed under `npm run dev` (React StrictMode ran
+  its effect twice; the second run skipped the timers). Dev only — APKs were unaffected.
+- **Still to do for the contractor app:** its own launcher icon, a Google Android
+  OAuth client for `com.shopbookidris.contractor` (Drive backup fails without it), a Play
+  listing, and the owner's review of the role wording in `src/flavors/contractor.ts`.

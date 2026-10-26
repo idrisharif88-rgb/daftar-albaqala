@@ -10,6 +10,7 @@ import { ApiError } from '../lib/api';
 import { phoneInput } from '../lib/digits';
 import { openUrl } from '../lib/notify';
 import { PRIVACY_URL } from '../config';
+import { FLAVOR } from '../flavors';
 
 type Mode = 'login' | 'register';
 
@@ -71,13 +72,13 @@ const Login: React.FC = () => {
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>دفتر البقالة</IonTitle>
+          <IonTitle>{FLAVOR.appName}</IonTitle>
         </IonToolbar>
       </IonHeader>
       <IonContent className="ion-padding">
         <div className="login-brand">
-          <div className="login-brand__name">دفتر البقالة</div>
-          <div className="login-brand__tag">سجّل ديون ودفعات عملائك بسهولة</div>
+          <div className="login-brand__name">{FLAVOR.appName}</div>
+          <div className="login-brand__tag">{FLAVOR.loginTag}</div>
         </div>
         <IonSegment
           value={mode}

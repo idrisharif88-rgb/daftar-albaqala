@@ -1,6 +1,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { BiometricAuth, BiometryError, BiometryErrorType } from '@aparajita/capacitor-biometric-auth';
 import { DEVICE_PREFS, prefChanged } from './prefKeys';
+import { FLAVOR } from '../flavors';
 
 // Fingerprint unlock. The password still signs the account in — this guards a
 // phone that is ALREADY signed in, which is the real risk for a ledger: the
@@ -81,8 +82,8 @@ export function consumeExpectedReturn(): boolean {
 export async function verifyFinger(): Promise<void> {
   try {
     await BiometricAuth.authenticate({
-      reason: 'افتح دفتر البقالة',
-      androidTitle: 'دفتر البقالة',
+      reason: `افتح ${FLAVOR.appName}`,
+      androidTitle: FLAVOR.appName,
       androidSubtitle: 'ضع إصبعك لفتح الدفتر',
       cancelTitle: 'إلغاء',
       allowDeviceCredential: false,

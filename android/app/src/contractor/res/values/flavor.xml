@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- دفتر المقاول: the wheel-loader scene, on its dark grey. -->
+<resources>
+    <color name="splashBackground">#2B2B2B</color>
+    <bool name="scene_splash">true</bool>
+</resources>

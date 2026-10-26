@@ -81,6 +81,18 @@ describe('POST /sync/push', () => {
     assert.equal(row?.role, 'supplier');
   });
 
+  test('keeps the contractor app\'s roles, so its contacts never land in the grocery book', async () => {
+    for (const role of ['worker', 'client', 'broker', 'materials']) {
+      const id = randomUUID();
+      await request(app).post('/sync/push').set(AUTH(tokenA)).send({
+        customers: [{ id, name: role, phone: '777', role, updated_at: '2026-06-25T10:00:00Z' }],
+        transactions: [],
+      });
+      const row = await getCustomer(id);
+      assert.equal(row?.role, role);
+    }
+  });
+
   test('an unknown role falls back to customer rather than losing the contact', async () => {
     const id = randomUUID();
     const res = await request(app).post('/sync/push').set(AUTH(tokenA)).send({

@@ -16,6 +16,7 @@ import {
   directionLabel, isGrowthEntry, orderedTypes, ownerBalanceLabel, roleDef,
 } from '../data/roles';
 import { expectReturn } from './biometric';
+import { FLAVOR } from '../flavors';
 
 // Excel export of the whole book: a summary sheet, every transaction, and
 // per-currency totals.
@@ -41,7 +42,7 @@ import { expectReturn } from './biometric';
 const MONEY_FORMAT = '#,##0.##';
 const DATE_FORMAT = 'yyyy-mm-dd hh:mm';
 
-const HEADER_BG = '#1B5E20';
+const HEADER_BG = FLAVOR.brandColor;
 const HEADER_TEXT = '#FFFFFF';
 const DEBT_COLOR = '#C0392B';
 const PAYMENT_COLOR = '#1B5E20';
@@ -252,9 +253,12 @@ function totalsSheet(
 
 /** Build and share an .xlsx of the entire book. */
 export async function exportWorkbook(o: WorkbookOptions): Promise<void> {
-  const [customers, transactions, balances] = await Promise.all([
+  const [customers, everyTransaction, balances] = await Promise.all([
     listCustomers(), listAllTransactions(), getBalancesByCustomer(),
   ]);
+  // Only this build's book: entries of contacts the other app owns stay out.
+  const shown = new Set(customers.map((c) => c.id));
+  const transactions = everyTransaction.filter((t) => shown.has(t.customer_id));
 
   const blob = await writeXlsxFile(
     [
@@ -406,7 +410,7 @@ export async function exportCustomerStatementXlsx(o: CustomerStatementOptions): 
     blob,
     filename,
     `كشف حساب ${customer.name}`,
-    `${o.storeName || 'دفتر البقالة'} — ${o.periodLabel}`,
+    `${o.storeName || FLAVOR.appName} — ${o.periodLabel}`,
   );
 }
 

@@ -32,7 +32,7 @@ import {
   formatAmount, DEFAULT_RATES, type CurrencyBalance, type CurrencyCode, type Rates,
 } from '../data/currencies';
 import {
-  ROLES, directionColor, directionLabel, orderedTypes, roleDef, usesMovementNotice,
+  ROLES, directionColor, hasPriceList, directionLabel, orderedTypes, roleDef, usesMovementNotice,
   type ContactRole,
 } from '../data/roles';
 import {
@@ -693,7 +693,7 @@ const CustomerDetail: React.FC = () => {
                   a صاحب متجر is the one you buy goods from. A زبون or a شريك
                   has debts, not a catalogue, and putting the buttons there
                   would be two dead ends on every contact screen. */}
-              {role === 'supplier' && (
+              {hasPriceList(role) && (
                 <IonRow>
                   <IonCol>
                     <IonButton

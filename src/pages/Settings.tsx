@@ -30,7 +30,7 @@ import { wipeLocalStore } from '../data/owner';
 import { INACTIVE_MESSAGE, SUPPORT_EMAIL } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { numericInput } from '../lib/digits';
-import { useAppearance, ACCENT_NAMES } from '../theme/appearance';
+import { useAppearance, ACCENTS, ACCENT_NAMES } from '../theme/appearance';
 import { useAppScale } from '../lib/appScale';
 import { onPrefsArrived } from '../lib/prefKeys';
 import AppScaleSheet from '../components/AppScaleSheet';
@@ -39,6 +39,7 @@ import {
   biometricEnabled, setBiometricEnabled, unlockMethods, verifyFinger, verifyDevicePin,
   BiometricCancelled,
 } from '../lib/biometric';
+import { FLAVOR } from '../flavors';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -100,13 +101,13 @@ const Settings: React.FC = () => {
   // always exists. Email leads for that reason.
   const verificationMessage = () => {
     const who = settings ? messageSender(settings) : '';
-    return `مرحباً، أرجو التحقق من رقمي وتفعيل حسابي في تطبيق دفتر البقالة.` +
+    return `مرحباً، أرجو التحقق من رقمي وتفعيل حسابي في تطبيق ${FLAVOR.appName}.` +
       (who ? `\nالاسم: ${who}` : '');
   };
 
   const requestByEmail = async () => {
     const opened = await openEmail(
-      SUPPORT_EMAIL, 'تفعيل حساب — دفتر البقالة', verificationMessage(),
+      SUPPORT_EMAIL, `تفعيل حساب — ${FLAVOR.appName}`, verificationMessage(),
     );
     if (!opened) {
       await presentToast({
@@ -484,10 +485,12 @@ const Settings: React.FC = () => {
             {/* ---- Look & lock ---- */}
             <h2 className="settings-section">المظهر والأمان</h2>
             <IonList>
-              <IonItem button detail={false} onClick={cycleAccent}>
-                <IonLabel>لون التطبيق</IonLabel>
-                <IonNote slot="end" color="primary" className="settings-value">{ACCENT_NAMES[accent]}</IonNote>
-              </IonItem>
+              {ACCENTS.length > 1 && (
+                <IonItem button detail={false} onClick={cycleAccent}>
+                  <IonLabel>لون التطبيق</IonLabel>
+                  <IonNote slot="end" color="primary" className="settings-value">{ACCENT_NAMES[accent]}</IonNote>
+                </IonItem>
+              )}
               <IonItem>
                 <IonToggle checked={night} onIonChange={toggleNight}>
                   الوضع الليلي
