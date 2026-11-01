@@ -1,5 +1,4 @@
 import { getManyMeta, setManyMeta } from './meta';
-import { DEFAULT_ROLE, isContactRole, isVisibleRole, type ContactRole } from './roles';
 import { FLAVOR } from '../flavors';
 
 // App settings live in the `app_meta` key/value table (same store as the sync
@@ -17,40 +16,29 @@ export interface Settings {
   // track personal debts, and a message has to be signed by SOMETHING. Only
   // used when there is no store name (see `messageSender`).
   ownerName: string;
-  language: string;
   // Whether to notify contacts (SMS + WhatsApp) when a debt/payment is recorded.
   // Default ON (preserves existing behavior); the owner can turn it off.
   notifyCustomers: boolean;
-  // What a newly added contact is assumed to be — a grocer adds customers all
-  // day, someone tracking their own trade debts mostly adds suppliers.
-  defaultRole: ContactRole;
 }
 
 const DEFAULTS: Settings = {
-  storeName: '', ownerName: '', language: 'ar',
-  notifyCustomers: true, defaultRole: DEFAULT_ROLE,
+  storeName: '', ownerName: '', notifyCustomers: true,
 };
 
 // app_meta keys
 const KEYS: Record<keyof Settings, string> = {
   storeName: FLAVOR.nameKeys.store,
   ownerName: FLAVOR.nameKeys.owner,
-  language: 'language',
   notifyCustomers: 'notify_customers',
-  defaultRole: 'default_role',
 };
 
 export async function getSettings(): Promise<Settings> {
   const meta = await getManyMeta(Object.values(KEYS));
-  const role = meta[KEYS.defaultRole];
   return {
     storeName: meta[KEYS.storeName] ?? DEFAULTS.storeName,
     ownerName: meta[KEYS.ownerName] ?? DEFAULTS.ownerName,
-    language: meta[KEYS.language] ?? DEFAULTS.language,
     // Only an explicit '0' disables it; missing key = default ON.
     notifyCustomers: meta[KEYS.notifyCustomers] !== '0',
-    // A default saved by the other build is not one this build can offer.
-    defaultRole: isContactRole(role) && isVisibleRole(role) ? role : DEFAULTS.defaultRole,
   };
 }
 
@@ -58,9 +46,7 @@ export async function saveSettings(s: Settings): Promise<void> {
   await setManyMeta({
     [KEYS.storeName]: s.storeName.trim(),
     [KEYS.ownerName]: s.ownerName.trim(),
-    [KEYS.language]: s.language,
     [KEYS.notifyCustomers]: s.notifyCustomers ? '1' : '0',
-    [KEYS.defaultRole]: s.defaultRole,
   });
 }
 

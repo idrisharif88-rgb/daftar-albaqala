@@ -801,6 +801,13 @@ ion-toast::part(container) {
 
 /* The current value at the end of a Settings row («ذهبي», «105%»). */
 .settings-value { font-size: 0.95rem; font-weight: 700; }
+/* A typed setting on one line: label at the start, value at the end in the
+   same colour as the read-only values beside it. */
+ion-input.settings-inline .native-input {
+  text-align: end;
+  color: var(--ion-color-primary);
+  font-size: 0.95rem;
+}
 
 /* ---- One weight for the whole app ----
    The owner asked for bold text and bold numbers everywhere: a ledger is read

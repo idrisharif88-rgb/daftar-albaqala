@@ -1220,3 +1220,16 @@ Branch `two-builds`. Not yet device-tested, server change not yet deployed.
   while the last run was `offline`/`error`, AutoSync retries every 15 s with the app visible.
 - **Still to do for the contractor app:** release + Play Google OAuth clients, signing/versioning
   for release, a Play listing, and the owner's review of the role wording in `src/flavors/contractor.ts`.
+
+## Status — BUILT (Phase 24: Settings reorganised) (2026-11-01)
+Frontend only, no migration. Checked in Electron at phone width; **not yet device-tested**.
+- **Order:** activation notice (inactive accounts only, moved from the bottom) → «الحساب» →
+  «المظهر والأمان» → rates (fields unchanged; an API is not planned, none carries Sana'a rates)
+  → «البيانات» (sync, Excel, backup rows; `BackupSection` takes the first two as children) →
+  «الطباعة» → «حول التطبيق» → «حذف الحساب».
+- **No «حفظ» button.** Names and rates save 1s after typing stops and on leaving the screen.
+  Only what changed is written: `saveRates` stamps `rates_updated_at`, so saving untouched rates
+  would hide that they are stale.
+- **`language` and `default_role` settings removed.** New-contact «الصفة» starts empty and «حفظ»
+  stays disabled until it is chosen, because a shopkeeper cannot change a role afterwards.
+  `FLAVOR.defaultRole` / `DEFAULT_ROLE` remain only as the fallback for an unknown stored role.
