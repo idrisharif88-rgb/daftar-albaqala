@@ -14,7 +14,7 @@ import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { getSettings } from '../data/settings';
 import { getRates } from '../data/rates';
 import { DEFAULT_RATES, type CurrencyBalance, type Rates } from '../data/currencies';
-import { DEFAULT_ROLE, ROLES, roleDef, type ContactRole } from '../data/roles';
+import { ROLES, roleDef, type ContactRole } from '../data/roles';
 import { pickContact } from '../lib/contacts';
 import BalanceSummary from '../components/BalanceSummary';
 import BookTotals from '../components/BookTotals';
@@ -51,7 +51,9 @@ const Home: React.FC = () => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
-  const [role, setRole] = useState<ContactRole>(DEFAULT_ROLE);
+  // Starts empty and must be chosen: a wrong role flips the wording of every
+  // entry, and the shopkeeper build has no way to change it afterwards.
+  const [role, setRole] = useState<ContactRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false); // synchronous double-tap guard (see CustomerDetail)
@@ -67,7 +69,6 @@ const Home: React.FC = () => {
     setRows(customers.map((c) => ({ customer: c, balances: balancesByCustomer.get(c.id) ?? [] })));
     setStoreName(settings.storeName?.trim() ?? '');
     setRates(currentRates);
-    setRole(settings.defaultRole);
     setSyncProblem(needsAttention(health) ? health.status : null);
     setLoading(false);
   }, []);
@@ -109,7 +110,7 @@ const Home: React.FC = () => {
   };
 
   const resetForm = () => {
-    setName(''); setPhone(''); setNote(''); setError(null);
+    setName(''); setPhone(''); setNote(''); setRole(null); setError(null);
   };
 
   // Fill name + phone from a saved contact (native picker; no-op on web).
@@ -126,6 +127,7 @@ const Home: React.FC = () => {
 
   const save = async () => {
     setError(null);
+    if (!role) return; // the save button stays disabled until a role is chosen
     if (!name.trim()) { setError('الاسم مطلوب'); return; }
     if (!phone.trim()) { setError('رقم الهاتف مطلوب'); return; }
     if (savingRef.current) return; // a save is already in flight — ignore the re-tap
@@ -282,6 +284,7 @@ const Home: React.FC = () => {
               <IonLabel position="stacked">الصفة</IonLabel>
               <IonSelect
                 value={role}
+                placeholder="اختر الصفة"
                 onIonChange={(e) => setRole(e.detail.value as ContactRole)}
                 interface="popover"
               >
@@ -323,7 +326,7 @@ const Home: React.FC = () => {
               </IonNote>
             )}
 
-            <IonButton expand="block" onClick={save} disabled={saving} className="ion-margin-top">
+            <IonButton expand="block" onClick={save} disabled={saving || !role} className="ion-margin-top">
               {saving ? <IonSpinner name="crescent" /> : 'حفظ'}
             </IonButton>
           </IonContent>

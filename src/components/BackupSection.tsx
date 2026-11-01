@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
-  IonButton, IonIcon, IonNote, IonText, IonSpinner, useIonAlert, useIonToast,
+  IonItem, IonLabel, IonList, IonNote, IonText, IonSpinner, useIonAlert, useIonToast,
 } from '@ionic/react';
-import { logoGoogle, logoWhatsapp } from 'ionicons/icons';
 import { useAuth } from '../lib/auth';
 import { openWhatsApp } from '../lib/notify';
 import { GOOGLE_ENABLED, linkedEmail, unlinkGoogle } from '../lib/googleDrive';
@@ -19,14 +18,15 @@ const stamp = (ms: number) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-// «النسخ الاحتياطي». Two ways to get a copy of the book, because the grocers
-// differ: some want it in their own Google Drive; others will not hand their
-// data to Google and would rather ask the developer. So:
+// «البيانات»: Settings passes its sync and export rows as children, and the
+// backup rows follow them in one list. Two ways to get a copy of the book,
+// because the grocers differ: some want it in their own Google Drive; others
+// will not hand their data to Google and would rather ask the developer. So:
 //   - «طلب نسخة من بياناتي» — always here: a WhatsApp message to the owner.
 //   - Google Drive backup — only for accounts the owner granted it to (Watcher),
 //     and only once the grocer links his own Google account. Nothing goes to
 //     Google until he taps.
-const BackupSection: React.FC<{ senderName: string }> = ({ senderName }) => {
+const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({ senderName, children }) => {
   const { driveBackupAllowed } = useAuth();
   const [email, setEmail] = useState<string | null>(linkedEmail);
   const [last, setLast] = useState<number>(lastBackupAt);
@@ -102,45 +102,47 @@ const BackupSection: React.FC<{ senderName: string }> = ({ senderName }) => {
     setEmail(null);
   };
 
+  const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
+
   return (
     <>
-      <h2 className="settings-section">النسخ الاحتياطي</h2>
-
-      {driveBackupAllowed && GOOGLE_ENABLED && (
-        <>
-          <IonNote className="ion-padding-start" style={{ display: 'block' }}>
-            <IonText className="pre-line">
-              {email ? `حساب Google: ${email}` : 'لم يُربط حساب Google بعد.'}
-              {'\n'}
-              {last ? `آخر نسخة: ${stamp(last)}` : 'لم تُحفظ نسخة بعد.'}
-            </IonText>
-          </IonNote>
-          <IonButton expand="block" className="ion-margin-top" onClick={() => void doBackup()} disabled={!!busy}>
-            {busy === 'backup' ? <IonSpinner name="crescent" /> : (
-              <><IonIcon slot="start" icon={logoGoogle} />نسخ الآن إلى Google Drive</>
+      <h2 className="settings-section">البيانات</h2>
+      <IonList>
+        {children}
+        {driveOn && (
+          <>
+            <IonItem button detail={false} onClick={() => void doBackup()} disabled={!!busy}>
+              <IonLabel>نسخ الآن إلى Google Drive</IonLabel>
+              {busy === 'backup' && <IonSpinner slot="end" name="crescent" />}
+            </IonItem>
+            <IonItem button detail={false} onClick={confirmRestore} disabled={!!busy}>
+              <IonLabel>استعادة من Google Drive</IonLabel>
+              {busy === 'restore' && <IonSpinner slot="end" name="crescent" />}
+            </IonItem>
+            {email && (
+              <IonItem button detail={false} onClick={() => void unlink()} disabled={!!busy}>
+                <IonLabel>فك ربط حساب Google</IonLabel>
+              </IonItem>
             )}
-          </IonButton>
-          <IonButton expand="block" fill="outline" onClick={confirmRestore} disabled={!!busy}>
-            {busy === 'restore' ? <IonSpinner name="crescent" /> : 'استعادة من Google Drive'}
-          </IonButton>
-          {email && (
-            <IonButton expand="block" fill="clear" size="small" onClick={() => void unlink()} disabled={!!busy}>
-              فك ربط حساب Google
-            </IonButton>
-          )}
-          <IonNote color="medium" className="ion-padding-start" style={{ display: 'block' }}>
-            <IonText>
-              النسخة في مجلد خاص بالتطبيق داخل Google Drive الخاص بك، لا يراه غيره.
-              تُحفظ نسخة تلقائياً مرة كل يوم.
-            </IonText>
-          </IonNote>
-        </>
-      )}
+          </>
+        )}
+        <IonItem button detail={false} onClick={() => void requestCopy()}>
+          <IonLabel>طلب نسخة من بياناتي</IonLabel>
+        </IonItem>
+      </IonList>
 
-      <IonButton expand="block" fill="outline" className="ion-margin-top" onClick={() => void requestCopy()}>
-        <IonIcon slot="start" icon={logoWhatsapp} />
-        طلب نسخة من بياناتي
-      </IonButton>
+      {driveOn && (
+        <IonNote color="medium" className="ion-padding-start" style={{ display: 'block' }}>
+          <IonText className="pre-line">
+            {email ? `حساب Google: ${email}` : 'لم يُربط حساب Google بعد.'}
+            {'\n'}
+            {last ? `آخر نسخة: ${stamp(last)}` : 'لم تُحفظ نسخة بعد.'}
+            {'\n'}
+            النسخة في مجلد خاص بالتطبيق داخل Google Drive الخاص بك، لا يراه غيره.
+            تُحفظ نسخة تلقائياً مرة كل يوم.
+          </IonText>
+        </IonNote>
+      )}
     </>
   );
 };

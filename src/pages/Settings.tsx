@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
-  IonBackButton, IonList, IonItem, IonLabel, IonInput, IonSelect, IonSelectOption,
-  IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonToast,
-  useIonAlert, useIonActionSheet,
+  IonBackButton, IonList, IonItem, IonLabel, IonInput,
+  IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonViewWillLeave,
+  useIonToast, useIonAlert, useIonActionSheet,
 } from '@ionic/react';
+import { App as CapacitorApp } from '@capacitor/app';
 import { checkmarkCircle } from 'ionicons/icons';
 import {
   getSettings, saveSettings, messageSender, type Settings as AppSettings,
@@ -15,7 +16,6 @@ import { getRatesState, saveRates, ratesAreStale, RATE_STALE_AFTER_DAYS } from '
 import {
   BASE_CURRENCY, CONVERTIBLE_CURRENCIES, currencyDef, DEFAULT_RATES, type Rates,
 } from '../data/currencies';
-import { ROLES, type ContactRole } from '../data/roles';
 import { openEmail, openUrl, openWhatsApp } from '../lib/notify';
 import {
   thermalPrintingAvailable, listPrinters, getSavedPrinter, getSavedPrinterName, savePrinter,
@@ -46,8 +46,13 @@ import { FLAVOR } from '../flavors';
 // the grocer registered with, then activates on the server.
 const OWNER_WHATSAPP = '779412972';
 
-// Settings — store name, exchange rates, default contact role, language,
-// notifications, manual sync, and the full-book Excel export.
+// How long after the last keystroke a name or rate is written. Long enough not
+// to save and sync every digit, short enough that nothing typed is at risk.
+const AUTOSAVE_DELAY_MS = 1000;
+
+// Settings — store name, notifications, appearance, exchange rates, sync, backup,
+// printer and the full-book Excel export. Everything saves itself: toggles at
+// once, typed fields shortly after typing stops and on leaving the screen.
 //
 // The rates section is the one that needs care: those numbers decide every YER
 // figure the app shows next to a foreign-currency or gold debt, and they go
@@ -55,11 +60,11 @@ const OWNER_WHATSAPP = '779412972';
 // last touched, and flagged once they are older than a week.
 const Settings: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
+  const [version, setVersion] = useState<string | null>(null);
   const { logout, isOwner } = useAuth();
   const { accent, night, cycleAccent, toggleNight } = useAppearance();
   const { scale, setScale } = useAppScale();
@@ -80,10 +85,23 @@ const Settings: React.FC = () => {
   const [presentAlert] = useIonAlert();
   const [presentSheet] = useIonActionSheet();
 
+  // The latest values and what still needs writing, in refs so the delayed save
+  // and the leave handler read what was typed last, not a stale render's copy.
+  const settingsRef = useRef<AppSettings | null>(null);
+  const ratesRef = useRef<Rates>(DEFAULT_RATES);
+  const dirty = useRef({ settings: false, rates: false });
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // The running version, for «حول التطبيق». Native only; the row is hidden on web.
+  useEffect(() => {
+    CapacitorApp.getInfo().then((info) => setVersion(info.version)).catch(() => {});
+  }, []);
+
   useIonViewWillEnter(() => {
-    void getSettings().then(setSettings);
+    void getSettings().then((s) => { settingsRef.current = s; setSettings(s); });
     void isAccountActive().then(setActive);
     void getRatesState().then((state) => {
+      ratesRef.current = state.rates;
       setRates(state.rates);
       setRatesUpdatedAt(state.updatedAt);
     });
@@ -250,33 +268,49 @@ const Settings: React.FC = () => {
     }
   };
 
-  const update = (patch: Partial<AppSettings>) =>
-    setSettings((s) => (s ? { ...s, ...patch } : s));
-
-  // The notifications toggle persists immediately (a toggle that only takes
-  // effect after pressing "حفظ" would be confusing).
-  const toggleNotify = async (enabled: boolean) => {
-    if (!settings) return;
-    const next = { ...settings, notifyCustomers: enabled };
-    setSettings(next);
-    await saveSettings(next);
-  };
-
-  const save = async () => {
-    if (!settings) return;
-    setSaving(true);
+  // Writes only what changed: saveRates stamps «آخر تحديث», so saving rates
+  // nobody touched would hide that they have gone stale.
+  const flushSaves = async () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    const { settings: settingsChanged, rates: ratesChanged } = dirty.current;
+    if (!settingsChanged && !ratesChanged) return;
+    dirty.current = { settings: false, rates: false };
     try {
-      await saveSettings(settings);
-      await saveRates(rates);
-      setRatesUpdatedAt(new Date().toISOString());
+      if (settingsChanged && settingsRef.current) await saveSettings(settingsRef.current);
+      if (ratesChanged) {
+        await saveRates(ratesRef.current);
+        setRatesUpdatedAt(new Date().toISOString());
+      }
       // The name and the rates belong to the ACCOUNT, so get them to the
       // server while the owner is still here. Fire-and-forget: they are saved
       // locally either way, and offline this simply no-ops.
       void runSync();
-      await presentToast({ message: 'تم الحفظ', duration: 1500, color: 'success' });
-    } finally {
-      setSaving(false);
+    } catch {
+      await presentToast({ message: 'تعذّر الحفظ. حاول مرة أخرى', color: 'danger', duration: 2500 });
     }
+  };
+
+  const scheduleSave = () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { void flushSaves(); }, AUTOSAVE_DELAY_MS);
+  };
+
+  useIonViewWillLeave(() => { void flushSaves(); });
+
+  const update = (patch: Partial<AppSettings>) => {
+    if (!settingsRef.current) return;
+    const next = { ...settingsRef.current, ...patch };
+    settingsRef.current = next;
+    setSettings(next);
+    dirty.current.settings = true;
+    scheduleSave();
+  };
+
+  // A toggle takes effect at once; only typing waits for a pause.
+  const toggleNotify = async (enabled: boolean) => {
+    update({ notifyCustomers: enabled });
+    await flushSaves();
   };
 
   // «اختيار الطابعة»: which KIND of printer invoices go to. An ordinary
@@ -360,7 +394,11 @@ const Settings: React.FC = () => {
   // keyboards send a comma for the decimal point) and zero means "not set".
   const updateRate = (code: keyof Rates, raw: string) => {
     const parsed = Number(raw.replace(',', '.'));
-    setRates((r) => ({ ...r, [code]: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 }));
+    const next = { ...ratesRef.current, [code]: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 };
+    ratesRef.current = next;
+    setRates(next);
+    dirty.current.rates = true;
+    scheduleSave();
   };
 
   const doExportExcel = async () => {
@@ -389,6 +427,7 @@ const Settings: React.FC = () => {
   const sync = async () => {
     setSyncing(true);
     try {
+      await flushSaves();
       const r = await runSync();
       const toast = {
         ok: {
@@ -424,44 +463,54 @@ const Settings: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* The same words the blocked screens show, so an owner who goes
+                looking in Settings finds one answer and not a second one. */}
+            {!active && (
+              <div>
+                <IonNote color="warning" className="ion-padding-start">
+                  <IonText className="pre-line">{INACTIVE_MESSAGE}</IonText>
+                </IonNote>
+                <IonButton
+                  expand="block"
+                  color="warning"
+                  onClick={() => { void requestByEmail(); }}
+                  className="ion-margin-top"
+                >
+                  التواصل عبر البريد الإلكتروني
+                </IonButton>
+                <IonButton
+                  expand="block"
+                  fill="outline"
+                  color="warning"
+                  onClick={() => { void requestByWhatsApp(); }}
+                >
+                  التواصل عبر واتساب
+                </IonButton>
+              </div>
+            )}
+
+            {/* ---- Account ---- */}
+            <h2 className="settings-section">الحساب</h2>
             <IonList>
               <IonItem>
-                <IonLabel position="stacked">اسم المتجر</IonLabel>
                 <IonInput
+                  className="settings-inline"
+                  label="اسم المتجر"
+                  labelPlacement="start"
                   value={settings.storeName}
                   onIonInput={(e) => update({ storeName: e.detail.value ?? '' })}
                   placeholder="مثال: بقالة الأمل"
                 />
               </IonItem>
               <IonItem>
-                <IonLabel position="stacked">اسمك</IonLabel>
                 <IonInput
+                  className="settings-inline"
+                  label="اسمك"
+                  labelPlacement="start"
                   value={settings.ownerName}
                   onIonInput={(e) => update({ ownerName: e.detail.value ?? '' })}
-                  placeholder="يُستخدم في الرسائل إذا لم يكن لديك متجر"
+                  placeholder="غير محدد"
                 />
-              </IonItem>
-              <IonItem>
-                <IonLabel>صفة الجهة الافتراضية</IonLabel>
-                <IonSelect
-                  value={settings.defaultRole}
-                  onIonChange={(e) => update({ defaultRole: e.detail.value as ContactRole })}
-                  interface="popover"
-                >
-                  {ROLES.map((r) => (
-                    <IonSelectOption key={r.role} value={r.role}>{r.labelAr}</IonSelectOption>
-                  ))}
-                </IonSelect>
-              </IonItem>
-              <IonItem>
-                <IonLabel>اللغة</IonLabel>
-                <IonSelect
-                  value={settings.language}
-                  onIonChange={(e) => update({ language: e.detail.value })}
-                  interface="popover"
-                >
-                  <IonSelectOption value="ar">العربية</IonSelectOption>
-                </IonSelect>
               </IonItem>
               <IonItem>
                 <IonToggle
@@ -477,8 +526,7 @@ const Settings: React.FC = () => {
               <IonText>
                 يظهر اسم المتجر في أول سطر من الرسائل والكشوفات، وإذا تركته فارغاً
                 يظهر اسمك بدلاً منه. عند إيقاف الإشعارات لن يتم إرسال أي رسالة عند
-                تسجيل دين أو دفعة. «صفة الجهة الافتراضية» هي الصفة المقترحة عند
-                إضافة جهة جديدة.
+                تسجيل دين أو دفعة.
               </IonText>
             </IonNote>
 
@@ -561,65 +609,55 @@ const Settings: React.FC = () => {
               </IonText>
             </IonNote>
 
-            <IonButton expand="block" onClick={save} disabled={saving} className="ion-margin-top">
-              {saving ? <IonSpinner name="crescent" /> : 'حفظ'}
-            </IonButton>
-
-            <IonButton
-              expand="block"
-              fill="outline"
-              onClick={sync}
-              disabled={syncing}
-              className="ion-margin-top"
-            >
-              {syncing ? <IonSpinner name="crescent" /> : 'مزامنة الآن'}
-            </IonButton>
+            {/* ---- Data: sync and export, followed by the backup rows ---- */}
+            <BackupSection senderName={messageSender(settings)}>
+              <IonItem button detail={false} onClick={sync} disabled={syncing}>
+                <IonLabel>مزامنة الآن</IonLabel>
+                {syncing && <IonSpinner slot="end" name="crescent" />}
+              </IonItem>
+              <IonItem button detail={false} onClick={doExportExcel} disabled={exporting}>
+                <IonLabel>تصدير الدفتر إلى Excel</IonLabel>
+                {exporting && <IonSpinner slot="end" name="crescent" />}
+              </IonItem>
+            </BackupSection>
 
             {/* The invoice printer. Offered only where the phone can print at
-                all — on the web neither path exists, and the button would be a
+                all — on the web neither path exists, and the row would be a
                 promise the app cannot keep. */}
             {(systemPrintAvailable() || thermalPrintingAvailable()) && (
               <>
-                <IonButton
-                  expand="block"
-                  fill="outline"
-                  onClick={choosePrinterKind}
-                  className="ion-margin-top"
-                >
-                  اختيار الطابعة
-                </IonButton>
-                <IonNote className="ion-padding-start" style={{ display: 'block', marginTop: 6 }}>
-                  {printMode === 'thermal' && printer
-                    ? `الطابعة الحالية: حرارية (بلوتوث) — ${printerName || printer}`
-                    : 'الطابعة الحالية: طابعة عادية (تُختار من نافذة الطباعة)'}
-                </IonNote>
+                <h2 className="settings-section">الطباعة</h2>
+                <IonList>
+                  <IonItem button detail={false} onClick={choosePrinterKind}>
+                    <IonLabel>الطابعة</IonLabel>
+                    <IonNote slot="end" color="primary" className="settings-value">
+                      {printMode === 'thermal' && printer ? 'طابعة حرارية' : 'طابعة عادية'}
+                    </IonNote>
+                  </IonItem>
+                </IonList>
+                {printMode === 'thermal' && printer && (
+                  <IonNote color="medium" className="ion-padding-start" style={{ display: 'block' }}>
+                    <IonText>بلوتوث: {printerName || printer}</IonText>
+                  </IonNote>
+                )}
               </>
             )}
 
-            <IonButton
-              expand="block"
-              fill="outline"
-              onClick={doExportExcel}
-              disabled={exporting}
-              className="ion-margin-top"
-            >
-              {exporting ? <IonSpinner name="crescent" /> : 'تصدير الدفتر إلى Excel'}
-            </IonButton>
-
-            <BackupSection senderName={messageSender(settings)} />
-
-            {/* Privacy policy. Not required by Play for an app that collects
-                what this one does, but reviewers look for it, and the page has
-                to actually exist — a link to a 404 is worse than no link. */}
-            <IonButton
-              expand="block"
-              fill="clear"
-              size="small"
-              onClick={() => { void openPrivacyPolicy(); }}
-              className="ion-margin-top"
-            >
-              سياسة الخصوصية
-            </IonButton>
+            {/* ---- About ---- Privacy policy: not required by Play for an app
+                that collects what this one does, but reviewers look for it, and
+                the page has to actually exist. */}
+            <h2 className="settings-section">حول التطبيق</h2>
+            <IonList>
+              <IonItem button detail={false} onClick={() => { void openPrivacyPolicy(); }}>
+                <IonLabel>سياسة الخصوصية</IonLabel>
+              </IonItem>
+              {version && (
+                <IonItem>
+                  <IonLabel>الإصدار</IonLabel>
+                  <IonNote slot="end" color="primary" className="settings-value">{version}</IonNote>
+                </IonItem>
+              )}
+            </IonList>
 
             {/* Deleting the account lives at the very bottom, apart from
                 everything else and behind two confirmations: it is the only
@@ -642,31 +680,6 @@ const Settings: React.FC = () => {
               </IonButton>
             </div>
 
-            {/* The same words the blocked screens show, so an owner who goes
-                looking in Settings finds one answer and not a second one. */}
-            {!active && (
-              <div className="ion-margin-top">
-                <IonNote color="warning" className="ion-padding-start">
-                  <IonText className="pre-line">{INACTIVE_MESSAGE}</IonText>
-                </IonNote>
-                <IonButton
-                  expand="block"
-                  color="warning"
-                  onClick={() => { void requestByEmail(); }}
-                  className="ion-margin-top"
-                >
-                  التواصل عبر البريد الإلكتروني
-                </IonButton>
-                <IonButton
-                  expand="block"
-                  fill="outline"
-                  color="warning"
-                  onClick={() => { void requestByWhatsApp(); }}
-                >
-                  التواصل عبر واتساب
-                </IonButton>
-              </div>
-            )}
           </>
         )}
       </IonContent>
