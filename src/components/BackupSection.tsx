@@ -7,11 +7,9 @@ import { openWhatsApp } from '../lib/notify';
 import { GOOGLE_ENABLED, linkedEmail, unlinkGoogle } from '../lib/googleDrive';
 import {
   backupNow, restoreBackup, lastBackupAt, readRemoteBackup, isLocalBookEmpty,
-  restoreOffered, markRestoreOffered, ownerUserId, DAY_MS, bookFileForSupport, type RemoteBackup,
+  restoreOffered, markRestoreOffered, ownerUserId, DAY_MS, type RemoteBackup,
 } from '../data/driveBackup';
 import { FLAVOR } from '../flavors';
-import { shareFileViaWhatsApp } from '../lib/shareFile';
-import { ShareCancelledError } from '../lib/shareTarget';
 
 // The owner's WhatsApp — where «طلب نسخة من بياناتي» goes. Same number as the
 // activation request in Settings.
@@ -35,7 +33,7 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
   const { driveBackupAllowed } = useAuth();
   const [email, setEmail] = useState<string | null>(linkedEmail);
   const [last, setLast] = useState<number>(lastBackupAt);
-  const [busy, setBusy] = useState<'backup' | 'restore' | 'send' | null>(null);
+  const [busy, setBusy] = useState<'backup' | 'restore' | null>(null);
   // What the copy on Drive holds — read from the file itself, never stored.
   const [remote, setRemote] = useState<RemoteBackup | null>(null);
   const [presentToast] = useIonToast();
@@ -95,23 +93,6 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
 
   // An empty phone saving over a backup that has a book in it would replace
   // the grocer's real copy with a blank one — so it asks first.
-  // The whole book as a file, for the developer to open in his Watcher when
-  // the grocer needs help. Goes out over WhatsApp; the grocer picks the chat.
-  const sendToSupport = async () => {
-    setBusy('send');
-    try {
-      const file = await bookFileForSupport();
-      await shareFileViaWhatsApp({
-        data: file.data, mime: 'application/json', filename: file.filename,
-        caption: `دفتري للدعم${senderName ? ` — ${senderName}` : ''}`,
-      });
-    } catch (err) {
-      if (!(err instanceof ShareCancelledError)) await fail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const doBackup = async () => {
     setBusy('backup');
     let ask: RemoteBackup | null = null;
@@ -230,10 +211,6 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
         )}
         <IonItem button detail={false} onClick={() => void requestCopy()}>
           <IonLabel>طلب نسخة من بياناتي</IonLabel>
-        </IonItem>
-        <IonItem button detail={false} onClick={() => void sendToSupport()} disabled={!!busy}>
-          <IonLabel>إرسال دفتري للدعم</IonLabel>
-          {busy === 'send' && <IonSpinner slot="end" name="crescent" />}
         </IonItem>
       </IonList>
 
