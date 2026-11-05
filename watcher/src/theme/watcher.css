@@ -33,6 +33,36 @@ ion-header ion-segment-button {
 .acct__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .acct__actions ion-button { flex: 1 1 40%; margin: 0; }
 
+/* ---- Buttons: one pill shape across the app ----
+   Every button in a page body, footer or modal is a pill. Header buttons are
+   left alone: they are icon buttons on the green bar and already round.
+   Shape and weight live in tokens so a future tweak is one line. */
+:root {
+  --btn-radius: 999px;
+  --btn-height: 42px;
+  --btn-height-small: 36px;
+}
+ion-content ion-button,
+ion-footer ion-button,
+ion-modal ion-content ion-button {
+  --border-radius: var(--btn-radius);
+  --box-shadow: none;
+  min-height: var(--btn-height);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+ion-content ion-button[size="small"] {
+  --padding-start: 14px;
+  --padding-end: 14px;
+  min-height: var(--btn-height-small);
+  font-size: 0.85rem;
+}
+ion-content ion-button[fill="outline"] { --border-width: 1.5px; }
+/* Pressed state: a soft fill instead of the square ripple box. */
+ion-content ion-button::part(native) { transition: background-color 120ms ease, transform 80ms ease; }
+ion-content ion-button:active::part(native) { transform: scale(0.98); }
+
 .badge { border-radius: 999px; padding: 2px 10px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
 .badge--active { background: #1b5e20; color: #fff; }
 .badge--none { background: #fff4d6; color: #7a5a00; }

@@ -4,7 +4,7 @@ import {
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
   IonSpinner, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
-import { documentAttachOutline, logOutOutline, refreshOutline } from 'ionicons/icons';
+import { logOutOutline, refreshOutline } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup,
   deleteAccount, setStoreName,
@@ -286,14 +286,16 @@ const Accounts: React.FC = () => {
           text: 'حذف',
           role: 'destructive',
           handler: (data: { phone?: string }) => {
-            const typed = digitsOnly(String(data?.phone ?? ''));
-            if (typed !== a.phone) {
+            // Same number however it was typed: Arabic digits, spaces, or with
+            // the country code / a leading zero (00967…, 967…, 0…).
+            const local = (v: string) => digitsOnly(v).replace(/^(00)?967/, '').replace(/^0+/, '');
+            if (!local(String(data?.phone ?? '')) || local(String(data?.phone ?? '')) !== local(a.phone)) {
               presentToast({ message: 'الرقم غير مطابق — لم يُحذف شيء', duration: 2500, color: 'warning' });
               return;
             }
             setTimeout(() => {
               void ask('حذف الحساب').then((code) => {
-                if (code) void run(a, () => deleteAccount(a.id, typed, code), 'تم حذف الحساب');
+                if (code) void run(a, () => deleteAccount(a.id, a.phone, code), 'تم حذف الحساب');
               });
             }, 350);
           },
@@ -357,9 +359,6 @@ const Accounts: React.FC = () => {
         <IonToolbar>
           <IonTitle>مراقب البقالة</IonTitle>
           <IonButtons slot="end">
-            <IonButton onClick={() => router.push('/file')} aria-label="فتح ملف دفتر">
-              <IonIcon slot="icon-only" icon={documentAttachOutline} />
-            </IonButton>
             <IonButton onClick={() => void load()} aria-label="تحديث">
               <IonIcon slot="icon-only" icon={refreshOutline} />
             </IonButton>
@@ -432,7 +431,7 @@ const Accounts: React.FC = () => {
                   </IonButton>
                 )}
                 {s === 'active' && (
-                  <IonButton size="small" fill="outline" color="warning" disabled={busyId === a.id} onClick={() => syncOff(a)}>
+                  <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => syncOff(a)}>
                     إيقاف المزامنة
                   </IonButton>
                 )}
@@ -451,7 +450,6 @@ const Accounts: React.FC = () => {
                   <IonButton
                     size="small"
                     fill={a.contractor_status === 'active' ? 'solid' : 'outline'}
-                    color="warning"
                     disabled={busyId === a.id}
                     onClick={() => changeContractor(a)}
                   >
@@ -461,13 +459,12 @@ const Accounts: React.FC = () => {
                 <IonButton
                   size="small"
                   fill={a.drive_backup ? 'solid' : 'outline'}
-                  color="tertiary"
                   disabled={busyId === a.id}
                   onClick={() => changeDrive(a)}
                 >
                   {a.drive_backup ? 'Drive: مفعّل' : 'Drive'}
                 </IonButton>
-                <IonButton size="small" fill="outline" color="medium" disabled={busyId === a.id} onClick={() => rename(a)}>
+                <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => rename(a)}>
                   تغيير الاسم
                 </IonButton>
                 <IonButton size="small" fill="clear" color="danger" disabled={busyId === a.id} onClick={() => remove(a)}>

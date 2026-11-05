@@ -209,21 +209,3 @@ export const markRestoreOffered = (userId: string): void => {
 };
 export const ownerUserId = ownerId;
 
-/** UTF-8 → base64 (btoa alone breaks on Arabic). */
-function utf8Base64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(bin);
-}
-
-/** The whole book as one file for the owner's Watcher («فتح ملف دفتر») — the
- *  same JSON as the Drive backup, so one format serves both. */
-export async function bookFileForSupport(now = new Date()): Promise<{ data: string; filename: string }> {
-  const backup = await buildBackup(now.getTime());
-  const p = (n: number) => String(n).padStart(2, '0');
-  const day = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
-  return { data: utf8Base64(JSON.stringify(backup)), filename: `daftar-${day}.json` };
-}

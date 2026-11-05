@@ -1279,7 +1279,10 @@ Server 116/116, app 71/71. No migration. **Not deployed, not device-tested.**
   working) / «إيقاف» (suspended, locked out — unchanged). Badge for `none` reads «بدون مزامنة».
 - ⚠️ Play build ≤2 still blocks recording for unsynced accounts until users update.
 
-## Status — BUILT (Phase 28: a user's book as a file → the Watcher) (2026-11-05)
+## Status — REMOVED (Phase 28: a user's book as a file → the Watcher) (built + removed 2026-11-05)
+> ⚠️ **Removed the same day** (branch `remove-book-file`): a file copy can only be read, never
+> corrected. Replaced by **support sync** — the owner switches «تفعيل المزامنة» on for that user,
+> fixes the book in the Watcher, then «إيقاف المزامنة». Nothing below exists any more.
 Frontend only (shop app + Watcher), no server change. **Not device-tested.**
 - Shop app: «إرسال دفتري للدعم» in «النسخ الاحتياطي» — `bookFileForSupport()` (driveBackup.ts) builds the
   SAME JSON as the Drive backup and sends it with `shareFileViaWhatsApp` (`daftar-<date>.json`).
