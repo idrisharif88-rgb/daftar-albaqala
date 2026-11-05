@@ -167,4 +167,29 @@ describe('/admin — delete account + rename store', () => {
     await pool.query("UPDATE users SET contractor_status = 'active' WHERE id = ?", [a]);
     assert.equal((await request(app).get('/me').set(shop).set('X-App', 'contractor')).body.user.drive_backup, false);
   });
+  test('sets a new password: old one stops working, new one signs in', async () => {
+    const a = await seedUser();
+    const phone = await phoneOf(a);
+    // A too-short password is refused without spending the code…
+    assert.equal((await request(app).post(`/admin/users/${a}/password`).set(auth())
+      .send({ code: codeNow(1), password: '123' })).status, 400);
+    // …so the same code still works for the real change.
+    const res = await request(app).post(`/admin/users/${a}/password`).set(auth())
+      .send({ code: codeNow(1), password: 'NewPass2026' });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal((await request(app).post('/auth/login').send({ phone, password: 'NewPass2026' })).status, 200);
+    assert.notEqual((await request(app).post('/auth/login').send({ phone, password: 'pw123456' })).status, 200);
+  });
+
+  test('password change needs a fresh code and an admin token', async () => {
+    const a = await seedUser();
+    assert.equal((await request(app).post(`/admin/users/${a}/password`).set(auth())
+      .send({ password: 'NewPass2026' })).status, 403);
+    assert.equal((await request(app).post(`/admin/users/${a}/password`)
+      .set({ Authorization: `Bearer ${tokenFor(a)}` })
+      .send({ code: codeNow(1), password: 'NewPass2026' })).status, 401);
+    // Too short: refused (the shopkeeper token above never reached the code gate).
+    assert.equal((await request(app).post(`/admin/users/${a}/password`).set(auth())
+      .send({ code: codeNow(1), password: '123' })).status, 400);
+  });
 });

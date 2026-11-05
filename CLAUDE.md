@@ -1306,3 +1306,8 @@ Frontend only (shop app + Watcher), no server change. **Not device-tested.**
 - Home's round button: label «مزامنة» (server sync) or «نسخ احتياطي» (no sync + Drive available), from the
   `account_active` flag. The ACTION is decided by the server at tap time: `runSync({force})`; a 402 (or an
   `error` on an account already known to be free) → Drive backup. `offline` stays the offline message.
+## Status — BUILT (Phase 31: Watcher sets a shopkeeper's password) (2026-11-05)
+- `POST /admin/users/:id/password {code, password}` — 6–128 chars, bcrypt cost 10. Length is checked
+  BEFORE `requireAdminCode`, so a short password never spends the single-use code. The phone stays signed
+  in (the JWT isn't tied to the password). Watcher: «كلمة المرور» per account → `confirm-input` dialog
+  (shares the delete dialog's box style, green title + ring). Server tests 119/119.
