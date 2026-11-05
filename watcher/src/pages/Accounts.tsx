@@ -7,7 +7,7 @@ import {
 import { logOutOutline, refreshOutline } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup,
-  deleteAccount, setStoreName,
+  deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
@@ -271,6 +271,41 @@ const Accounts: React.FC = () => {
     });
   };
 
+  // New password for a shopkeeper who forgot his. Shown as plain text so the
+  // owner can read it back before sending it to him; checked here (6+) so a
+  // short one never spends an authenticator code.
+  const changePassword = (a: Account) => {
+    const who = a.store_name || a.phone;
+    presentAlert({
+      header: 'كلمة مرور جديدة',
+      cssClass: 'confirm-input',
+      message: `كلمة مرور جديدة لـ«${who}».\nستة أحرف على الأقل. هاتفه يبقى مسجّلاً، وتُستعمل عند الدخول التالي.`,
+      inputs: [{
+        name: 'password', type: 'text', placeholder: 'اكتب كلمة المرور هنا',
+        attributes: { autocomplete: 'off', autocapitalize: 'off', spellcheck: false, maxlength: 128 },
+      }],
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'حفظ',
+          handler: (data: { password?: string }) => {
+            const pw = String(data?.password ?? '').trim();
+            if (pw.length < 6) {
+              presentToast({ message: 'كلمة المرور قصيرة — ستة أحرف على الأقل', duration: 2500, color: 'warning' });
+              return false; // keep the dialog open
+            }
+            setTimeout(() => {
+              void ask('تغيير كلمة المرور').then((code) => {
+                if (code) void run(a, () => setPassword(a.id, pw, code), 'تم تغيير كلمة المرور');
+              });
+            }, 350);
+            return true;
+          },
+        },
+      ],
+    });
+  };
+
   // Erase a whole account — cannot be undone. The owner types the account's
   // number back; the server checks it too.
   const remove = (a: Account) => {
@@ -471,6 +506,9 @@ const Accounts: React.FC = () => {
                 </IonButton>
                 <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => rename(a)}>
                   تغيير الاسم
+                </IonButton>
+                <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => changePassword(a)}>
+                  كلمة المرور
                 </IonButton>
                 <IonButton size="small" fill="clear" color="danger" disabled={busyId === a.id} onClick={() => remove(a)}>
                   حذف الحساب

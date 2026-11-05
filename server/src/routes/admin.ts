@@ -232,6 +232,39 @@ router.post(
   })
 );
 
+// POST /admin/users/:id/password  { code, password }
+// Set a new password for a shopkeeper who forgot his. Same rule as
+// registration (6+ characters) and the same bcrypt cost. His phone stays
+// signed in — the token is not tied to the password — so only a new sign-in
+// uses it.
+const PASSWORD_MIN = 6;
+const PASSWORD_MAX = 128;
+router.post(
+  '/users/:id/password',
+  // Checked BEFORE the code gate, so a too-short password does not spend the
+  // owner's single-use authenticator code.
+  (req, res, next) => {
+    const n = String(req.body?.password ?? '').length;
+    if (n < PASSWORD_MIN || n > PASSWORD_MAX) {
+      return res.status(400).json({ error: `password must be ${PASSWORD_MIN}–${PASSWORD_MAX} characters` });
+    }
+    return next();
+  },
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const password = String(req.body.password);
+    const hash = await bcrypt.hash(password, 10);
+    const [result] = await pool.query(
+      'UPDATE users SET password_hash = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [hash, req.params.id],
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ id: req.params.id, password_changed: true });
+  })
+);
+
 // ---- One account's book (slice 2) ----
 //
 // Every query below names the account in its WHERE clause — the contact AND the

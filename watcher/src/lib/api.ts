@@ -128,6 +128,14 @@ export function deleteAccount(id: string, confirmPhone: string, code: string): P
   });
 }
 
+/** Set a new password for a shopkeeper who forgot his (6–128 characters). */
+export function setPassword(id: string, password: string, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/password`, {
+    method: 'POST',
+    body: JSON.stringify({ password, code }),
+  });
+}
+
 /** Rename the store the phones show — the grocery book's, or the contractor's. */
 export function setStoreName(
   id: string, storeName: string, app: 'grocery' | 'contractor', code: string,
