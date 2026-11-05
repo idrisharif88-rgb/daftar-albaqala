@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import Login from './pages/Login';
 import Accounts from './pages/Accounts';
 import Book from './pages/Book';
+import BookFile from './pages/BookFile';
 import Contact from './pages/Contact';
 
 import '@ionic/react/css/core.css';
@@ -34,6 +35,9 @@ const Routes: React.FC = () => {
       </Route>
       <Route exact path="/accounts/:id/customers/:cid">
         {authed ? <Contact /> : <Redirect to="/login" />}
+      </Route>
+      <Route exact path="/file">
+        {authed ? <BookFile /> : <Redirect to="/login" />}
       </Route>
       <Route exact path="/">
         <Redirect to={authed ? '/accounts' : '/login'} />

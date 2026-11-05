@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.shopbookidris.app',
-  appName: 'دفتر البقالة',
+  appName: 'Shopbook | فليكتب',
   webDir: 'dist',
   // Brand green behind the page. The WebView itself is held invisible until
   // its first frame is ready (MainActivity.holdWebViewUntilPainted), so the

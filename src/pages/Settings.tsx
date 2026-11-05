@@ -428,7 +428,7 @@ const Settings: React.FC = () => {
     setSyncing(true);
     try {
       await flushSaves();
-      const r = await runSync();
+      const r = await runSync({ force: true });
       const toast = {
         ok: {
           message: '', icon: checkmarkCircle, cssClass: 'toast-sync-ok', position: 'top' as const,
@@ -463,16 +463,16 @@ const Settings: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* The same words the blocked screens show, so an owner who goes
-                looking in Settings finds one answer and not a second one. */}
+            {/* No server sync for this account: a calm note, not a wall — the
+                book works fully on this phone. */}
             {!active && (
               <div>
-                <IonNote color="warning" className="ion-padding-start">
+                <IonNote color="medium" className="ion-padding-start">
                   <IonText className="pre-line">{INACTIVE_MESSAGE}</IonText>
                 </IonNote>
                 <IonButton
                   expand="block"
-                  color="warning"
+                  fill="outline"
                   onClick={() => { void requestByEmail(); }}
                   className="ion-margin-top"
                 >
@@ -481,7 +481,6 @@ const Settings: React.FC = () => {
                 <IonButton
                   expand="block"
                   fill="outline"
-                  color="warning"
                   onClick={() => { void requestByWhatsApp(); }}
                 >
                   التواصل عبر واتساب
@@ -581,7 +580,7 @@ const Settings: React.FC = () => {
               {CONVERTIBLE_CURRENCIES.map((c) => (
                 <IonItem key={c.code}>
                   <IonLabel position="stacked">
-                    {c.isWeight ? `سعر الجرام (${c.longAr})` : `سعر ${c.longAr}`}
+                    {c.isWeight ? 'سعر جرام الذهب' : `سعر ${c.longAr}`}
                   </IonLabel>
                   <IonInput
                     type="text"
@@ -609,12 +608,17 @@ const Settings: React.FC = () => {
               </IonText>
             </IonNote>
 
-            {/* ---- Data: sync and export, followed by the backup rows ---- */}
-            <BackupSection senderName={messageSender(settings)}>
+            {/* ---- Server sync: its own section, apart from the copies below ---- */}
+            <h2 className="settings-section">المزامنة</h2>
+            <IonList>
               <IonItem button detail={false} onClick={sync} disabled={syncing}>
                 <IonLabel>مزامنة الآن</IonLabel>
                 {syncing && <IonSpinner slot="end" name="crescent" />}
               </IonItem>
+            </IonList>
+
+            {/* ---- Copies of the book: Excel export, followed by the backup rows ---- */}
+            <BackupSection senderName={messageSender(settings)}>
               <IonItem button detail={false} onClick={doExportExcel} disabled={exporting}>
                 <IonLabel>تصدير الدفتر إلى Excel</IonLabel>
                 {exporting && <IonSpinner slot="end" name="crescent" />}

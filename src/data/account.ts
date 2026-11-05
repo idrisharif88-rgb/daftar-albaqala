@@ -1,10 +1,10 @@
 import { getMeta, setMeta } from './meta';
 
-// Whether the owner has activated this account on the server. The server is the
-// real enforcement point: /sync returns 402 until subscription_status='active'.
-// We mirror that result into a local flag so the app can block data entry while
-// offline too. Default = NOT active: a brand-new account is blocked until the
-// owner activates it server-side and a sync succeeds.
+// Whether the owner has switched SERVER SYNC on for this account. The server is
+// the real enforcement point: /sync returns 402 until subscription_status='active'.
+// The result is mirrored here only so Settings can say so. It no longer blocks
+// recording (2026-11-05): an account without sync is a full book on this phone,
+// backed up to its own Google Drive — only the server copy is withheld.
 
 const ACTIVE_KEY = 'account_active';
 
@@ -20,17 +20,12 @@ export async function setAccountActive(active: boolean): Promise<void> {
 export const SUPPORT_EMAIL = 'q.fives.app@gmail.com';
 
 /**
- * Shown when a blocked account tries to record something.
+ * Shown in Settings to an account without server sync.
  *
  * Written in both languages on purpose: the owner reads the Arabic, and a Play
- * reviewer who does not read Arabic must still be able to see what the screen
- * is asking for and how to get past it — an unexplained wall is a rejection.
- *
- * It states one thing: the account is waiting on a check that this phone number
- * is real. It names no price, no currency, no plan and no term, and it does not
- * use the word اشتراك. What the gate protects is identity, and the wording says
- * only that.
+ * reviewer who does not read Arabic must still see what it says. It names no
+ * price, no currency, no plan and no term, and does not use the word اشتراك.
  */
 export const INACTIVE_MESSAGE =
-  `لتفعيل حسابك، تواصل معنا للتحقق من رقمك:\n${SUPPORT_EMAIL}\n\n` +
-  `To activate your account, contact us to verify your number:\n${SUPPORT_EMAIL}`;
+  `دفترك محفوظ على هذا الجهاز. المزامنة مع الخادم غير مفعّلة لحسابك — لتفعيلها تواصل معنا:\n${SUPPORT_EMAIL}\n\n` +
+  `Your book is saved on this phone. Server sync is not enabled for your account — to enable it, contact us:\n${SUPPORT_EMAIL}`;

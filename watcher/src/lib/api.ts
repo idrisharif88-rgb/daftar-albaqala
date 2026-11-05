@@ -71,6 +71,8 @@ export interface Account {
   id: string;
   phone: string;
   store_name: string | null;
+  /** «دفتر المقاول»'s own store name, if one was set. */
+  contractor_store_name: string | null;
   plan: string;
   subscription_status: Status;
   subscription_expires_at: string | null;
@@ -104,7 +106,7 @@ export function setContractorStatus(id: string, active: boolean, code: string): 
   });
 }
 
-export function setAccountStatus(id: string, status: 'active' | 'suspended', code: string): Promise<unknown> {
+export function setAccountStatus(id: string, status: 'active' | 'none' | 'suspended', code: string): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/status`, {
     method: 'POST',
     body: JSON.stringify({ status, code }),
@@ -115,6 +117,24 @@ export function setDriveBackup(id: string, enabled: boolean, code: string): Prom
   return request(`/admin/users/${encodeURIComponent(id)}/drive-backup`, {
     method: 'POST',
     body: JSON.stringify({ enabled, code }),
+  });
+}
+
+/** Erase a whole account. The server checks `confirmPhone` against the account. */
+export function deleteAccount(id: string, confirmPhone: string, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ confirm_phone: confirmPhone, code }),
+  });
+}
+
+/** Rename the store the phones show — the grocery book's, or the contractor's. */
+export function setStoreName(
+  id: string, storeName: string, app: 'grocery' | 'contractor', code: string,
+): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/store-name`, {
+    method: 'POST',
+    body: JSON.stringify({ store_name: storeName, code, ...(app === 'contractor' ? { app } : {}) }),
   });
 }
 

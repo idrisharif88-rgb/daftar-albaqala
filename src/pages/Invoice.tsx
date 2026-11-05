@@ -27,7 +27,6 @@ import {
   BASE_CURRENCY, currencyDef, formatAmount, DEFAULT_RATES, type CurrencyCode, type Rates,
 } from '../data/currencies';
 import { directionLabel, orderedTypes, roleDef } from '../data/roles';
-import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { useContactNotifier } from '../lib/useContactNotifier';
 import { printedBalanceLines } from '../lib/notify';
 import type { InvoiceLine } from '../lib/receipt';
@@ -356,10 +355,6 @@ const Invoice: React.FC = () => {
   // heard of the debt.
   const save = async (thenPrint: boolean) => {
     if (!customer || lines.length === 0) return;
-    if (!(await isAccountActive())) {
-      presentAlert({ header: 'حساب غير مفعّل', message: INACTIVE_MESSAGE, buttons: ['حسناً'] });
-      return;
-    }
     if (savingRef.current) return;
     savingRef.current = true;
     try {

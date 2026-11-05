@@ -40,7 +40,6 @@ import {
   peekNoticeNumber, nextNoticeNumber, noticeNote, parseDocNote,
 } from '../data/docNumber';
 import { printedBalanceLines } from '../lib/notify';
-import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { systemPrintAvailable } from '../lib/systemPrint';
 import { runSync } from '../data/sync';
@@ -187,14 +186,6 @@ const CustomerDetail: React.FC = () => {
   useIonViewWillEnter(() => { void load(); });
 
   const openForm = async (type: TxnType) => {
-    if (!(await isAccountActive())) {
-      presentAlert({
-        header: 'حساب غير مفعّل',
-        message: INACTIVE_MESSAGE,
-        buttons: ['حسناً'],
-      });
-      return;
-    }
     setFormType(type);
     setAmount('');
     setCurrency(BASE_CURRENCY);

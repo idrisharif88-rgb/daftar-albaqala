@@ -145,13 +145,16 @@ export async function getSyncHealth(): Promise<SyncHealth> {
  *  fully succeed. 'offline' counts — an offline-first app still needs to say
  *  "this is not backed up yet". */
 export function needsAttention(health: SyncHealth): boolean {
-  return health.status !== null && health.status !== 'ok';
+  // 'subscription' is not a fault: the account simply has no server sync — its
+  // book lives on this phone (and its Drive backup). No warning for that.
+  return health.status !== null && health.status !== 'ok' && health.status !== 'subscription';
 }
 
 async function recordOutcome(outcome: SyncOutcome, unsynced: number): Promise<void> {
   await setMetaRaw(LAST_STATUS_KEY, outcome.status);
   await setMetaRaw(UNSYNCED_KEY, String(unsynced));
   if (outcome.status === 'ok') await setMetaRaw(LAST_OK_KEY, new Date().toISOString());
+  if (outcome.status === 'subscription') await setMetaRaw(LAST_REFUSED_KEY, new Date().toISOString());
   await persist();
 }
 
@@ -180,7 +183,18 @@ function emit(outcome: SyncOutcome): void {
 // share the in-flight promise instead of racing the same rows.
 let inFlight: Promise<SyncOutcome> | null = null;
 
-export function runSync(): Promise<SyncOutcome> {
+// An account without server sync is asked again at most once an hour (and on
+// every app open or manual tap, which pass `force`) — not after every entry,
+// which would send each free user's every tap to the server just to hear 402.
+const SUBSCRIPTION_RECHECK_MS = 60 * 60 * 1000;
+const LAST_REFUSED_KEY = 'sync_last_refused_at';
+
+export async function runSync({ force = false }: { force?: boolean } = {}): Promise<SyncOutcome> {
+  if (inFlight) return inFlight;
+  if (!force && (await getMeta(LAST_STATUS_KEY)) === 'subscription') {
+    const at = Date.parse((await getMeta(LAST_REFUSED_KEY)) ?? '');
+    if (Number.isFinite(at) && Date.now() - at < SUBSCRIPTION_RECHECK_MS) return { status: 'subscription' };
+  }
   if (inFlight) return inFlight;
   inFlight = doSync()
     .then((outcome) => { emit(outcome); return outcome; })

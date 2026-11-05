@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
 import {
   getToken, setToken, clearToken, getPhone, setPhone, getDriveAllowed, setDriveAllowed,
@@ -79,8 +80,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 
   const logout = useCallback(() => {
+    void forgetDriveBackup(); // the next person here must not back up into this one's Drive
     clearToken();
     setPhoneState(null);
+    setDriveAllowed(false);
     setDriveAllowedState(false);
     setUser(null);
     setAuthed(false);

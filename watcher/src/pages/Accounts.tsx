@@ -4,9 +4,10 @@ import {
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
   IonSpinner, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
-import { logOutOutline, refreshOutline } from 'ionicons/icons';
+import { documentAttachOutline, logOutOutline, refreshOutline } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup,
+  deleteAccount, setStoreName,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
@@ -15,7 +16,7 @@ import { useAdminCode } from '../lib/useAdminCode';
 type Filter = 'all' | 'none' | 'active' | 'suspended';
 
 const STATUS_AR: Record<Status, string> = {
-  none: 'غير مفعّل',
+  none: 'بدون مزامنة',
   active: 'مفعّل',
   expired: 'منتهي',
   suspended: 'موقوف',
@@ -51,6 +52,9 @@ const Accounts: React.FC = () => {
   const [filter, setFilter] = useState<Filter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [presentAlert] = useIonAlert();
+  // A second alert hook: rename asks "which book?" and then for the name, and
+  // one hook keeps only one overlay at a time.
+  const [presentAlert2] = useIonAlert();
   const [presentToast] = useIonToast();
   const router = useIonRouter();
   const { ask, modal } = useAdminCode();
@@ -93,13 +97,13 @@ const Accounts: React.FC = () => {
     });
   }, [accounts, query, filter]);
 
-  const doChange = async (a: Account, status: 'active' | 'suspended', code: string) => {
+  const doChange = async (a: Account, status: 'active' | 'none' | 'suspended', code: string) => {
     const activating = status === 'active';
     setBusyId(a.id);
     try {
       await setAccountStatus(a.id, status, code);
       presentToast({
-        message: activating ? 'تم التفعيل' : 'تم الإيقاف',
+        message: activating ? 'تم التفعيل' : status === 'none' ? 'تم إيقاف المزامنة' : 'تم الإيقاف',
         duration: 1800,
         color: activating ? 'success' : 'danger',
       });
@@ -211,13 +215,123 @@ const Accounts: React.FC = () => {
     });
   };
 
+  // One runner for the two new changes: busy flag, toast, reload.
+  const run = async (a: Account, act: () => Promise<unknown>, done: string) => {
+    setBusyId(a.id);
+    try {
+      await act();
+      presentToast({ message: done, duration: 1800, color: 'success' });
+      await load();
+    } catch (err) {
+      presentToast({
+        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        duration: 2500,
+        color: 'danger',
+      });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Rename a store. An account using both apps has two names, so it asks which.
+  const askName = (a: Account, app: 'grocery' | 'contractor') => {
+    const current = (app === 'contractor' ? a.contractor_store_name : a.store_name) ?? '';
+    presentAlert2({
+      header: app === 'contractor' ? 'اسم المقاول' : 'اسم المتجر',
+      message: 'يظهر الاسم الجديد على هاتفه بعد المزامنة التالية.',
+      inputs: [{ name: 'name', type: 'text', value: current, placeholder: 'الاسم', attributes: { maxlength: 100 } }],
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'حفظ',
+          handler: (data: { name?: string }) => {
+            const name = String(data?.name ?? '').trim();
+            if (name === current.trim()) return;
+            setTimeout(() => {
+              void ask('تغيير الاسم').then((code) => {
+                if (code) void run(a, () => setStoreName(a.id, name, app, code), 'تم تغيير الاسم');
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
+  const rename = (a: Account) => {
+    if (a.contractor_status !== 'active' && !a.contractor_store_name) { askName(a, 'grocery'); return; }
+    presentAlert({
+      header: 'تغيير الاسم',
+      message: 'أي دفتر؟',
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        { text: 'البقالة', handler: () => { setTimeout(() => askName(a, 'grocery'), 350); } },
+        { text: 'المقاول', handler: () => { setTimeout(() => askName(a, 'contractor'), 350); } },
+      ],
+    });
+  };
+
+  // Erase a whole account — cannot be undone. The owner types the account's
+  // number back; the server checks it too.
+  const remove = (a: Account) => {
+    const who = a.store_name || a.phone;
+    presentAlert({
+      header: 'حذف الحساب نهائياً',
+      message: `سيُحذف «${who}» وكل جهاته (${a.customers_count}) وحركاته (${a.transactions_count}) ` +
+        `من الخادم، ولا يمكن التراجع. للتأكيد اكتب رقمه: ${a.phone}`,
+      inputs: [{ name: 'phone', type: 'tel', placeholder: a.phone }],
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'حذف',
+          role: 'destructive',
+          handler: (data: { phone?: string }) => {
+            const typed = digitsOnly(String(data?.phone ?? ''));
+            if (typed !== a.phone) {
+              presentToast({ message: 'الرقم غير مطابق — لم يُحذف شيء', duration: 2500, color: 'warning' });
+              return;
+            }
+            setTimeout(() => {
+              void ask('حذف الحساب').then((code) => {
+                if (code) void run(a, () => deleteAccount(a.id, typed, code), 'تم حذف الحساب');
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
+  // Sync off: the account keeps working on the phone (and its Drive backup);
+  // only the server copy stops. Not a lock-out — that is «إيقاف».
+  const syncOff = (a: Account) => {
+    const who = a.store_name || a.phone;
+    presentAlert({
+      header: 'إيقاف المزامنة',
+      message: `إيقاف المزامنة مع الخادم لـ«${who}»؟ يبقى التطبيق يعمل على هاتفه مع نسخ Google Drive. ` +
+        'ما هو على الخادم يبقى محفوظاً، والجديد لا يصل إليه حتى تعيد التفعيل.',
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'إيقاف المزامنة',
+          role: 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('إيقاف المزامنة').then((code) => { if (code) void doChange(a, 'none', code); });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
   const change = (a: Account, status: 'active' | 'suspended') => {
     const who = a.store_name || a.phone;
     const activating = status === 'active';
     presentAlert({
       header: activating ? 'تفعيل الحساب' : 'إيقاف الحساب',
       message: activating
-        ? `تفعيل «${who}»؟ ستعمل المزامنة لهذا الحساب.`
+        ? `تفعيل المزامنة لـ«${who}»؟ يُرفع دفتره إلى الخادم.`
         : `إيقاف «${who}»؟ لن يستطيع الدخول ولا المزامنة حتى تعيد تفعيله. بياناته تبقى محفوظة.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
@@ -243,6 +357,9 @@ const Accounts: React.FC = () => {
         <IonToolbar>
           <IonTitle>مراقب البقالة</IonTitle>
           <IonButtons slot="end">
+            <IonButton onClick={() => router.push('/file')} aria-label="فتح ملف دفتر">
+              <IonIcon slot="icon-only" icon={documentAttachOutline} />
+            </IonButton>
             <IonButton onClick={() => void load()} aria-label="تحديث">
               <IonIcon slot="icon-only" icon={refreshOutline} />
             </IonButton>
@@ -289,6 +406,7 @@ const Accounts: React.FC = () => {
               <div className="acct__top">
                 <div>
                   <div className="acct__name">{a.store_name || 'بدون اسم'}</div>
+                  {a.contractor_store_name && <div className="acct__phone">المقاول: {a.contractor_store_name}</div>}
                   <div className="acct__phone">{a.phone}</div>
                 </div>
                 <div className="acct__badges">
@@ -310,7 +428,12 @@ const Accounts: React.FC = () => {
                 </IonButton>
                 {s !== 'active' && (
                   <IonButton size="small" disabled={busyId === a.id} onClick={() => change(a, 'active')}>
-                    {s === 'suspended' ? 'إعادة التفعيل' : 'تفعيل'}
+                    {s === 'suspended' ? 'إعادة التفعيل' : 'تفعيل المزامنة'}
+                  </IonButton>
+                )}
+                {s === 'active' && (
+                  <IonButton size="small" fill="outline" color="warning" disabled={busyId === a.id} onClick={() => syncOff(a)}>
+                    إيقاف المزامنة
                   </IonButton>
                 )}
                 {s !== 'suspended' && (
@@ -343,6 +466,12 @@ const Accounts: React.FC = () => {
                   onClick={() => changeDrive(a)}
                 >
                   {a.drive_backup ? 'Drive: مفعّل' : 'Drive'}
+                </IonButton>
+                <IonButton size="small" fill="outline" color="medium" disabled={busyId === a.id} onClick={() => rename(a)}>
+                  تغيير الاسم
+                </IonButton>
+                <IonButton size="small" fill="clear" color="danger" disabled={busyId === a.id} onClick={() => remove(a)}>
+                  حذف الحساب
                 </IonButton>
               </div>
             </div>

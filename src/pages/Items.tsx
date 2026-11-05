@@ -18,7 +18,6 @@ import { runSync } from '../data/sync';
 import {
   BASE_CURRENCY, CURRENCIES, formatAmount, type CurrencyCode,
 } from '../data/currencies';
-import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { numericInput } from '../lib/digits';
 
 // The price list for ONE contact — «أصناف متجر ماجد».
@@ -62,10 +61,6 @@ const Items: React.FC = () => {
   useIonViewWillEnter(() => { void load(); });
 
   const openForm = async (item: Item | null) => {
-    if (!(await isAccountActive())) {
-      presentAlert({ header: 'حساب غير مفعّل', message: INACTIVE_MESSAGE, buttons: ['حسناً'] });
-      return;
-    }
     setEditing(item);
     setName(item?.name ?? '');
     // Shown in MAJOR units — the owner types 1500, the store keeps 150000.

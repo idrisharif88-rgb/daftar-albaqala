@@ -1225,7 +1225,8 @@ Branch `two-builds`. Not yet device-tested, server change not yet deployed.
 Frontend only, no migration. Checked in Electron at phone width; **not yet device-tested**.
 - **Order:** activation notice (inactive accounts only, moved from the bottom) → «الحساب» →
   «المظهر والأمان» → rates (fields unchanged; an API is not planned, none carries Sana'a rates)
-  → «البيانات» (sync, Excel, backup rows; `BackupSection` takes the first two as children) →
+  → «المزامنة» (server sync only) → «النسخ الاحتياطي» (Excel + Drive + request-a-copy;
+  `BackupSection` takes the Excel row as a child — split 2026-11-03) →
   «الطباعة» → «حول التطبيق» → «حذف الحساب».
 - **No «حفظ» button.** Names and rates save 1s after typing stops and on leaving the screen.
   Only what changed is written: `saveRates` stamps `rates_updated_at`, so saving untouched rates
@@ -1233,3 +1234,62 @@ Frontend only, no migration. Checked in Electron at phone width; **not yet devic
 - **`language` and `default_role` settings removed.** New-contact «الصفة» starts empty and «حفظ»
   stays disabled until it is chosen, because a shopkeeper cannot change a role afterwards.
   `FLAVOR.defaultRole` / `DEFAULT_ROLE` remain only as the fallback for an unknown stored role.
+
+## Status — BUILT (Phase 25: Drive backup safety, from the «خماسيات» spec) (2026-11-03)
+Branch `settings-split-sync`. Frontend only. Tests 71/71. **Not yet device-tested.**
+- **Settings split:** «المزامنة» (server sync) and «النسخ الاحتياطي» (Excel + Drive + request a copy).
+  Drive rows show only when `users.drive_backup=1` AND the build has `VITE_GOOGLE_WEB_CLIENT_ID`
+  — `npm run dev` has no ID, so Drive is **always hidden in the browser dev loop** (cost a long hunt).
+- **Summary read from the file** (`src/data/backupSummary.ts`, pure, tested): «في Drive: 12 جهة، 340 حركة …».
+- **An empty phone never overwrites a backup:** the daily backup skips it (`isLocalBookEmpty`);
+  «نسخ الآن» asks first (استعادة / استبدالها).
+- **Sign-out unlinks Google** (`forgetDriveBackup`, 3 s cap) and clears the cached Drive flag.
+- **Restore offered once per account** when the book is empty and Drive holds one (silent token only).
+
+> 🧹 **Droplet tidy-up 2026-11-03:** MySQL `performance_schema=OFF`
+> (`/etc/mysql/mysql.conf.d/zz-lowmem.cnf`) — swap 977→578 MB. Disk 13→9.8 GB used (journal
+> vacuumed to 200 MB, npm cache cleared, `/opt/daftar-api` deleted). Measured: ~790 bytes per
+> transaction row on the server. Docker runs the owner's Amnezia VPN — keep it.
+> Ghost restarted weekly by cron (`/etc/cron.d/ghost-restart`, Fri 00:00 UTC) — its Node heap creeps
+> up (~200 MB after 5 weeks); a restart freed ~80 MB RAM + ~230 MB swap.
+
+## Status — BUILT (Phase 26: Watcher — delete an account, rename a store) (2026-11-05)
+Server tests 115/115 (5 new, `admin.account.test.ts`). No migration. **Not deployed, not device-tested.**
+- `DELETE /admin/users/:id {code, confirm_phone}` — the same hard delete as the shop app's own
+  «حذف الحساب», now one helper `server/src/account/erase.ts` (`eraseAccount`) used by both. The
+  phone number must be typed back (Watcher + server check it), plus a fresh authenticator code.
+- `POST /admin/users/:id/store-name {code, store_name, app?}` — writes the SYNCED setting
+  (`store_name` / `contractor_store_name`) with `updated_at = UTC_TIMESTAMP()` so it wins the
+  phone's LWW; the grocery name is mirrored into `users.store_name`. `GET /admin/users` now lists
+  the synced names. Watcher: «تغيير الاسم» (asks which book if both are used) + «حذف الحساب».
+- Owner's queue after this (2026-11-05): sync on/off switch (free = phone + Drive), import a
+  user's book file into the Watcher, launcher name «Shopbook | فليكتب».
+
+## Status — BUILT (Phase 27: server sync on/off — free = phone + Drive) (2026-11-05)
+Server 116/116, app 71/71. No migration. **Not deployed, not device-tested.**
+- **Recording is never blocked any more.** The `isAccountActive` gate is gone from Home, CustomerDetail,
+  Invoice and Items. `subscription_status` now means **server sync on/off**, nothing else.
+  Settings shows a calm note (`INACTIVE_MESSAGE`, no price wording) instead of a wall.
+- **Free accounts don't ping the server after every entry:** `runSync()` skips the network for an hour
+  after a 402 (`sync_last_refused_at`); app open, the manual button and the Home retry pass `force`.
+  `needsAttention` ignores `subscription`, so no warning triangle for a free account.
+- **Drive is on for every account without sync** (`GET /me` → `drive_backup = flag OR not active`).
+  The user still has to tap «نسخ الآن» once to link Google; the daily backup runs after that.
+- **Watcher:** «تفعيل المزامنة» (→ active) / «إيقاف المزامنة» (→ `none`, new SETTABLE value; app keeps
+  working) / «إيقاف» (suspended, locked out — unchanged). Badge for `none` reads «بدون مزامنة».
+- ⚠️ Play build ≤2 still blocks recording for unsynced accounts until users update.
+
+## Status — BUILT (Phase 28: a user's book as a file → the Watcher) (2026-11-05)
+Frontend only (shop app + Watcher), no server change. **Not device-tested.**
+- Shop app: «إرسال دفتري للدعم» in «النسخ الاحتياطي» — `bookFileForSupport()` (driveBackup.ts) builds the
+  SAME JSON as the Drive backup and sends it with `shareFileViaWhatsApp` (`daftar-<date>.json`).
+  For a free account (no server sync) this is the only way the owner can see its book.
+- Watcher: file icon in the Accounts header → `/file` (`pages/BookFile.tsx`, `lib/bookFile.ts`):
+  pick the file, see contacts + balances (minor units ÷100), tap one for its entries; a tab per book.
+  **Read-only, on purpose** — corrections are made on the user's phone; the file never reaches the server.
+
+## Status — BUILT (Phase 29: grocery app renamed) (2026-11-05)
+- Inside the app + Play listing: **«Shopbook | فليكتب»** (`FLAVOR.appName`, `index.html` title,
+  `capacitor.config.ts`). Launcher/home-screen label: **«فليكتب»** (`main/res/values/strings.xml`,
+  `apple-mobile-web-app-title`). `vite.config.ts` swaps both forms for «دفتر المقاول» in the contractor build.
+  Package id and `driveBackupFile` untouched (identity + existing backups).

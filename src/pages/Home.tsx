@@ -10,7 +10,6 @@ import { useAuth } from '../lib/auth';
 import { listCustomers, createCustomer, type Customer } from '../data/customers';
 import { getBalancesByCustomer } from '../data/transactions';
 import { runSync, getSyncHealth, needsAttention, onSyncComplete } from '../data/sync';
-import { isAccountActive, INACTIVE_MESSAGE } from '../data/account';
 import { getSettings } from '../data/settings';
 import { getRates } from '../data/rates';
 import { DEFAULT_RATES, type CurrencyBalance, type Rates } from '../data/currencies';
@@ -86,7 +85,7 @@ const Home: React.FC = () => {
   const sync = async () => {
     setSyncing(true);
     try {
-      const r = await runSync();
+      const r = await runSync({ force: true });
       const toast = {
         // Success is a tiny checkmark with no text (see .toast-sync-ok): the
         // header warning triangle already covers every failure, so a clean sync
@@ -251,10 +250,6 @@ const Home: React.FC = () => {
 
         <IonFab slot="fixed" vertical="bottom" horizontal="start">
           <IonFabButton onClick={async () => {
-            if (!(await isAccountActive())) {
-              await presentToast({ message: INACTIVE_MESSAGE, color: 'warning', duration: 2500 });
-              return;
-            }
             resetForm();
             void modal.current?.present();
           }}>

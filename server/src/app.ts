@@ -108,7 +108,11 @@ app.get(
     );
     const user = (rows as Array<Record<string, unknown>>)[0];
     if (!user) return res.status(404).json({ error: 'user not found' });
-    return res.json({ user: { ...user, drive_backup: Number(user.drive_backup) === 1 } });
+    // Drive backup: granted per account by the owner — and always on for an
+    // account WITHOUT server sync, whose book would otherwise live on one phone
+    // with no copy anywhere.
+    const driveBackup = Number(user.drive_backup) === 1 || user.subscription_status !== 'active';
+    return res.json({ user: { ...user, drive_backup: driveBackup } });
   })
 );
 

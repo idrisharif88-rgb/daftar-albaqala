@@ -54,7 +54,7 @@ const AutoSync: React.FC = () => {
   const { isAuthenticated } = useAuth();
   useEffect(() => {
     if (!isAuthenticated) return;
-    void runSync();
+    void runSync({ force: true }); // app open: also where an activation is noticed
     const onOnline = () => void runSync();
     window.addEventListener('online', onOnline);
     // The `online` event alone is not enough: on the owner's Note 9 it never
