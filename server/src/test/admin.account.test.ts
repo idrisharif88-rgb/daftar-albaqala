@@ -159,4 +159,12 @@ describe('/admin — delete account + rename store', () => {
     assert.equal(me.status, 200);
     assert.equal(me.body.user.drive_backup, true);
   });
+  test('Drive follows the calling app: contractor without sync gets it even when grocery syncs', async () => {
+    const a = await seedUser({ status: 'active' }); // grocery on, contractor off (default)
+    const shop = { Authorization: `Bearer ${tokenFor(a)}` };
+    assert.equal((await request(app).get('/me').set(shop).set('X-App', 'grocery')).body.user.drive_backup, false);
+    assert.equal((await request(app).get('/me').set(shop).set('X-App', 'contractor')).body.user.drive_backup, true);
+    await pool.query("UPDATE users SET contractor_status = 'active' WHERE id = ?", [a]);
+    assert.equal((await request(app).get('/me').set(shop).set('X-App', 'contractor')).body.user.drive_backup, false);
+  });
 });

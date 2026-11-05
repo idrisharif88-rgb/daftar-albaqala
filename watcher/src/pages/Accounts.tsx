@@ -279,7 +279,7 @@ const Accounts: React.FC = () => {
       header: 'حذف الحساب نهائياً',
       message: `سيُحذف «${who}» وكل جهاته (${a.customers_count}) وحركاته (${a.transactions_count}) ` +
         `من الخادم، ولا يمكن التراجع. للتأكيد اكتب رقمه: ${a.phone}`,
-      inputs: [{ name: 'phone', type: 'tel', placeholder: a.phone }],
+      inputs: [{ name: 'phone', type: 'tel', placeholder: 'اكتب الرقم هنا' }],
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
