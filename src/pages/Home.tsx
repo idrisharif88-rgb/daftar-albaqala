@@ -20,6 +20,9 @@ import BookTotals from '../components/BookTotals';
 import { SyncWarning, SYNC_PROBLEM_TEXT } from '../components/SyncWarning';
 import { phoneInput } from '../lib/digits';
 import { FLAVOR } from '../flavors';
+import { GOOGLE_ENABLED } from '../lib/googleDrive';
+import { useDriveBackup } from '../lib/useDriveBackup';
+import { isAccountActive } from '../data/account';
 
 // A contact plus its locally-computed running balances (one per currency).
 interface Row {
@@ -34,7 +37,12 @@ type RoleFilter = ContactRole | 'all';
 // Contact list — the owner's home. Reads contacts + running balances from the
 // local data layer (offline-first) and offers an "add contact" flow.
 const Home: React.FC = () => {
-  const { logout } = useAuth();
+  const { logout, driveBackupAllowed } = useAuth();
+  // The round button does what this account has: server sync, or — for an
+  // account without it — a Google Drive backup (same rules as Settings).
+  const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
+  const [serverSync, setServerSync] = useState(true);
+  const drive = useDriveBackup();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -65,6 +73,7 @@ const Home: React.FC = () => {
     const [customers, settings, currentRates, balancesByCustomer, health] = await Promise.all([
       listCustomers(), getSettings(), getRates(), getBalancesByCustomer(), getSyncHealth(),
     ]);
+    setServerSync(await isAccountActive());
     setRows(customers.map((c) => ({ customer: c, balances: balancesByCustomer.get(c.id) ?? [] })));
     setStoreName(settings.storeName?.trim() ?? '');
     setRates(currentRates);
@@ -82,10 +91,29 @@ const Home: React.FC = () => {
   useEffect(() => onSyncComplete(() => { void load(); }), [load]);
 
   // Manual sync, then refresh the list (a pull may add customers / change balances).
+  //
+  // The SERVER decides which, at the moment of the tap — not a stored flag,
+  // which a fresh install has not learned yet: try sync; if the server says
+  // this account has no sync, back up to Drive instead.
   const sync = async () => {
+    if (syncing || drive.busy) return;
     setSyncing(true);
     try {
       const r = await runSync({ force: true });
+      // 'error' with no answer from the server: an account already known to
+      // have no sync still gets its Drive backup. ('offline' does not — Drive
+      // needs the network too, and the offline message is the true one.)
+      const knownFree = r.status === 'error' && !serverSync;
+      if (r.status === 'subscription' || knownFree) {
+        setServerSync(false);
+        if (driveOn) {
+          setSyncing(false);
+          await drive.backup();
+          return;
+        }
+      } else if (r.status === 'ok' || r.status === 'partial') {
+        setServerSync(true);
+      }
       const toast = {
         // Success is a tiny checkmark with no text (see .toast-sync-ok): the
         // header warning triangle already covers every failure, so a clean sync
@@ -243,8 +271,10 @@ const Home: React.FC = () => {
 
         {/* Manual sync — a big round olive button below the list. */}
         {!loading && (
-          <button type="button" className="sync-round-btn" onClick={sync} disabled={syncing}>
-            {syncing ? <IonSpinner name="crescent" /> : 'تحديث'}
+          <button type="button" className="sync-round-btn" onClick={sync} disabled={syncing || !!drive.busy}>
+            {syncing || drive.busy
+              ? <IonSpinner name="crescent" />
+              : serverSync || !driveOn ? 'مزامنة' : 'نسخ احتياطي'}
           </button>
         )}
 

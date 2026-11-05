@@ -6,10 +6,11 @@ import { useAuth } from '../lib/auth';
 import { openWhatsApp } from '../lib/notify';
 import { GOOGLE_ENABLED, linkedEmail, unlinkGoogle } from '../lib/googleDrive';
 import {
-  backupNow, restoreBackup, lastBackupAt, readRemoteBackup, isLocalBookEmpty,
+  lastBackupAt, readRemoteBackup, isLocalBookEmpty,
   restoreOffered, markRestoreOffered, ownerUserId, DAY_MS, type RemoteBackup,
 } from '../data/driveBackup';
 import { FLAVOR } from '../flavors';
+import { useDriveBackup } from '../lib/useDriveBackup';
 
 // The owner's WhatsApp — where «طلب نسخة من بياناتي» goes. Same number as the
 // activation request in Settings.
@@ -33,7 +34,6 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
   const { driveBackupAllowed } = useAuth();
   const [email, setEmail] = useState<string | null>(linkedEmail);
   const [last, setLast] = useState<number>(lastBackupAt);
-  const [busy, setBusy] = useState<'backup' | 'restore' | null>(null);
   // What the copy on Drive holds — read from the file itself, never stored.
   const [remote, setRemote] = useState<RemoteBackup | null>(null);
   const [presentToast] = useIonToast();
@@ -56,14 +56,6 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
     }
   }, [driveOn]);
 
-  const fail = (err: unknown) => presentToast({
-    message: err instanceof Error && /[؀-ۿ]/.test(err.message)
-      ? err.message
-      : 'تعذّر الوصول إلى Google Drive. تحقق من الاتصال وحاول مجدداً.',
-    color: 'danger',
-    duration: 3500,
-  });
-
   const requestCopy = async () => {
     const who = senderName ? `\nالاسم: ${senderName}` : '';
     const opened = await openWhatsApp(
@@ -74,73 +66,15 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
     }
   };
 
-  const runBackup = async () => {
-    setBusy('backup');
-    try {
-      const savedAt = await backupNow({ interactive: true });
-      setEmail(linkedEmail());
-      if (savedAt) {
-        setLast(savedAt);
-        await presentToast({ message: 'تم حفظ النسخة في Google Drive', color: 'success', duration: 2000 });
-        void loadRemote();
-      }
-    } catch (err) {
-      await fail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  // An empty phone saving over a backup that has a book in it would replace
-  // the grocer's real copy with a blank one — so it asks first.
-  const doBackup = async () => {
-    setBusy('backup');
-    let ask: RemoteBackup | null = null;
-    try {
-      if (await isLocalBookEmpty()) {
-        const r = await readRemoteBackup({ interactive: true });
-        setEmail(linkedEmail());
-        setRemote(r);
-        if (r.status === 'ok' && !r.summary.isEmpty) ask = r;
-      }
-    } catch (err) {
-      setBusy(null);
-      await fail(err);
-      return;
-    }
-    setBusy(null);
-    if (ask?.status !== 'ok') { await runBackup(); return; }
-    await presentAlert({
-      header: 'الدفتر هنا فارغ',
-      message: `في Google Drive نسخة فيها: ${ask.summary.sentence}. ` +
-        'الحفظ الآن يستبدلها بدفتر فارغ. الأفضل استعادتها أولاً.',
-      buttons: [
-        { text: 'إلغاء', role: 'cancel' },
-        { text: 'استعادة', handler: () => { void doRestore(); } },
-        { text: 'استبدالها', role: 'destructive', handler: () => { void runBackup(); } },
-      ],
-    });
-  };
-
-  const doRestore = async () => {
-    setBusy('restore');
-    try {
-      const changed = await restoreBackup();
-      setEmail(linkedEmail());
-      await presentToast({
-        message: changed === null
-          ? 'لا توجد نسخة في Google Drive بعد'
-          : changed === 0 ? 'الدفتر مطابق للنسخة — لا شيء جديد' : `تمت الاستعادة: ${changed} سجل`,
-        color: changed ? 'success' : 'medium',
-        duration: 3000,
-      });
-      void loadRemote();
-    } catch (err) {
-      await fail(err);
-    } finally {
-      setBusy(null);
-    }
-  };
+  // Save / restore with every safety rule — shared with Home's round button.
+  const drive = useDriveBackup((r) => {
+    setEmail(linkedEmail());
+    setLast(lastBackupAt());
+    if (r) setRemote(r); else void loadRemote();
+  });
+  const busy = drive.busy;
+  const doBackup = drive.backup;
+  const doRestore = drive.restore;
 
   const confirmRestore = () => presentAlert({
     header: 'استعادة من Google Drive',
