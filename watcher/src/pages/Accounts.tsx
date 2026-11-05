@@ -277,9 +277,14 @@ const Accounts: React.FC = () => {
     const who = a.store_name || a.phone;
     presentAlert({
       header: 'حذف الحساب نهائياً',
-      message: `سيُحذف «${who}» وكل جهاته (${a.customers_count}) وحركاته (${a.transactions_count}) ` +
-        `من الخادم، ولا يمكن التراجع. للتأكيد اكتب رقمه: ${a.phone}`,
-      inputs: [{ name: 'phone', type: 'tel', placeholder: 'اكتب الرقم هنا' }],
+      cssClass: 'confirm-delete',
+      // One fact per line (the alert keeps line breaks — see .confirm-delete).
+      message: `سيُحذف «${who}» مع ${a.customers_count} جهة و${a.transactions_count} حركة من الخادم، ولا يمكن التراجع.\n\n` +
+        `للتأكيد، اكتب رقم الحساب:\n${a.phone}`,
+      inputs: [{
+        name: 'phone', type: 'tel', placeholder: 'اكتب الرقم هنا',
+        attributes: { inputmode: 'numeric', autocomplete: 'off', 'aria-label': 'رقم الحساب للتأكيد' },
+      }],
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {

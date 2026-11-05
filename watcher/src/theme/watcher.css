@@ -122,3 +122,52 @@ ion-input input.native-input::placeholder {
 /* «دفتر المقاول» activation, beside the account's own status. */
 .acct__badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .badge--contractor { background: #ff6f00; color: #1a1a1a; }
+
+/* ---- «حذف الحساب نهائياً»: the one irreversible dialog ----
+   Red title, the facts on their own lines, and a large rounded box for the
+   number, so it is obvious that something must be typed there. */
+ion-alert.confirm-delete {
+  --max-width: 340px;
+  font-family: var(--ion-font-family);
+}
+ion-alert.confirm-delete .alert-title { color: var(--ion-color-danger); font-weight: 700; }
+ion-alert.confirm-delete .alert-message {
+  white-space: pre-line;
+  line-height: 1.7;
+  font-size: 0.95rem;
+  color: #3b463c;
+}
+ion-alert.confirm-delete .alert-input {
+  font-family: var(--ion-font-family);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  direction: ltr;
+  min-height: 52px;
+  margin-top: 4px;
+  padding: 0 16px;
+  border: 2px solid #c9d6ca;
+  border-radius: var(--btn-radius);
+  background: #f6faf6;
+  -webkit-text-fill-color: #1d2a1e;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+ion-alert.confirm-delete .alert-input::placeholder {
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #8a988b;
+  -webkit-text-fill-color: #8a988b;
+}
+ion-alert.confirm-delete .alert-input:focus {
+  outline: none;
+  border-color: var(--ion-color-danger);
+  box-shadow: 0 0 0 4px rgba(198, 40, 40, 0.14);
+}
+ion-alert.confirm-delete .alert-button { font-family: var(--ion-font-family); font-weight: 700; }
+ion-alert.confirm-delete .alert-button-role-destructive { color: var(--ion-color-danger); }
+/* The dialog itself takes focus when it opens; its outline drew an orange frame. */
+ion-alert.confirm-delete .alert-wrapper:focus,
+ion-alert.confirm-delete .alert-wrapper:focus-visible { outline: none; }
+ion-alert.confirm-delete .alert-button-group { gap: 4px; padding: 8px 12px 12px; }
+ion-alert.confirm-delete .alert-button { border-radius: var(--btn-radius); padding: 0 18px; min-height: 40px; font-size: 1rem; }
