@@ -2,7 +2,8 @@ import { getDB, persist } from './db';
 import { getMeta } from './meta';
 import { getLocalSettings, applyServerSettings, type SettingRow } from './settingsSync';
 import { runSync } from './sync';
-import { getAccessToken, findFile, saveFile, readFile } from '../lib/googleDrive';
+import { getAccessToken, findFile, saveFile, readFile, unlinkGoogle } from '../lib/googleDrive';
+import { summarizeBackup, type BackupSummary } from './backupSummary';
 import { FLAVOR } from '../flavors';
 
 // The book, backed up to the grocer's own Google Drive — an extra the owner
@@ -137,26 +138,92 @@ export function backupNow({ interactive }: { interactive: boolean }): Promise<nu
   return running;
 }
 
-/** When the copy on Drive was saved, or null if there is none. */
-export async function remoteBackupAt(): Promise<number | null> {
-  const token = await getAccessToken({ interactive: true });
-  if (!token) return null;
+/** True when this phone's book holds nothing: no live contact, entry, item or
+ *  group. A phone in that state must never replace a backup on its own — it is
+ *  a fresh install or a new phone, and its "book" is a blank page. */
+export async function isLocalBookEmpty(): Promise<boolean> {
+  const db = await getDB();
+  for (const { name, mutable } of TABLES) {
+    const res = await db.query(
+      `SELECT 1 FROM ${name}${mutable ? ' WHERE deleted_at IS NULL' : ''} LIMIT 1`,
+    );
+    if ((res.values ?? []).length) return false;
+  }
+  return true;
+}
+
+export type RemoteBackup =
+  | { status: 'ok'; backup: BookBackup; summary: BackupSummary; savedAt: number }
+  | { status: 'none' }
+  | { status: 'locked' };
+
+/** The copy on Drive and what it holds. `locked` = no token without opening
+ *  Google's window (and `interactive` was false). */
+export async function readRemoteBackup({ interactive }: { interactive: boolean }): Promise<RemoteBackup> {
+  const token = await getAccessToken({ interactive });
+  if (!token) return { status: 'locked' };
   const file = await findFile(token, FILE_NAME);
-  return file ? new Date(file.modifiedTime).getTime() : null;
+  if (!file) return { status: 'none' };
+  const backup = JSON.parse(await readFile(token, file.id)) as BookBackup;
+  return {
+    status: 'ok', backup, summary: summarizeBackup(backup),
+    savedAt: new Date(file.modifiedTime).getTime(),
+  };
 }
 
 /** Merge the Drive copy into this phone. Null when there is no copy. */
 export async function restoreBackup(): Promise<number | null> {
-  const token = await getAccessToken({ interactive: true });
-  if (!token) return null;
-  const file = await findFile(token, FILE_NAME);
-  if (!file) return null;
-  return applyBackup(JSON.parse(await readFile(token, file.id)) as BookBackup);
+  const remote = await readRemoteBackup({ interactive: true });
+  if (remote.status !== 'ok') return null;
+  return applyBackup(remote.backup);
 }
 
 /** The daily backup: never opens Google's window — a valid or silently renewed
  *  token, else it waits for «نسخ الآن». */
 export async function dailyBackupIfDue(now = Date.now()): Promise<number | null> {
   if (now - lastBackupAt() < DAY_MS) return null;
+  // An empty phone never backs up by itself: it would replace the grocer's
+  // real backup with a blank one. «نسخ الآن» can still do it, after asking.
+  if (await isLocalBookEmpty()) return null;
   return backupNow({ interactive: false });
+}
+
+/** Sign-out: forget the Google link and this phone's backup bookkeeping, or the
+ *  next person to sign in here would back up into the previous one's Drive.
+ *  Google's own logout gets 3 s — offline, it must not hold up the sign-out. */
+export async function forgetDriveBackup(): Promise<void> {
+  try { localStorage.removeItem(LAST_KEY); } catch { /* nothing to forget */ }
+  await Promise.race([
+    unlinkGoogle().catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+}
+
+/** The restore offer is made once per account on this phone. */
+const offerKey = (userId: string) => `daftar.drive-offered.${userId}`;
+export const restoreOffered = (userId: string): boolean => {
+  try { return localStorage.getItem(offerKey(userId)) === '1'; } catch { return true; }
+};
+export const markRestoreOffered = (userId: string): void => {
+  try { localStorage.setItem(offerKey(userId), '1'); } catch { /* offered again next time */ }
+};
+export const ownerUserId = ownerId;
+
+/** UTF-8 → base64 (btoa alone breaks on Arabic). */
+function utf8Base64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+
+/** The whole book as one file for the owner's Watcher («فتح ملف دفتر») — the
+ *  same JSON as the Drive backup, so one format serves both. */
+export async function bookFileForSupport(now = new Date()): Promise<{ data: string; filename: string }> {
+  const backup = await buildBackup(now.getTime());
+  const p = (n: number) => String(n).padStart(2, '0');
+  const day = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  return { data: utf8Base64(JSON.stringify(backup)), filename: `daftar-${day}.json` };
 }

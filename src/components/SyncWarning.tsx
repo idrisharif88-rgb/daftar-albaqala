@@ -56,7 +56,7 @@ export const SYNC_PROBLEM_TEXT: Record<string, string> = {
   // Was «المزامنة تتطلب اشتراكاً فعّالاً». The gate is a check that the phone
   // number is real, and the wording has to say that and nothing else — no
   // price, no plan, and not the word اشتراك (see data/account.ts).
-  subscription: 'الحساب غير مفعّل — تواصل معنا للتحقق من رقمك',
+  subscription: 'المزامنة مع الخادم غير مفعّلة لحسابك — دفترك محفوظ على هذا الجهاز',
   error: 'تعذّرت المزامنة، اضغط للمحاولة مرة أخرى',
   partial: 'بعض السجلات لم تُرفع — اضغط للمحاولة مرة أخرى',
 };

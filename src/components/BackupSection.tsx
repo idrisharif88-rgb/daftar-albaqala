@@ -1,12 +1,17 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   IonItem, IonLabel, IonList, IonNote, IonText, IonSpinner, useIonAlert, useIonToast,
 } from '@ionic/react';
 import { useAuth } from '../lib/auth';
 import { openWhatsApp } from '../lib/notify';
 import { GOOGLE_ENABLED, linkedEmail, unlinkGoogle } from '../lib/googleDrive';
-import { backupNow, restoreBackup, lastBackupAt } from '../data/driveBackup';
+import {
+  backupNow, restoreBackup, lastBackupAt, readRemoteBackup, isLocalBookEmpty,
+  restoreOffered, markRestoreOffered, ownerUserId, DAY_MS, bookFileForSupport, type RemoteBackup,
+} from '../data/driveBackup';
 import { FLAVOR } from '../flavors';
+import { shareFileViaWhatsApp } from '../lib/shareFile';
+import { ShareCancelledError } from '../lib/shareTarget';
 
 // The owner's WhatsApp — where «طلب نسخة من بياناتي» goes. Same number as the
 // activation request in Settings.
@@ -18,8 +23,8 @@ const stamp = (ms: number) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-// «البيانات»: Settings passes its sync and export rows as children, and the
-// backup rows follow them in one list. Two ways to get a copy of the book,
+// «النسخ الاحتياطي»: Settings passes its Excel export row as a child, and the
+// backup rows follow it in one list. Server sync has its own section above. Two ways to get a copy of the book,
 // because the grocers differ: some want it in their own Google Drive; others
 // will not hand their data to Google and would rather ask the developer. So:
 //   - «طلب نسخة من بياناتي» — always here: a WhatsApp message to the owner.
@@ -30,9 +35,28 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
   const { driveBackupAllowed } = useAuth();
   const [email, setEmail] = useState<string | null>(linkedEmail);
   const [last, setLast] = useState<number>(lastBackupAt);
-  const [busy, setBusy] = useState<'backup' | 'restore' | null>(null);
+  const [busy, setBusy] = useState<'backup' | 'restore' | 'send' | null>(null);
+  // What the copy on Drive holds — read from the file itself, never stored.
+  const [remote, setRemote] = useState<RemoteBackup | null>(null);
   const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
+  // A second alert hook: the restore offer can arrive while another alert is
+  // still closing, and one hook keeps only one overlay at a time.
+  const [presentOffer] = useIonAlert();
+  const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
+
+  // Silent only: Settings opening must never pop Google's window.
+  const loadRemote = useCallback(async () => {
+    if (!driveOn || !linkedEmail()) { setRemote(null); return null; }
+    try {
+      const r = await readRemoteBackup({ interactive: false });
+      setRemote(r);
+      return r;
+    } catch {
+      setRemote(null);
+      return null;
+    }
+  }, [driveOn]);
 
   const fail = (err: unknown) => presentToast({
     message: err instanceof Error && /[؀-ۿ]/.test(err.message)
@@ -52,7 +76,7 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
     }
   };
 
-  const doBackup = async () => {
+  const runBackup = async () => {
     setBusy('backup');
     try {
       const savedAt = await backupNow({ interactive: true });
@@ -60,12 +84,61 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
       if (savedAt) {
         setLast(savedAt);
         await presentToast({ message: 'تم حفظ النسخة في Google Drive', color: 'success', duration: 2000 });
+        void loadRemote();
       }
     } catch (err) {
       await fail(err);
     } finally {
       setBusy(null);
     }
+  };
+
+  // An empty phone saving over a backup that has a book in it would replace
+  // the grocer's real copy with a blank one — so it asks first.
+  // The whole book as a file, for the developer to open in his Watcher when
+  // the grocer needs help. Goes out over WhatsApp; the grocer picks the chat.
+  const sendToSupport = async () => {
+    setBusy('send');
+    try {
+      const file = await bookFileForSupport();
+      await shareFileViaWhatsApp({
+        data: file.data, mime: 'application/json', filename: file.filename,
+        caption: `دفتري للدعم${senderName ? ` — ${senderName}` : ''}`,
+      });
+    } catch (err) {
+      if (!(err instanceof ShareCancelledError)) await fail(err);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const doBackup = async () => {
+    setBusy('backup');
+    let ask: RemoteBackup | null = null;
+    try {
+      if (await isLocalBookEmpty()) {
+        const r = await readRemoteBackup({ interactive: true });
+        setEmail(linkedEmail());
+        setRemote(r);
+        if (r.status === 'ok' && !r.summary.isEmpty) ask = r;
+      }
+    } catch (err) {
+      setBusy(null);
+      await fail(err);
+      return;
+    }
+    setBusy(null);
+    if (ask?.status !== 'ok') { await runBackup(); return; }
+    await presentAlert({
+      header: 'الدفتر هنا فارغ',
+      message: `في Google Drive نسخة فيها: ${ask.summary.sentence}. ` +
+        'الحفظ الآن يستبدلها بدفتر فارغ. الأفضل استعادتها أولاً.',
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        { text: 'استعادة', handler: () => { void doRestore(); } },
+        { text: 'استبدالها', role: 'destructive', handler: () => { void runBackup(); } },
+      ],
+    });
   };
 
   const doRestore = async () => {
@@ -80,6 +153,7 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
         color: changed ? 'success' : 'medium',
         duration: 3000,
       });
+      void loadRemote();
     } catch (err) {
       await fail(err);
     } finally {
@@ -102,11 +176,39 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
     setEmail(null);
   };
 
-  const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
+  // Offer a restore once per account: this phone's book is empty and Drive
+  // holds one. (A sync usually fills the book from the server first; the offer
+  // is for when it cannot.)
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const r = await loadRemote();
+      if (!alive || r?.status !== 'ok' || r.summary.isEmpty) return;
+      const userId = await ownerUserId();
+      if (!alive || !userId || restoreOffered(userId) || !(await isLocalBookEmpty())) return;
+      markRestoreOffered(userId);
+      await presentOffer({
+        header: 'نسخة في Google Drive',
+        message: `الدفتر على هذا الجهاز فارغ، وفي Google Drive نسخة فيها: ${r.summary.sentence}. ` +
+          'هل تريد استعادتها؟',
+        buttons: [
+          { text: 'لاحقاً', role: 'cancel' },
+          { text: 'استعادة', handler: () => { void doRestore(); } },
+        ],
+      });
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadRemote]);
+
+  const stale = !!email && last > 0 && Date.now() - last > DAY_MS;
+  const remoteLine = remote?.status === 'ok'
+    ? `في Drive: ${remote.summary.sentence} — حُفظت ${stamp(remote.savedAt)}`
+    : remote?.status === 'none' ? 'لا توجد نسخة في Google Drive بعد.' : null;
 
   return (
     <>
-      <h2 className="settings-section">البيانات</h2>
+      <h2 className="settings-section">النسخ الاحتياطي</h2>
       <IonList>
         {children}
         {driveOn && (
@@ -129,6 +231,10 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
         <IonItem button detail={false} onClick={() => void requestCopy()}>
           <IonLabel>طلب نسخة من بياناتي</IonLabel>
         </IonItem>
+        <IonItem button detail={false} onClick={() => void sendToSupport()} disabled={!!busy}>
+          <IonLabel>إرسال دفتري للدعم</IonLabel>
+          {busy === 'send' && <IonSpinner slot="end" name="crescent" />}
+        </IonItem>
       </IonList>
 
       {driveOn && (
@@ -137,6 +243,8 @@ const BackupSection: React.FC<{ senderName: string; children?: ReactNode }> = ({
             {email ? `حساب Google: ${email}` : 'لم يُربط حساب Google بعد.'}
             {'\n'}
             {last ? `آخر نسخة: ${stamp(last)}` : 'لم تُحفظ نسخة بعد.'}
+            {stale && ' — مضى أكثر من يوم.'}
+            {remoteLine && `\n${remoteLine}`}
             {'\n'}
             النسخة في مجلد خاص بالتطبيق داخل Google Drive الخاص بك، لا يراه غيره.
             تُحفظ نسخة تلقائياً مرة كل يوم.

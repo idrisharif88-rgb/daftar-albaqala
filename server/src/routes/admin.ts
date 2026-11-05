@@ -10,6 +10,7 @@ import {
   verifyCode, isUsed, markUsed, isLocked, recordFailure, clearFailures,
 } from '../admin/totpGate';
 import { VALID_ROLES } from '../domain';
+import { eraseAccount } from '../account/erase';
 
 // The Watcher app's API: the owner's view over EVERY account.
 //
@@ -81,7 +82,12 @@ router.get(
   '/users',
   asyncHandler(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT u.id, u.phone, u.store_name, u.plan,
+      `SELECT u.id, u.phone,
+              COALESCE((SELECT NULLIF(s.value, '') FROM user_settings s
+                          WHERE s.user_id = u.id AND s.\`key\` = 'store_name'), u.store_name) AS store_name,
+              (SELECT NULLIF(s.value, '') FROM user_settings s
+                 WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
+              u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup,
               u.contractor_status, u.created_at,
               (SELECT COUNT(*) FROM customers c
@@ -127,11 +133,12 @@ router.post(
   })
 );
 
-// What the owner may set an account to. 'none' and 'expired' are states an
-// account falls into, not ones the owner hands out.
-const SETTABLE = new Set(['active', 'suspended']);
+// What the owner may set an account to: 'active' = server sync on,
+// 'none' = sync off (the app keeps working on the phone + Drive), 'suspended' =
+// locked out. 'expired' is a state an account falls into, not one handed out.
+const SETTABLE = new Set(['active', 'none', 'suspended']);
 
-// POST /admin/users/:id/status  { status: 'active' | 'suspended' }
+// POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended' }
 //                               { app: 'contractor', status: 'active' | 'none' }
 // Without `app` it is the account (and the grocery app). With app=contractor it
 // switches «دفتر المقاول» on or off for this account only; suspending stays an
@@ -155,7 +162,7 @@ router.post(
       return res.json({ id: req.params.id, contractor_status: status });
     }
     if (!SETTABLE.has(status)) {
-      return res.status(400).json({ error: "status must be 'active' or 'suspended'" });
+      return res.status(400).json({ error: "status must be 'active', 'none' or 'suspended'" });
     }
     // Activating clears any expiry date: "active" from the owner means active,
     // not active-until-a-date-set-long-ago.
@@ -171,6 +178,57 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, subscription_status: status });
+  })
+);
+
+// DELETE /admin/users/:id  { code, confirm_phone }
+// Erase a whole account — the same hard delete the owner can do from his own
+// Settings (../account/erase.ts). Cannot be undone, so besides a fresh
+// authenticator code the Watcher must send the account's phone number back:
+// an id copied from the wrong row then fails here instead of erasing a book.
+router.delete(
+  '/users/:id',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const account = await findAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: 'user not found' });
+    if (normalizePhone(req.body?.confirm_phone) !== String(account.phone)) {
+      return res.status(400).json({ error: 'confirm_phone does not match this account' });
+    }
+    return res.json({ id: req.params.id, deleted: await eraseAccount(req.params.id) });
+  })
+);
+
+// POST /admin/users/:id/store-name  { code, store_name, app?: 'contractor' }
+// The store name the phones show and sign messages with is the SYNCED setting
+// (store_name, or contractor_store_name for «دفتر المقاول»). Writing it with
+// updated_at = now makes it win the phone's last-write-wins on its next sync.
+// The grocery name is also mirrored into users.store_name, which the Watcher lists.
+const STORE_NAME_MAX = 100;
+router.post(
+  '/users/:id/store-name',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const name = String(req.body?.store_name ?? '').trim();
+    if (name.length > STORE_NAME_MAX) {
+      return res.status(400).json({ error: `store_name is longer than ${STORE_NAME_MAX}` });
+    }
+    const contractor = req.body?.app === 'contractor';
+    const key = contractor ? 'contractor_store_name' : 'store_name';
+    if (!(await findAccount(req.params.id))) return res.status(404).json({ error: 'user not found' });
+    await pool.query(
+      `INSERT INTO user_settings (user_id, \`key\`, value, updated_at)
+            VALUES (?, ?, ?, UTC_TIMESTAMP())
+       ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = UTC_TIMESTAMP()`,
+      [req.params.id, key, name],
+    );
+    if (!contractor) {
+      await pool.query(
+        'UPDATE users SET store_name = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+        [name, req.params.id],
+      );
+    }
+    return res.json({ id: req.params.id, key, store_name: name });
   })
 );
 

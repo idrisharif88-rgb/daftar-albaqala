@@ -2,7 +2,7 @@ import type { Flavor } from './types';
 
 export const grocery: Flavor = {
   id: 'grocery',
-  appName: 'دفتر البقالة',
+  appName: 'Shopbook | فليكتب',
   tagline: 'ديونك ودفعاتك، في دفتر واحد',
   loginTag: 'سجّل ديون ودفعات عملائك بسهولة',
   pitch: 'سجّل الديون والمدفوعات، واطبع الفواتير — يعمل بدون إنترنت.',
