@@ -38,8 +38,10 @@ type RoleFilter = ContactRole | 'all';
 // local data layer (offline-first) and offers an "add contact" flow.
 const Home: React.FC = () => {
   const { logout, driveBackupAllowed } = useAuth();
-  // The round button does what this account has: server sync, or — for an
-  // account without it — a Google Drive backup (same rules as Settings).
+  // The round button «تحديث» does what this account has: server sync, or — for
+  // an account without it — a Google Drive backup (same rules as Settings).
+  // One label for both: it fits the round button, and the user never has to
+  // know which one runs. `serverSync` only remembers the last answer.
   const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
   const [serverSync, setServerSync] = useState(true);
   const drive = useDriveBackup();
@@ -274,7 +276,7 @@ const Home: React.FC = () => {
           <button type="button" className="sync-round-btn" onClick={sync} disabled={syncing || !!drive.busy}>
             {syncing || drive.busy
               ? <IonSpinner name="crescent" />
-              : serverSync || !driveOn ? 'مزامنة' : 'نسخ احتياطي'}
+              : 'تحديث'}
           </button>
         )}
 
