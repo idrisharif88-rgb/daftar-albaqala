@@ -13,7 +13,7 @@ function contractorHtml(): Plugin {
     transformIndexHtml(html) {
       if (process.env.VITE_FLAVOR !== 'contractor') return html
       return html
-        .replaceAll('Shopbook | فليكتب', 'دفتر المقاول')
+        .replaceAll('Shopbook | فَلْيَكْتُبْ', 'دفتر المقاول')
         .replaceAll('فَلْيَكْتُبْ', 'دفتر المقاول')
         .replace(/<div id="boot-splash"[\s\S]*?<\/svg>\s*<\/div>\s*<\/div>/,
           '<div id="boot-splash" style="position:fixed;inset:0;z-index:300000;background:#2B2B2B"></div>')
