@@ -1296,3 +1296,6 @@ Frontend only (shop app + Watcher), no server change. **Not device-tested.**
   `capacitor.config.ts`). Launcher/home-screen label: **«فليكتب»** (`main/res/values/strings.xml`,
   `apple-mobile-web-app-title`). `vite.config.ts` swaps both forms for «دفتر المقاول» in the contractor build.
   Package id and `driveBackupFile` untouched (identity + existing backups).
+- **Fixed 2026-11-05:** `GET /me` now chooses the sync switch by `X-App` (`appOf`), so a contractor book
+  without sync gets Drive even when the grocery book syncs. Watcher delete dialog hint now reads
+  «اكتب الرقم هنا» — the old placeholder showed the number itself and looked already filled in.

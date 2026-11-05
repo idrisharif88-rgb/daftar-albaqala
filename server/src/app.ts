@@ -9,7 +9,7 @@ import attachmentsRouter, { attachmentsBodyParser } from './routes/attachments';
 import accountRouter from './routes/account';
 import adminRouter from './routes/admin';
 import { requireAuth, AuthedRequest } from './middleware/auth';
-import { requireSubscription, requireNotSuspended } from './middleware/requireSubscription';
+import { requireSubscription, requireNotSuspended, appOf } from './middleware/requireSubscription';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
 
@@ -103,15 +103,19 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status, drive_backup FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup FROM users WHERE id = ?',
       [req.userId]
     );
-    const user = (rows as Array<Record<string, unknown>>)[0];
-    if (!user) return res.status(404).json({ error: 'user not found' });
-    // Drive backup: granted per account by the owner — and always on for an
-    // account WITHOUT server sync, whose book would otherwise live on one phone
-    // with no copy anywhere.
-    const driveBackup = Number(user.drive_backup) === 1 || user.subscription_status !== 'active';
+    const row = (rows as Array<Record<string, unknown>>)[0];
+    if (!row) return res.status(404).json({ error: 'user not found' });
+    const { contractor_status: contractorStatus, ...user } = row;
+    // Drive backup: granted per account by the owner — and always on for a book
+    // WITHOUT server sync, which would otherwise live on one phone with no copy
+    // anywhere. Each app has its own sync switch, so ask about the app calling.
+    const syncOn = appOf(req) === 'contractor'
+      ? contractorStatus === 'active'
+      : user.subscription_status === 'active';
+    const driveBackup = Number(user.drive_backup) === 1 || !syncOn;
     return res.json({ user: { ...user, drive_backup: driveBackup } });
   })
 );
