@@ -2,6 +2,7 @@ import { getDB, persist } from '../../data/db';
 import { uuidv4 } from '../../data/uuid';
 import { generateCodes, parseScannedCode } from '../../lib/productCodes';
 import { localDay } from './day';
+import { kickPosSync } from './posSyncKick';
 
 // POS product repository — what the shop sells, one row per product, each with
 // the random code printed on its shelf label (see lib/productCodes.ts).
@@ -87,6 +88,7 @@ export async function createProduct(input: { name: string; price: number }): Pro
     [id, name, code, price, now, now],
   );
   await persist();
+  kickPosSync();
   return { id, name, code, price, created_at: now, updated_at: now };
 }
 
@@ -125,6 +127,7 @@ export async function updateProduct(
     [name, Math.round(fields.price), nowIso(), id],
   );
   await persist();
+  kickPosSync();
 }
 
 export async function deleteProduct(id: string): Promise<void> {
@@ -135,6 +138,7 @@ export async function deleteProduct(id: string): Promise<void> {
     [now, now, id],
   );
   await persist();
+  kickPosSync();
 }
 
 // ---------------------------------------------------------------------------
@@ -215,5 +219,6 @@ export async function importProductsJson(
     }
   }
   await persist();
+  kickPosSync();
   return { added, skipped, baked };
 }

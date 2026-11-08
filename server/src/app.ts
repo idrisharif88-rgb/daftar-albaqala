@@ -5,6 +5,8 @@ import authRouter from './routes/auth';
 import customersRouter from './routes/customers';
 import transactionsRouter from './routes/transactions';
 import syncRouter from './routes/sync';
+import posSyncRouter from './routes/posSync';
+import { requirePos } from './middleware/requirePos';
 import attachmentsRouter, { attachmentsBodyParser } from './routes/attachments';
 import accountRouter from './routes/account';
 import adminRouter from './routes/admin';
@@ -80,6 +82,10 @@ app.use('/account', requireAuth, accountRouter);
 // sync is refused (402) unless the user's subscription is active and unexpired.
 // POST /sync/push, GET /sync/pull.
 app.use('/sync', requireAuth, requireSubscription, syncRouter);
+
+// Point of sale: its own sync, same gates plus «the section was switched on
+// for this account» (users.pos_enabled).
+app.use('/pos-sync', requireAuth, requireSubscription, requirePos, posSyncRouter);
 
 // Attachments — a file pinned to an entry. Behind the same gates as sync (it is
 // part of the paid cloud backup) and tenant-filtered by req.userId. The global

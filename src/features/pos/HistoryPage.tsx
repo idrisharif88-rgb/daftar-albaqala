@@ -1,10 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonLabel,
-  IonText, IonSpinner, IonModal, IonButtons, IonButton, useIonViewWillEnter,
+  IonText, IonSpinner, IonModal, IonButtons, IonButton, IonIcon, useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
 import { IonBadge } from '@ionic/react';
 import PosFooter from './PosFooter';
+import { shareDayReport } from './reportPdf';
+import { shareSocialOutline } from 'ionicons/icons';
 import { getDayRows, listDays, totalsOf, type DayRow, type DaySummary } from './stock';
 import { formatMinor } from '../../data/money';
 
@@ -15,6 +17,16 @@ const HistoryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<{ day: string; rows: DayRow[] } | null>(null);
   const modal = useRef<HTMLIonModalElement>(null);
+  const [presentAlert] = useIonAlert();
+  const [sharing, setSharing] = useState(false);
+  const share = async () => {
+    if (!open) return;
+    setSharing(true);
+    try { await shareDayReport(open.day); }
+    catch (err) {
+      presentAlert({ header: 'تعذّرت المشاركة', message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع', buttons: ['حسناً'] });
+    } finally { setSharing(false); }
+  };
 
   const load = useCallback(async () => {
     setDays(await listDays());
@@ -62,6 +74,10 @@ const HistoryPage: React.FC = () => {
             <IonToolbar>
               <IonTitle><span dir="ltr">{open?.day}</span></IonTitle>
               <IonButtons slot="end">
+                <IonButton disabled={sharing} onClick={() => { void share(); }}>
+                  <IonIcon slot="start" icon={shareSocialOutline} />
+                  مشاركة
+                </IonButton>
                 <IonButton onClick={() => modal.current?.dismiss()}>إغلاق</IonButton>
               </IonButtons>
             </IonToolbar>

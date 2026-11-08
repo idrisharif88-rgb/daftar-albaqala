@@ -13,12 +13,14 @@ import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
 
-type Filter = 'all' | 'none' | 'active' | 'suspended';
+type Filter = 'all' | 'allowed' | 'suspended' | 'sync';
 
+// What the owner sees first: may this account USE the app? Only 'suspended'
+// says no. Server sync is a separate permission (in «المزيد»).
 const STATUS_AR: Record<Status, string> = {
-  none: 'بدون مزامنة',
+  none: 'مفعّل',
   active: 'مفعّل',
-  expired: 'منتهي',
+  expired: 'مفعّل',
   suspended: 'موقوف',
 };
 
@@ -73,12 +75,12 @@ const Accounts: React.FC = () => {
   useEffect(() => { void load(); }, [load]);
 
   const counts = useMemo(() => {
-    const c = { all: 0, none: 0, active: 0, suspended: 0 };
+    const c = { all: 0, allowed: 0, suspended: 0, sync: 0 };
     for (const a of accounts ?? []) {
       c.all++;
       const s = effectiveStatus(a);
-      if (s === 'none' || s === 'expired') c.none++;
-      else c[s]++;
+      if (s === 'suspended') c.suspended++; else c.allowed++;
+      if (s === 'active') c.sync++;
     }
     return c;
   }, [accounts]);
@@ -88,9 +90,9 @@ const Accounts: React.FC = () => {
     const qDigits = digitsOnly(q);
     return (accounts ?? []).filter((a) => {
       const s = effectiveStatus(a);
-      if (filter === 'none' && s !== 'none' && s !== 'expired') return false;
-      if (filter === 'active' && s !== 'active') return false;
+      if (filter === 'allowed' && s === 'suspended') return false;
       if (filter === 'suspended' && s !== 'suspended') return false;
+      if (filter === 'sync' && s !== 'active') return false;
       if (!q) return true;
       return (
         (a.store_name ?? '').toLowerCase().includes(q) ||
@@ -398,11 +400,34 @@ const Accounts: React.FC = () => {
     });
   };
 
+  // «مفعّل» ↔ «موقوف»: may this account use the app at all. Allowing it again
+  // puts it back to 'none' (the app works, server sync off) — a suspended
+  // account has had its sync cut anyway, and sync is switched on from «المزيد».
+  const allowUse = (a: Account) => {
+    const who = a.store_name || a.phone;
+    presentAlert({
+      header: 'السماح بالاستخدام',
+      message: `السماح لـ«${who}» باستخدام التطبيق من جديد؟ تبقى المزامنة متوقفة حتى تفعّلها من «المزيد».`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'تفعيل',
+          role: 'confirm',
+          handler: () => {
+            setTimeout(() => {
+              void ask('السماح بالاستخدام').then((code) => { if (code) void doChange(a, 'none', code); });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
   const change = (a: Account, status: 'active' | 'suspended') => {
     const who = a.store_name || a.phone;
     const activating = status === 'active';
     presentAlert({
-      header: activating ? 'تفعيل الحساب' : 'إيقاف الحساب',
+      header: activating ? 'تفعيل المزامنة' : 'إيقاف الحساب',
       message: activating
         ? `تفعيل المزامنة لـ«${who}»؟ يُرفع دفتره إلى الخادم.`
         : `إيقاف «${who}»؟ لن يستطيع الدخول ولا المزامنة حتى تعيد تفعيله. بياناته تبقى محفوظة.`,
@@ -414,7 +439,7 @@ const Accounts: React.FC = () => {
           handler: () => {
             // Let the confirm alert finish dismissing before the code modal opens.
             setTimeout(() => {
-              void ask(activating ? 'تفعيل الحساب' : 'إيقاف الحساب').then((code) => {
+              void ask(activating ? 'تفعيل المزامنة' : 'إيقاف الحساب').then((code) => {
                 if (code) void doChange(a, status, code);
               });
             }, 350);
@@ -449,6 +474,15 @@ const Accounts: React.FC = () => {
 
             <IonListHeader><IonLabel>الصلاحيات</IonLabel></IonListHeader>
             {effectiveStatus(managed) !== 'suspended' && (
+              <IonItem
+                button detail
+                onClick={() => pick((a) => (effectiveStatus(a) === 'active' ? syncOff(a) : change(a, 'active')))}
+              >
+                <IonLabel>مزامنة الخادم</IonLabel>
+                <IonNote slot="end">{effectiveStatus(managed) === 'active' ? 'مفعّلة' : 'متوقفة'}</IonNote>
+              </IonItem>
+            )}
+            {effectiveStatus(managed) !== 'suspended' && (
               <IonItem button detail onClick={() => pick(changeContractor)}>
                 <IonLabel>دفتر المقاول</IonLabel>
                 <IonNote slot="end">{managed.contractor_status === 'active' ? 'مفعّل' : 'متوقف'}</IonNote>
@@ -468,11 +502,6 @@ const Accounts: React.FC = () => {
             <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>
 
             <IonListHeader><IonLabel>منطقة الخطر</IonLabel></IonListHeader>
-            {effectiveStatus(managed) !== 'suspended' && (
-              <IonItem button detail={false} onClick={() => pick((a) => change(a, 'suspended'))}>
-                <IonLabel color="danger">إيقاف الحساب (منع الدخول)</IonLabel>
-              </IonItem>
-            )}
             <IonItem button detail={false} onClick={() => pick(remove)}>
               <IonLabel color="danger">حذف الحساب نهائياً</IonLabel>
             </IonItem>
@@ -499,9 +528,9 @@ const Accounts: React.FC = () => {
         <IonToolbar>
           <IonSegment value={filter} onIonChange={(e) => setFilter(e.detail.value as Filter)}>
             <IonSegmentButton value="all"><IonLabel>الكل</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="none"><IonLabel>بانتظار التفعيل</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="active"><IonLabel>مفعّل</IonLabel></IonSegmentButton>
+            <IonSegmentButton value="allowed"><IonLabel>مفعّل</IonLabel></IonSegmentButton>
             <IonSegmentButton value="suspended"><IonLabel>موقوف</IonLabel></IonSegmentButton>
+            <IonSegmentButton value="sync"><IonLabel>بمزامنة</IonLabel></IonSegmentButton>
           </IonSegment>
         </IonToolbar>
       </IonHeader>
@@ -512,9 +541,9 @@ const Accounts: React.FC = () => {
 
         <div className="summary">
           <div className="summary__chip"><div className="summary__num">{counts.all}</div><div className="summary__label">كل الحسابات</div></div>
-          <div className="summary__chip"><div className="summary__num">{counts.none}</div><div className="summary__label">بانتظار التفعيل</div></div>
-          <div className="summary__chip"><div className="summary__num">{counts.active}</div><div className="summary__label">مفعّل</div></div>
+          <div className="summary__chip"><div className="summary__num">{counts.allowed}</div><div className="summary__label">مفعّل</div></div>
           <div className="summary__chip"><div className="summary__num">{counts.suspended}</div><div className="summary__label">موقوف</div></div>
+          <div className="summary__chip"><div className="summary__num">{counts.sync}</div><div className="summary__label">بمزامنة</div></div>
         </div>
 
         <IonSearchbar
@@ -538,7 +567,8 @@ const Accounts: React.FC = () => {
                   <div className="acct__phone">{a.phone}</div>
                 </div>
                 <div className="acct__badges">
-                  <span className={`badge badge--${s}`}>{STATUS_AR[s]}</span>
+                  <span className={`badge badge--${s === 'suspended' ? 'suspended' : 'active'}`}>{STATUS_AR[s]}</span>
+                  {s === 'active' && <span className="badge badge--contractor">مزامنة</span>}
                   {a.contractor_status === 'active' && s !== 'suspended' && (
                     <span className="badge badge--contractor">المقاول</span>
                   )}
@@ -556,16 +586,16 @@ const Accounts: React.FC = () => {
                 <IonButton size="small" fill="outline" onClick={() => router.push(`/accounts/${a.id}`)}>
                   فتح الدفتر
                 </IonButton>
-                {s !== 'active' && (
-                  <IonButton size="small" disabled={busyId === a.id} onClick={() => change(a, 'active')}>
-                    {s === 'suspended' ? 'إعادة التفعيل' : 'تفعيل المزامنة'}
-                  </IonButton>
-                )}
-                {s === 'active' && (
-                  <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => syncOff(a)}>
-                    إيقاف المزامنة
-                  </IonButton>
-                )}
+                {/* The one switch that matters most: may this account use the app? */}
+                <IonButton
+                  size="small"
+                  fill={s === 'suspended' ? 'outline' : 'solid'}
+                  color={s === 'suspended' ? 'danger' : 'primary'}
+                  disabled={busyId === a.id}
+                  onClick={() => (s === 'suspended' ? allowUse(a) : change(a, 'suspended'))}
+                >
+                  {s === 'suspended' ? 'موقوف · تفعيل' : 'مفعّل'}
+                </IonButton>
                 <IonButton size="small" fill="outline" onClick={() => setManageId(a.id)}>
                   <IonIcon slot="start" icon={ellipsisVertical} />
                   المزيد

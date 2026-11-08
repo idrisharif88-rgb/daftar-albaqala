@@ -4,13 +4,15 @@ import {
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
   IonInput, IonNote, IonIcon, IonFab, IonCheckbox, IonFabButton, useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
-import { add, printOutline, trashOutline } from 'ionicons/icons';
+import { add, printOutline, trashOutline, shareSocialOutline } from 'ionicons/icons';
 import PosFooter from './PosFooter';
 import { Capacitor } from '@capacitor/core';
 import {
   listProducts, createProduct, createProducts, exportProductsJson, importProductsJson, updateProduct, deleteProduct, type PosProduct,
 } from './products';
 import { printLabelsInBrowser, barcodeSvg } from './labels';
+import { buildLabelsPdf } from './labelsPdf';
+import { sharePdf, printPdfFile } from './pdfPages';
 import { toMinor, fromMinor, formatMinor } from '../../data/money';
 import { numericInput } from '../../lib/digits';
 
@@ -196,22 +198,49 @@ const ProductsPage: React.FC = () => {
       return next;
     });
 
+  const [working, setWorking] = useState(false);
+  const chosen = () => products.filter((p) => picked.has(p.id));
+  const fail = (header: string, err: unknown) =>
+    presentAlert({
+      header,
+      message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
+      buttons: ['حسناً'],
+    });
+
+  // «طباعة»: the browser's print dialog on a computer; on the phone, Android's
+  // own print dialog fed a PDF (any printer it reaches, or «Save as PDF»).
   const printPicked = async () => {
+    setWorking(true);
     try {
-      await printLabelsInBrowser(products.filter((p) => picked.has(p.id)));
+      if (Capacitor.isNativePlatform()) {
+        const { base64, filename } = await buildLabelsPdf(chosen());
+        await printPdfFile(base64, filename.replace(/\.pdf$/, ''));
+      } else {
+        await printLabelsInBrowser(chosen());
+      }
       await pickModal.current?.dismiss();
     } catch (err) {
-      presentAlert({
-        header: 'تعذّرت الطباعة',
-        message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع',
-        buttons: ['حسناً'],
-      });
+      fail('تعذّرت الطباعة', err);
+    } finally {
+      setWorking(false);
     }
   };
 
-  // On the phone the sheet will go through the system print dialog as a PDF
-  // (next step); until then the button is a browser-only tool.
-  const canPrint = !Capacitor.isNativePlatform() && products.length > 0;
+  // «مشاركة PDF»: for when there is no printer, or it will not connect — send
+  // the sheet to WhatsApp, a print shop or a friend who has one.
+  const sharePicked = async () => {
+    setWorking(true);
+    try {
+      const { base64, filename } = await buildLabelsPdf(chosen());
+      await sharePdf(base64, filename, 'ملصقات المنتجات');
+    } catch (err) {
+      fail('تعذّرت المشاركة', err);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const canPrint = products.length > 0;
 
   return (
     <IonPage>
@@ -295,9 +324,16 @@ const ProductsPage: React.FC = () => {
             </IonList>
           </IonContent>
           <div className="ion-padding">
-            <IonButton expand="block" disabled={picked.size === 0} onClick={() => { void printPicked(); }}>
-              <IonIcon slot="start" icon={printOutline} />
+            <IonButton expand="block" disabled={picked.size === 0 || working} onClick={() => { void printPicked(); }}>
+              {working ? <IonSpinner name="crescent" /> : <IonIcon slot="start" icon={printOutline} />}
               طباعة ({picked.size})
+            </IonButton>
+            <IonButton
+              expand="block" fill="outline" disabled={picked.size === 0 || working}
+              onClick={() => { void sharePicked(); }}
+            >
+              <IonIcon slot="start" icon={shareSocialOutline} />
+              مشاركة PDF
             </IonButton>
           </div>
         </IonModal>

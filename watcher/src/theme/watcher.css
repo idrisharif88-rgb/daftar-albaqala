@@ -2,7 +2,7 @@
 
 .login-brand { text-align: center; margin: 24px 0 20px; }
 .login-brand__name { font-size: 2rem; font-weight: 700; color: var(--ion-color-primary); }
-.login-brand__tag { color: #6b7a6b; font-size: 0.95rem; margin-top: 4px; }
+.login-brand__tag { color: #44524a; font-size: 0.95rem; margin-top: 4px; }
 .login-brand, form { max-width: 480px; margin-inline: auto; }
 .login-error { display: block; margin-top: 8px; }
 .code-input { letter-spacing: 0.4em; font-size: 1.3rem; direction: ltr; }
@@ -23,13 +23,13 @@ ion-header ion-segment-button {
   background: var(--app-green-soft); border-radius: 10px; padding: 8px 4px;
 }
 .summary__num { font-size: 1.3rem; font-weight: 700; color: var(--ion-color-primary); }
-.summary__label { font-size: 0.8rem; color: #4a5a4a; }
+.summary__label { font-size: 0.8rem; color: #2f3b2f; }
 
 .acct { margin: 10px 12px; border: 1px solid #dfe8df; border-radius: 12px; padding: 12px; }
 .acct__top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .acct__name { font-weight: 700; font-size: 1.05rem; }
-.acct__phone { direction: ltr; unicode-bidi: isolate; color: #4a5a4a; }
-.acct__meta { color: #6b7a6b; font-size: 0.85rem; margin-top: 6px; line-height: 1.6; }
+.acct__phone { direction: ltr; unicode-bidi: isolate; color: #2f3b2f; }
+.acct__meta { color: #44524a; font-size: 0.85rem; margin-top: 6px; line-height: 1.6; }
 .acct__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .acct__actions ion-button { flex: 1 1 40%; margin: 0; }
 
@@ -69,7 +69,7 @@ ion-content ion-button:active::part(native) { transform: scale(0.98); }
 .badge--expired { background: #eceff1; color: #455a64; }
 .badge--suspended { background: #c62828; color: #fff; }
 
-.empty { text-align: center; color: #6b7a6b; margin-top: 40px; }
+.empty { text-align: center; color: #44524a; margin-top: 40px; }
 
 /* Dates and numbers inside Arabic text: keep 2026-10-02 in its own order. */
 .ltr { direction: ltr; unicode-bidi: isolate; }
@@ -109,12 +109,12 @@ ion-input input.native-input::placeholder {
 .entry__amt { font-weight: 700; }
 .entry__amt--debt { color: #c62828; }
 .entry__amt--pay { color: #1b5e20; }
-.entry__date { color: #6b7a6b; font-size: 0.85rem; }
+.entry__date { color: #44524a; font-size: 0.85rem; }
 .entry__note { margin-top: 4px; color: #333; }
 /* The id is what the owner deletes by — small, but selectable and whole. */
-.entry__id { margin-top: 4px; font-family: monospace; font-size: 0.72rem; color: #8a958a;
+.entry__id { margin-top: 4px; font-family: monospace; font-size: 0.72rem; color: #5c685c;
   user-select: text; -webkit-user-select: text; word-break: break-all; }
-.hint { color: #6b7a6b; font-size: 0.85rem; }
+.hint { color: #44524a; font-size: 0.85rem; }
 
 /* Confirmations carry two paragraphs; Ionic shows the message as plain text. */
 .alert-message { white-space: pre-line; }

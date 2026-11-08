@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
 import {
-  IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonLabel,
+  IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonList, IonItem, IonLabel,
   IonText, IonSpinner, IonBadge, IonButton, IonIcon, useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
-import { add, remove, lockClosedOutline } from 'ionicons/icons';
+import { add, remove, lockClosedOutline, shareSocialOutline } from 'ionicons/icons';
+import { shareDayReport } from './reportPdf';
 import PosFooter from './PosFooter';
 import {
   addBaked, getDayRows, localDay, totalsOf, retentionDue, keepForAnotherYear,
@@ -132,6 +133,17 @@ const TodayPage: React.FC = () => {
       <IonHeader>
         <IonToolbar>
           <IonTitle>اليوم <small dir="ltr">{localDay()}</small></IonTitle>
+          {rows.length > 0 && (
+            <IonButtons slot="end">
+              <IonButton aria-label="مشاركة تقرير اليوم" onClick={() => {
+                shareDayReport(localDay()).catch((err: unknown) => {
+                  presentNote({ header: 'تعذّرت المشاركة', message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع', buttons: ['حسناً'] });
+                });
+              }}>
+                <IonIcon slot="icon-only" icon={shareSocialOutline} />
+              </IonButton>
+            </IonButtons>
+          )}
         </IonToolbar>
         {!loading && rows.length > 0 && (
           <IonToolbar>
