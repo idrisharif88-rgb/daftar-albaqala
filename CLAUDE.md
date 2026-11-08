@@ -36,18 +36,32 @@ owner's cloud server.
 ## Repo layout
 ```
 daftar-albaqala/
-├── src/              # the React/Ionic app (default starter so far — no app code yet)
-├── capacitor.config.ts
-├── watcher/          # «مراقب البقالة» — the owner's admin app (own package.json + android/)
-├── server/           # the backend
-│   ├── db/schema.sql # daftar_db tables: users, customers, transactions, items, user_settings
-│   ├── db/migrations/ # numbered DDL, run as root on the droplet (daftar_user is DML-only)
-│   ├── src/index.ts  # Express app — currently only GET /health
-│   ├── package.json  # scripts: dev (tsx watch) / build (tsc) / start (node dist)
-│   ├── tsconfig.json
-│   ├── .env.example  # template; real .env is created on the server, git-ignored
-│   └── .gitignore    # node_modules/, dist/, .env
-└── CLAUDE.md
+├── src/                     # the React/Ionic app that runs on phones
+│   ├── pages/               # ledger screens: Home, CustomerDetail, Items, Invoice, Settings, Login, Welcome, UpdatesNotebook
+│   ├── features/pos/        # the POS section (Phase 32): Today/Sell/History/Products pages, stock + products
+│   │                        #   data, posSync (+ kick), labels/report PDFs, scanner, beep, icons registry
+│   ├── data/                # local SQLite layer: db, schema (baseline), migrations (versioned), sync, driveBackup, ...
+│   ├── lib/                 # api, auth, notify, pdf, receipt, print, systemPrint, googleDrive, productCodes, ...
+│   ├── flavors/             # grocery / contractor differences, chosen at BUILD time (VITE_FLAVOR)
+│   └── components/ theme/ config.ts   # config.ts holds POS_ENABLED (VITE_POS) and the owner phone
+├── android/                 # Capacitor Android: flavors grocery + contractor, build type `postest`,
+│                            #   custom plugins (ContactPicker, FilePicker, SystemPrint, NativeSplash)
+├── watcher/                 # «مراقب البقالة» — the owner's admin app (own package.json + android/)
+├── server/                  # the backend (Express + TypeScript)
+│   ├── db/schema.sql        # full schema (users, customers, transactions, items, item_groups, user_settings,
+│   │                        #   attachments, pos_* tables)
+│   ├── db/migrations/       # numbered DDL 001–012, run as root (daftar_user is DML-only)
+│   ├── src/app.ts           # mounts the routers below; index.ts only calls listen()
+│   ├── src/routes/          # auth, customers, transactions, sync, posSync, attachments, account, admin
+│   ├── src/middleware/      # auth, requireSubscription, requirePos, requireAdmin, requireAdminCode
+│   ├── src/admin/           # hand-written TOTP for the Watcher login
+│   ├── src/test/            # integration tests against a real MySQL (`npm test`)
+│   └── .env.example / .env.test.example   # templates; real .env files are git-ignored
+├── scripts/flavor-assets.sh # moves each app's web build into its own Android source set
+├── docs/privacy.html        # privacy policy, published on GitHub Pages
+├── play-assets/             # Play Store listing material
+├── cypress/ cursorrules     # e2e scaffold; the owner's reverse-learning guide
+└── CLAUDE.md                # this file — update it after every phase
 ```
 
 ## Infrastructure (the server)
@@ -1117,6 +1131,8 @@ until the owner manually activates, so an unverified account is inert).
   request endpoint hard (OTP endpoints get abused to burn credit / spam numbers).
 
 ## Conventions & constraints
+- **Keep this file current.** After every phase or notable change, add/refresh its section here (re-scan the
+  code if needed to get it right) — the owner asked for this explicitly. Memory notes are not a substitute.
 - Work **only** in this repo. Do **NOT** touch the owner's other project `quran-fives-react`.
 - The **owner runs all server commands** (SSH/MySQL/nginx/systemd) via the DigitalOcean web
   console; the assistant has no direct server access — always give exact, copy-pasteable commands,
@@ -1311,3 +1327,39 @@ Frontend only (shop app + Watcher), no server change. **Not device-tested.**
   BEFORE `requireAdminCode`, so a short password never spends the single-use code. The phone stays signed
   in (the JWT isn't tied to the password). Watcher: «كلمة المرور» per account → `confirm-input` dialog
   (shares the delete dialog's box style, green title + ring). Server tests 119/119.
+
+## Status — BUILT + DEPLOYED (Phase 32: POS section, inside this app) (2026-11-08)
+A bakery client's idea: sell by scanning printed barcodes. Built as a **section of this app**
+(not a flavor — no new Play listing / OAuth), PRs #37–#40, all merged; server migrations 011 + 012
+applied on the droplet; owner verified rows reach the server.
+- **Who sees it:** `posAccess` = `POS_ENABLED` (build switch: `npm run dev` or **`VITE_POS=1`** — a
+  normal `npm run android:grocery` build has NO POS) AND (owner phone OR `users.pos_enabled`, set
+  per account in the Watcher). Bottom bar (icons only): الديون / نقطة البيع (card icon); POS tabs
+  اليوم / بيع / السجل / المنتجات. Code in `src/features/pos/`; icons in ONE registry (`icons.ts`)
+  + `IconButton`, every icon-only control labelled.
+- **Data (local, add-only):** `pos_products`, `pos_baked`, `pos_sales`, `pos_day_lock` (local
+  migrations 6–10). Money INTEGER minor units; `day` = LOCAL calendar day text. A sale keeps the
+  price it was made at. Corrections are opposite rows (qty −1), never edits.
+- **Barcodes:** EAN-13, prefix **2** (in-store range, can't clash with a factory code), real check
+  digit, issued once per product and NEVER changed (printed labels depend on it); unique per user.
+  Labels: browser print, or a **PDF** (Android print dialog / share to WhatsApp). Scan = Google's
+  code scanner (ML Kit) — **no CAMERA permission**. Continuous scan, tap-to-sell, checkout beep.
+- **Day flow:** «المخزون اليومي» (baked via +/−, hides products with nothing today) → ✓ submit =
+  quantities locked (selling continues; baked can never go below sold; «تعديل» reopens, counted
+  and shown in السجل). One-year retention prompt (keep / delete older), never automatic.
+- **Sync:** its OWN endpoint `/pos-sync` (`server/src/routes/posSync.ts`), apart from `/sync`:
+  auth + active server sync + `users.pos_enabled`; products & day locks LWW, baked/sales add-only,
+  per-row acks, tenant isolation, keyset pull on the server clock. Phone: `posSync.ts` +
+  `PosAutoSync` (open, online, ~3 s after a change). The round button on «اليوم» = server sync,
+  else Google Drive backup (the Drive file includes the POS tables). Account switch WIPES POS rows.
+- **Watcher:** per-account «مفعّل / موقوف» button (allow/block use of the app); everything else
+  (مزامنة الخادم, نقطة البيع, Drive, المقاول, name, password, delete) in the «المزيد» sheet; all
+  Watcher text bold. Server tests 133/133, app tests 110/110.
+- **Test copy:** `android/app/build.gradle` has a `postest` build type (installs beside the real
+  app). Trial copy for the client = the debug APK built with `VITE_POS=1`; he registers, owner
+  switches on «نقطة البيع» + «مزامنة الخادم» in the Watcher, then sends him the product list with
+  the copy/import icons (codes + prices + today's baked travel; sales history is deliberately not sent).
+- ⚠️ **Before any Play release:** rebuild with `npm run android:grocery` (no `VITE_POS`), or the
+  POS-enabled bundle ships. Known gaps: the labels/report PDFs are bitmaps (Arabic shaping); Drive
+  file grows with sales history; «تعديل» (reopen a submitted day) kept — owner once said "delete the
+  button, no need" but never confirmed which; don't remove it without a clear yes.
