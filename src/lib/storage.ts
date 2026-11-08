@@ -19,6 +19,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(PHONE_KEY);
   localStorage.removeItem(DRIVE_KEY);
+  localStorage.removeItem(POS_KEY);
 }
 
 // Whether the owner granted this account Google Drive backup — remembered so the
@@ -31,6 +32,18 @@ export function getDriveAllowed(): boolean {
 
 export function setDriveAllowed(on: boolean): void {
   if (on) localStorage.setItem(DRIVE_KEY, '1'); else localStorage.removeItem(DRIVE_KEY);
+}
+
+// Whether the owner switched the point-of-sale section on for this account —
+// remembered so it still opens offline. Refreshed from GET /me on every launch.
+const POS_KEY = 'daftar.pos-allowed';
+
+export function getPosAllowed(): boolean {
+  return localStorage.getItem(POS_KEY) === '1';
+}
+
+export function setPosAllowed(on: boolean): void {
+  if (on) localStorage.setItem(POS_KEY, '1'); else localStorage.removeItem(POS_KEY);
 }
 
 // The signed-in phone. The token carries only the user id, and the app needs

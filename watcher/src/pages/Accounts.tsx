@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon,
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
-  IonSpinner, useIonAlert, useIonToast, useIonRouter,
+  IonSpinner, IonModal, IonList, IonListHeader, IonItem, IonNote, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
-import { logOutOutline, refreshOutline } from 'ionicons/icons';
+import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
-  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup,
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -51,6 +51,8 @@ const Accounts: React.FC = () => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
+  // The account whose «المزيد» sheet is open.
+  const [manageId, setManageId] = useState<string | null>(null);
   const [presentAlert] = useIonAlert();
   // A second alert hook: rename asks "which book?" and then for the name, and
   // one hook keeps only one overlay at a time.
@@ -207,6 +209,35 @@ const Accounts: React.FC = () => {
             setTimeout(() => {
               void ask('نسخ Google Drive').then((code) => {
                 if (code) void doDrive(a, enabling, code);
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
+  // The point-of-sale section: same gate — confirm, then a fresh code.
+  const changePos = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const enabling = !a.pos_enabled;
+    presentAlert({
+      header: 'قسم نقطة البيع',
+      message: enabling
+        ? `تفعيل قسم نقطة البيع لـ«${who}»؟ يظهر له في التطبيق (يحتاج إصداراً يتضمنه).`
+        : `إيقاف قسم نقطة البيع لـ«${who}»؟ تبقى بياناته على هاتفه.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: enabling ? 'تفعيل' : 'إيقاف',
+          role: enabling ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('قسم نقطة البيع').then((code) => {
+                if (code) {
+                  void run(a, () => setPosAccess(a.id, enabling, code),
+                    enabling ? 'تم تفعيل نقطة البيع' : 'تم إيقاف نقطة البيع');
+                }
               });
             }, 350);
           },
@@ -393,6 +424,64 @@ const Accounts: React.FC = () => {
     });
   };
 
+  // «المزيد»: everything that is not the day-to-day sync switch, grouped so the
+  // list can keep growing — a new permission is one more row, not one more
+  // button on every card. State is written on each row (a menu of bare verbs
+  // would hide what is on and what is off); the destructive rows come last.
+  // The sheet closes BEFORE the action's own confirm dialog opens.
+  const managed = accounts?.find((x) => x.id === manageId) ?? null;
+  const pick = (fn: (a: Account) => void) => {
+    const a = managed;
+    setManageId(null);
+    if (a) setTimeout(() => fn(a), 350);
+  };
+  const manageSheet = (
+    <IonModal
+      isOpen={managed !== null}
+      onDidDismiss={() => setManageId(null)}
+      initialBreakpoint={0.8}
+      breakpoints={[0, 0.8, 1]}
+    >
+      {managed && (
+        <IonContent>
+          <IonList lines="full">
+            <IonListHeader>{managed.store_name || managed.phone}</IonListHeader>
+
+            <IonListHeader><IonLabel>الصلاحيات</IonLabel></IonListHeader>
+            {effectiveStatus(managed) !== 'suspended' && (
+              <IonItem button detail onClick={() => pick(changeContractor)}>
+                <IonLabel>دفتر المقاول</IonLabel>
+                <IonNote slot="end">{managed.contractor_status === 'active' ? 'مفعّل' : 'متوقف'}</IonNote>
+              </IonItem>
+            )}
+            <IonItem button detail onClick={() => pick(changeDrive)}>
+              <IonLabel>نسخ Google Drive</IonLabel>
+              <IonNote slot="end">{managed.drive_backup ? 'مفعّل' : 'متوقف'}</IonNote>
+            </IonItem>
+            <IonItem button detail onClick={() => pick(changePos)}>
+              <IonLabel>نقطة البيع</IonLabel>
+              <IonNote slot="end">{managed.pos_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
+            </IonItem>
+
+            <IonListHeader><IonLabel>الحساب</IonLabel></IonListHeader>
+            <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
+            <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>
+
+            <IonListHeader><IonLabel>منطقة الخطر</IonLabel></IonListHeader>
+            {effectiveStatus(managed) !== 'suspended' && (
+              <IonItem button detail={false} onClick={() => pick((a) => change(a, 'suspended'))}>
+                <IonLabel color="danger">إيقاف الحساب (منع الدخول)</IonLabel>
+              </IonItem>
+            )}
+            <IonItem button detail={false} onClick={() => pick(remove)}>
+              <IonLabel color="danger">حذف الحساب نهائياً</IonLabel>
+            </IonItem>
+          </IonList>
+        </IonContent>
+      )}
+    </IonModal>
+  );
+
   return (
     <IonPage>
       <IonHeader>
@@ -451,8 +540,10 @@ const Accounts: React.FC = () => {
                 <div className="acct__badges">
                   <span className={`badge badge--${s}`}>{STATUS_AR[s]}</span>
                   {a.contractor_status === 'active' && s !== 'suspended' && (
-                    <span className="badge badge--contractor">المقاول مفعّل</span>
+                    <span className="badge badge--contractor">المقاول</span>
                   )}
+                  {a.pos_enabled && <span className="badge badge--contractor">نقطة البيع</span>}
+                  {a.drive_backup && <span className="badge badge--contractor">Drive</span>}
                 </div>
               </div>
               <div className="acct__meta">
@@ -475,49 +566,16 @@ const Accounts: React.FC = () => {
                     إيقاف المزامنة
                   </IonButton>
                 )}
-                {s !== 'suspended' && (
-                  <IonButton
-                    size="small"
-                    fill="outline"
-                    color="danger"
-                    disabled={busyId === a.id}
-                    onClick={() => change(a, 'suspended')}
-                  >
-                    إيقاف
-                  </IonButton>
-                )}
-                {s !== 'suspended' && (
-                  <IonButton
-                    size="small"
-                    fill={a.contractor_status === 'active' ? 'solid' : 'outline'}
-                    disabled={busyId === a.id}
-                    onClick={() => changeContractor(a)}
-                  >
-                    {a.contractor_status === 'active' ? 'المقاول: مفعّل' : 'تفعيل المقاول'}
-                  </IonButton>
-                )}
-                <IonButton
-                  size="small"
-                  fill={a.drive_backup ? 'solid' : 'outline'}
-                  disabled={busyId === a.id}
-                  onClick={() => changeDrive(a)}
-                >
-                  {a.drive_backup ? 'Drive: مفعّل' : 'Drive'}
-                </IonButton>
-                <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => rename(a)}>
-                  تغيير الاسم
-                </IonButton>
-                <IonButton size="small" fill="outline" disabled={busyId === a.id} onClick={() => changePassword(a)}>
-                  كلمة المرور
-                </IonButton>
-                <IonButton size="small" fill="clear" color="danger" disabled={busyId === a.id} onClick={() => remove(a)}>
-                  حذف الحساب
+                <IonButton size="small" fill="outline" onClick={() => setManageId(a.id)}>
+                  <IonIcon slot="start" icon={ellipsisVertical} />
+                  المزيد
                 </IonButton>
               </div>
             </div>
           );
         })}
       </IonContent>
+      {manageSheet}
       {modal}
     </IonPage>
   );

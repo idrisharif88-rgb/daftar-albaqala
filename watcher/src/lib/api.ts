@@ -78,6 +78,8 @@ export interface Account {
   subscription_expires_at: string | null;
   /** Google Drive backup — an extra the owner grants per account. */
   drive_backup: boolean;
+  /** The point-of-sale section — switched on per account by the owner. */
+  pos_enabled: boolean;
   /** «دفتر المقاول»'s own activation ('active' | 'none'); subscription_status
    *  is the grocery app's, and 'suspended' there blocks both apps. */
   contractor_status: string;
@@ -115,6 +117,13 @@ export function setAccountStatus(id: string, status: 'active' | 'none' | 'suspen
 
 export function setDriveBackup(id: string, enabled: boolean, code: string): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/drive-backup`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled, code }),
+  });
+}
+
+export function setPosAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/pos`, {
     method: 'POST',
     body: JSON.stringify({ enabled, code }),
   });

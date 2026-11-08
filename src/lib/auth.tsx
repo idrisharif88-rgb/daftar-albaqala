@@ -3,6 +3,7 @@ import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
 import {
   getToken, setToken, clearToken, getPhone, setPhone, getDriveAllowed, setDriveAllowed,
+  getPosAllowed, setPosAllowed,
 } from './storage';
 import { ensureLocalOwner } from '../data/owner';
 import { isOwnerPhone } from '../config';
@@ -24,6 +25,8 @@ interface AuthState {
   isOwner: boolean;
   /** Google Drive backup granted to this account by the owner. */
   driveBackupAllowed: boolean;
+  /** The point-of-sale section was switched on for this account (Watcher). */
+  posAllowed: boolean;
   login: (phone: string, password: string) => Promise<void>;
   register: (phone: string, password: string, storeName: string) => Promise<void>;
   logout: () => void;
@@ -38,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authed, setAuthed] = useState<boolean>(() => getToken() !== null);
   const [phone, setPhoneState] = useState<string | null>(getPhone);
   const [driveAllowed, setDriveAllowedState] = useState<boolean>(getDriveAllowed);
+  const [posAllowed, setPosAllowedState] = useState<boolean>(getPosAllowed);
 
   const rememberPhone = (value: string) => {
     setPhone(value);
@@ -53,6 +57,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rememberPhone(res.user.phone);
       setDriveAllowed(res.user.drive_backup === true);
       setDriveAllowedState(res.user.drive_backup === true);
+      setPosAllowed(res.user.pos_enabled === true);
+      setPosAllowedState(res.user.pos_enabled === true);
     }).catch(() => undefined);
   }, [authed]);
 
@@ -85,6 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPhoneState(null);
     setDriveAllowed(false);
     setDriveAllowedState(false);
+    setPosAllowed(false);
+    setPosAllowedState(false);
     setUser(null);
     setAuthed(false);
   }, []);
@@ -94,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user, isAuthenticated: authed, isOwner: authed && isOwnerPhone(phone),
         driveBackupAllowed: authed && driveAllowed,
+        posAllowed: authed && posAllowed,
         login, register, logout,
       }}
     >

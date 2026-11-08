@@ -38,6 +38,15 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        // A test copy that installs BESIDE the real app (own package id, own
+        // data, own name) — for trying unfinished sections on a real phone
+        // without touching the installed app or its signature:
+        //   ./gradlew assembleGroceryPostest
+        postest {
+            initWith debug
+            applicationIdSuffix ".postest"
+            matchingFallbacks = ['debug']
+        }
     }
 }
 

@@ -8,6 +8,10 @@ import { App as CapacitorApp } from '@capacitor/app';
 import Home from './pages/Home';
 import CustomerDetail from './pages/CustomerDetail';
 import Items from './pages/Items';
+import ProductsPage from './features/pos/ProductsPage';
+import TodayPage from './features/pos/TodayPage';
+import SellPage from './features/pos/SellPage';
+import HistoryPage from './features/pos/HistoryPage';
 import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -16,6 +20,7 @@ import UpdatesNotebook from './pages/UpdatesNotebook';
 import BiometricGate from './components/BiometricGate';
 import SplashIntro from './components/SplashIntro';
 import { FLAVOR } from './flavors';
+import { POS_ENABLED } from './config';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
 import { getSyncHealth, runSync } from './data/sync';
@@ -149,7 +154,8 @@ const HardwareBack: React.FC = () => {
 // sent to /welcome — including on logout, so leaving the app lands on the same
 // first screen as opening it. Kept inside AuthProvider so useAuth() is available.
 const Routes: React.FC = () => {
-  const { isAuthenticated, isOwner } = useAuth();
+  const { isAuthenticated, isOwner, posAllowed } = useAuth();
+  const posAccess = isAuthenticated && POS_ENABLED && (isOwner || posAllowed);
   return (
     // Remount the whole router when signing in or out. IonRouterOutlet keeps a
     // STACK of the pages it has shown; flipping these routes between a page and
@@ -179,6 +185,21 @@ const Routes: React.FC = () => {
         </Route>
         <Route exact path="/customers/:id/invoice">
           {isAuthenticated ? <Invoice /> : <Redirect to="/welcome" />}
+        </Route>
+        <Route exact path="/pos/today">
+          {posAccess ? <TodayPage /> : <Redirect to="/home" />}
+        </Route>
+        <Route exact path="/pos/sell">
+          {posAccess ? <SellPage /> : <Redirect to="/home" />}
+        </Route>
+        <Route exact path="/pos/history">
+          {posAccess ? <HistoryPage /> : <Redirect to="/home" />}
+        </Route>
+        <Route exact path="/pos/products">
+          {posAccess ? <ProductsPage /> : <Redirect to="/home" />}
+        </Route>
+        <Route exact path="/pos">
+          <Redirect to="/pos/today" />
         </Route>
         <Route exact path="/settings">
           {isAuthenticated ? <Settings /> : <Redirect to="/welcome" />}
