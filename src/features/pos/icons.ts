@@ -1,5 +1,5 @@
 import {
-  add, arrowUndoOutline, bookOutline, cameraOutline, cardOutline, cartOutline, copyOutline,
+  add, arrowUndoOutline, checkmarkCircle, bookOutline, cameraOutline, cardOutline, cartOutline, copyOutline,
   downloadOutline, listOutline, pricetagsOutline, printOutline, shareSocialOutline,
   syncOutline, timeOutline, todayOutline,
 } from 'ionicons/icons';
@@ -25,6 +25,8 @@ export const ICONS = {
   addList: listOutline,
   print: printOutline,
   add,
+  // The one FILLED icon: it is the day's main action, so it is bigger and heavier.
+  confirm: checkmarkCircle,
   sync: syncOutline,
   share: shareSocialOutline,
   scan: cameraOutline,
@@ -46,6 +48,7 @@ export const ICON_LABELS: Record<IconName, string> = {
   addList: 'إضافة قائمة منتجات',
   print: 'طباعة الملصقات',
   add: 'إضافة',
+  confirm: 'اعتماد الكميات',
   sync: 'مزامنة',
   share: 'مشاركة',
   scan: 'مسح منتج',
