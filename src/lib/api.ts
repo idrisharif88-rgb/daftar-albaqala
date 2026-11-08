@@ -92,6 +92,8 @@ export interface Me {
   phone: string;
   /** Google Drive backup, granted per account by the owner (Watcher). */
   drive_backup: boolean;
+  /** The point-of-sale section, switched on per account by the owner. */
+  pos_enabled: boolean;
 }
 
 export function me(): Promise<{ user: Me }> {

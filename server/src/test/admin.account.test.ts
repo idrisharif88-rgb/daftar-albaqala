@@ -167,6 +167,31 @@ describe('/admin — delete account + rename store', () => {
     await pool.query("UPDATE users SET contractor_status = 'active' WHERE id = ?", [a]);
     assert.equal((await request(app).get('/me').set(shop).set('X-App', 'contractor')).body.user.drive_backup, false);
   });
+  test('POS access: off by default, the owner switches it per account, /me reports it', async () => {
+    const a = await seedUser();
+    const b = await seedUser();
+    const shopA = { Authorization: `Bearer ${tokenFor(a)}` };
+    assert.equal((await request(app).get('/me').set(shopA)).body.user.pos_enabled, false);
+
+    const res = await request(app).post(`/admin/users/${a}/pos`).set(auth())
+      .send({ enabled: true, code: codeNow(1) });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal((await request(app).get('/me').set(shopA)).body.user.pos_enabled, true);
+    // only that account
+    const shopB = { Authorization: `Bearer ${tokenFor(b)}` };
+    assert.equal((await request(app).get('/me').set(shopB)).body.user.pos_enabled, false);
+    // the Watcher's list shows it
+    const list = await request(app).get('/admin/users').set(auth());
+    assert.equal(list.body.users.find((u: { id: string }) => u.id === a).pos_enabled, true);
+    // a shopkeeper cannot grant it to himself, and a bad body is refused
+    assert.equal((await request(app).post(`/admin/users/${a}/pos`).set(shopA).send({ enabled: true })).status, 401);
+  });
+  test('POS access: a bad body is refused', async () => {
+    const a = await seedUser();
+    // One authenticator code per change — each request below gets its own test run.
+    assert.equal((await request(app).post(`/admin/users/${a}/pos`).set(auth())
+      .send({ enabled: 'yes', code: codeNow(1) })).status, 400);
+  });
   test('sets a new password: old one stops working, new one signs in', async () => {
     const a = await seedUser();
     const phone = await phoneOf(a);

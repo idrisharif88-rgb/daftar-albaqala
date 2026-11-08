@@ -88,7 +88,7 @@ router.get(
               (SELECT NULLIF(s.value, '') FROM user_settings s
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
-              u.subscription_status, u.subscription_expires_at, u.drive_backup,
+              u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled,
               u.contractor_status, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
@@ -106,6 +106,7 @@ router.get(
       customers_count: Number(r.customers_count),
       transactions_count: Number(r.transactions_count),
       drive_backup: Number(r.drive_backup) === 1,
+      pos_enabled: Number(r.pos_enabled) === 1,
     }));
     return res.json({ users });
   })
@@ -130,6 +131,28 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, drive_backup: enabled });
+  })
+);
+
+// POST /admin/users/:id/pos  { enabled: boolean }
+// The point-of-sale section is an extra the owner switches on per account. The
+// shop app shows it only when GET /me says so (and only in a build that ships it).
+router.post(
+  '/users/:id/pos',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be true or false' });
+    }
+    const [result] = await pool.query(
+      'UPDATE users SET pos_enabled = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [enabled ? 1 : 0, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ id: req.params.id, pos_enabled: enabled });
   })
 );
 

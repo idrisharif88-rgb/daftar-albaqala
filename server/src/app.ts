@@ -103,7 +103,7 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled FROM users WHERE id = ?',
       [req.userId]
     );
     const row = (rows as Array<Record<string, unknown>>)[0];
@@ -116,7 +116,9 @@ app.get(
       ? contractorStatus === 'active'
       : user.subscription_status === 'active';
     const driveBackup = Number(user.drive_backup) === 1 || !syncOn;
-    return res.json({ user: { ...user, drive_backup: driveBackup } });
+    return res.json({
+      user: { ...user, drive_backup: driveBackup, pos_enabled: Number(user.pos_enabled) === 1 },
+    });
   })
 );
 

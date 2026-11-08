@@ -1,3 +1,4 @@
+import { generateCodes } from '../lib/productCodes';
 import type { SQLiteDBConnection } from '@capacitor-community/sqlite';
 
 // Schema migrations for the on-phone database.
@@ -177,6 +178,107 @@ CREATE TABLE IF NOT EXISTS attachments (
         `CREATE INDEX IF NOT EXISTS idx_att_txn ON attachments (transaction_id);
 CREATE INDEX IF NOT EXISTS idx_att_synced ON attachments (synced);`,
       );
+    },
+  },
+  {
+    version: 6,
+    name: 'pos_products (what the shop sells, each with a printed QR code)',
+    async run(db) {
+      // The point-of-sale section (src/features/pos). `code` is the random key
+      // printed on the shelf label; it means nothing by itself, so a label can
+      // be reprinted without the product changing. Money in INTEGER minor units.
+      // Local only for now — it joins the sync once the screen is proven.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS pos_products (
+  id         TEXT PRIMARY KEY NOT NULL,
+  name       TEXT NOT NULL,
+  code       TEXT NOT NULL,
+  price      INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
+  synced     INTEGER NOT NULL DEFAULT 0
+);
+`);
+      // One statement per line — the Android plugin splits a batch on ";\n"
+      // and would otherwise run only the first (see owner.ts).
+      await db.execute(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_pos_products_code ON pos_products (code);`,
+      );
+    },
+  },
+  {
+    version: 7,
+    name: 'pos_products: re-issue codes as EAN-13 (none were printed yet)',
+    async run(db) {
+      // The first codes were letters+digits («BK-RM8D3V»); the shop barcode
+      // standard is 13 digits (EAN-13), which is what labels now carry. Only
+      // rows still holding an old-style code are touched, once.
+      const res = await db.query('SELECT id, code FROM pos_products');
+      const rows = (res.values ?? []) as { id: string; code: string }[];
+      const stale = rows.filter((r) => !/^2\d{12}$/.test(r.code));
+      if (stale.length === 0) return;
+      const fresh = generateCodes(stale.length, rows.map((r) => r.code));
+      for (let i = 0; i < stale.length; i++) {
+        await db.run(
+          'UPDATE pos_products SET code = ?, updated_at = ?, synced = 0 WHERE id = ?',
+          [fresh[i], new Date().toISOString(), stale[i].id],
+        );
+      }
+    },
+  },
+  {
+    version: 8,
+    name: 'pos_baked + pos_sales (the day\'s baking and the day\'s selling)',
+    async run(db) {
+      // Both are ADD-ONLY, like the ledger: a correction is a new row (a
+      // negative quantity), never an edit. `day` is the LOCAL calendar day as
+      // «YYYY-MM-DD» — a bakery's day is the shop's day, not UTC's. A sale keeps
+      // the price it was made at, so changing a price later does not rewrite
+      // yesterday's takings. Local only for now, like pos_products.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS pos_baked (
+  id         TEXT PRIMARY KEY NOT NULL,
+  product_id TEXT NOT NULL,
+  day        TEXT NOT NULL,
+  qty        INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  synced     INTEGER NOT NULL DEFAULT 0
+);
+`);
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS pos_sales (
+  id         TEXT PRIMARY KEY NOT NULL,
+  product_id TEXT NOT NULL,
+  day        TEXT NOT NULL,
+  qty        INTEGER NOT NULL,
+  price      INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  synced     INTEGER NOT NULL DEFAULT 0
+);
+`);
+      // One statement per line — the Android plugin splits a batch on ";\n"
+      // and would otherwise run only the first (see owner.ts).
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_pos_baked_day ON pos_baked (day, product_id);
+CREATE INDEX IF NOT EXISTS idx_pos_sales_day ON pos_sales (day, product_id);`,
+      );
+    },
+  },
+  {
+    version: 9,
+    name: 'pos_day_lock (a day\'s baked quantities, submitted)',
+    async run(db) {
+      // One row per day whose baked quantities were submitted. `locked_at` is
+      // NULL while the day is reopened for a correction; `reopened` counts how
+      // many times that happened, so the record shows a day was amended.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS pos_day_lock (
+  day       TEXT PRIMARY KEY NOT NULL,
+  locked_at TEXT,
+  reopened  INTEGER NOT NULL DEFAULT 0
+);
+`);
     },
   },
 ];

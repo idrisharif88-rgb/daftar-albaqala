@@ -28,6 +28,12 @@ export const OWNER_PHONE = '781215102';
 export const isOwnerPhone = (phone: string | null | undefined): boolean =>
   !!phone && phone.replace(/\D/g, '').endsWith(OWNER_PHONE);
 
+// The point-of-sale section (src/features/pos) is under development. It shows
+// in `npm run dev` and in any build made with VITE_POS=1, and NOWHERE else — a
+// release build leaves it off, so a shopkeeper never sees half a feature. Once
+// it is proven, this becomes a per-account switch the server hands out.
+export const POS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_POS === '1';
+
 export const FEATURES = {
   /** Pencil on the contact screen: edit name / phone / note / role. */
   editContacts: OWNER_BUILD,

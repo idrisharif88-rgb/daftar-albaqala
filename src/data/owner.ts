@@ -22,13 +22,22 @@ const OWNER_KEY = 'owner_user_id';
  * owner deleting their account outright. Both need the same thing, and having
  * had one copy of it inline was how `items` came to be left behind.
  *
+ * The point-of-sale tables (pos_products / pos_baked / pos_sales) are
+ * deliberately NOT wiped here. They exist only on this device until they sync,
+ * so a wipe would destroy the owner's only copy of his sales the moment anyone
+ * else signs in. KNOWN RISK: the section is now switched on per account, so two
+ * POS-enabled accounts signing in on ONE phone would share these rows. That is
+ * accepted until POS sync exists (one business per phone is the norm); the fix
+ * is rows carrying a user_id, then wiping/restoring from the server.
+ * Deleting the account passes `includePos` and removes them too.
+ *
  * NOTE: the native (Android) plugin splits a batch on ";\n", and Android's
  * execSQL runs only the FIRST statement of a single-line ";"-joined string. So
  * each DELETE MUST stay on its own line, or only `transactions` gets wiped —
  * balances reset to zero while the contacts survive, which is exactly the
  * cross-account leak this once caused in production.
  */
-export async function wipeLocalStore(): Promise<void> {
+export async function wipeLocalStore(opts: { includePos?: boolean } = {}): Promise<void> {
   const db = await getDB();
   await db.execute(
     `DELETE FROM attachments;
@@ -38,6 +47,14 @@ DELETE FROM items;
 DELETE FROM customers;
 DELETE FROM app_meta;`,
   );
+  // Deleting the account is the one case that DOES take the sales with it:
+  // the owner asked for everything of his to go.
+  if (opts.includePos) {
+    await db.run('DELETE FROM pos_sales');
+    await db.run('DELETE FROM pos_baked');
+    await db.run('DELETE FROM pos_day_lock');
+    await db.run('DELETE FROM pos_products');
+  }
   await persist();
 }
 

@@ -242,7 +242,7 @@ const Settings: React.FC = () => {
       // phone would have destroyed the only copy of anything not yet synced
       // while leaving the account itself standing.
       await deleteAccount();
-      await wipeLocalStore();
+      await wipeLocalStore({ includePos: true });
       logout(); // drops the JWT and returns to the login screen
     } catch (err) {
       await presentToast({

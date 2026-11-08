@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth';
 import { listCustomers, createCustomer, type Customer } from '../data/customers';
 import { getBalancesByCustomer } from '../data/transactions';
 import { runSync, getSyncHealth, needsAttention, onSyncComplete } from '../data/sync';
+import SectionBar from '../features/pos/SectionBar';
 import { getSettings } from '../data/settings';
 import { getRates } from '../data/rates';
 import { DEFAULT_RATES, type CurrencyBalance, type Rates } from '../data/currencies';
@@ -362,11 +363,10 @@ const Home: React.FC = () => {
 
       {/* Standing book total. Outside IonContent so it stays pinned while the
           contact list scrolls. */}
-      {!loading && (
-        <IonFooter>
-          <BookTotals balances={inScope.map((r) => r.balances)} rates={rates} />
-        </IonFooter>
-      )}
+      <IonFooter>
+        {!loading && <BookTotals balances={inScope.map((r) => r.balances)} rates={rates} />}
+        <SectionBar />
+      </IonFooter>
     </IonPage>
   );
 };
