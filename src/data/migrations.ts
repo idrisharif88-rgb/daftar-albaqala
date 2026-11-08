@@ -281,6 +281,21 @@ CREATE TABLE IF NOT EXISTS pos_day_lock (
 `);
     },
   },
+  {
+    version: 10,
+    name: 'pos_day_lock: updated_at + synced (so a lock can sync)',
+    async run(db) {
+      // A lock syncs last-write-wins, so it needs a timestamp and a dirty flag
+      // like every other synced row. Existing locks start dirty: they have
+      // never been to the server.
+      await db.run('ALTER TABLE pos_day_lock ADD COLUMN updated_at TEXT');
+      await db.run('ALTER TABLE pos_day_lock ADD COLUMN synced INTEGER NOT NULL DEFAULT 0');
+      await db.run(
+        'UPDATE pos_day_lock SET updated_at = COALESCE(locked_at, ?) WHERE updated_at IS NULL',
+        [new Date().toISOString()],
+      );
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

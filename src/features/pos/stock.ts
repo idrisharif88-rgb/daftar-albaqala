@@ -1,6 +1,7 @@
 import { getDB, persist } from '../../data/db';
 import { uuidv4 } from '../../data/uuid';
 import { localDay } from './day';
+import { kickPosSync } from './posSyncKick';
 import { getMeta, setMeta } from '../../data/meta';
 import { findProductByCode, type PosProduct } from './products';
 
@@ -88,16 +89,21 @@ export async function lockDay(day: string = localDay()): Promise<void> {
   const now = new Date().toISOString();
   // SELECT-then-write, not an upsert: older Androids ship an SQLite without it.
   const has = ((await db.query('SELECT day FROM pos_day_lock WHERE day = ?', [day])).values ?? []).length > 0;
-  if (has) await db.run('UPDATE pos_day_lock SET locked_at = ? WHERE day = ?', [now, day]);
-  else await db.run('INSERT INTO pos_day_lock (day, locked_at, reopened) VALUES (?, ?, 0)', [day, now]);
+  if (has) await db.run('UPDATE pos_day_lock SET locked_at = ?, updated_at = ?, synced = 0 WHERE day = ?', [now, now, day]);
+  else await db.run('INSERT INTO pos_day_lock (day, locked_at, reopened, updated_at, synced) VALUES (?, ?, 0, ?, 0)', [day, now, now]);
   await persist();
+  kickPosSync();
 }
 
 /** Reopen a submitted day for a correction. Counted. */
 export async function unlockDay(day: string = localDay()): Promise<void> {
   const db = await getDB();
-  await db.run('UPDATE pos_day_lock SET locked_at = NULL, reopened = reopened + 1 WHERE day = ?', [day]);
+  await db.run(
+    'UPDATE pos_day_lock SET locked_at = NULL, reopened = reopened + 1, updated_at = ?, synced = 0 WHERE day = ?',
+    [new Date().toISOString(), day],
+  );
   await persist();
+  kickPosSync();
 }
 
 /** Baked more of a product (a negative number takes some back off). Refused on
@@ -123,6 +129,7 @@ export async function addBaked(productId: string, qty: number, day: string = loc
     [uuidv4(), productId, day, qty, new Date().toISOString()],
   );
   await persist();
+  kickPosSync();
 }
 
 /** One sold (qty 1), or one taken back (qty −1). The price is the product's
@@ -134,6 +141,7 @@ export async function recordSale(product: PosProduct, qty: 1 | -1 = 1): Promise<
     [uuidv4(), product.id, localDay(), qty, product.price, new Date().toISOString()],
   );
   await persist();
+  kickPosSync();
 }
 
 export type ScanOutcome =

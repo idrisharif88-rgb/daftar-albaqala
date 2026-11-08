@@ -78,3 +78,11 @@ ion-header ion-toolbar ion-button,
 ion-header ion-toolbar ion-back-button,
 ion-header ion-toolbar ion-icon { --color: #ffffff; color: #ffffff; }
 
+
+
+/* ---- Bold, everywhere ----
+   The owner reads this on a phone, outdoors: every line is the bold weight
+   (700 is bundled above), the «المزيد» sheet and the dialogs included. Ionic
+   sets its own weights on some component hosts, so the rule is on the
+   elements, not just the body. */
+body, ion-app, ion-app * { font-weight: 700; }

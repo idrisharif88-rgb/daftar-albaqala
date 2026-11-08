@@ -21,6 +21,8 @@ import BiometricGate from './components/BiometricGate';
 import SplashIntro from './components/SplashIntro';
 import { FLAVOR } from './flavors';
 import { POS_ENABLED } from './config';
+import { runPosSync } from './features/pos/posSync';
+import { setPosKick } from './features/pos/posSyncKick';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
 import { getSyncHealth, runSync } from './data/sync';
@@ -75,6 +77,32 @@ const AutoSync: React.FC = () => {
     }, 15000);
     return () => { clearInterval(heartbeat); window.removeEventListener('online', onOnline); };
   }, [isAuthenticated]);
+  return null;
+};
+
+// Sync of the point-of-sale section, for an account that has it: once on app
+// open, whenever the network returns, and ~3 s after anything changes (the data
+// layer calls the kick; a burst of sales becomes one sync). Silent: an account
+// without server sync gets a 402, which is simply "nothing to do".
+const PosAutoSync: React.FC = () => {
+  const { isAuthenticated, isOwner, posAllowed } = useAuth();
+  const allowed = isAuthenticated && POS_ENABLED && (isOwner || posAllowed);
+  useEffect(() => {
+    if (!allowed) return undefined;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    setPosKick(() => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { void runPosSync(); }, 3000);
+    });
+    void runPosSync();
+    const onOnline = () => void runPosSync();
+    window.addEventListener('online', onOnline);
+    return () => {
+      if (timer) clearTimeout(timer);
+      setPosKick(null);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [allowed]);
   return null;
 };
 
@@ -221,6 +249,7 @@ const App: React.FC = () => (
     <AppearanceProvider>
       <AuthProvider>
         <AutoSync />
+        <PosAutoSync />
         <DriveDailyBackup />
         <Routes />
         <BiometricGate />

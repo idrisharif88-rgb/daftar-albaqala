@@ -270,3 +270,36 @@ export function syncPull(since?: string | null, limit?: number): Promise<PullRes
   const q = params.toString();
   return request<PullResult>(`/sync/pull${q ? `?${q}` : ''}`);
 }
+
+
+// ---- Point-of-sale sync ----
+// Its own endpoint (/pos-sync), apart from the ledger's — see server/src/routes/posSync.ts.
+
+export interface PosProductRow {
+  id: string; name: string; code: string; price: number;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
+export interface PosBakedRow { id: string; product_id: string; day: string; qty: number; created_at: string }
+export interface PosSaleRow extends PosBakedRow { price: number }
+export interface PosLockRow { day: string; locked_at: string | null; reopened: number; updated_at: string }
+
+export interface PosTableAck { accepted: string[]; rejected: { id: string; reason: string }[] }
+export interface PosPushBody {
+  products?: PosProductRow[]; baked?: PosBakedRow[]; sales?: PosSaleRow[]; day_locks?: PosLockRow[];
+}
+export interface PosPushResult {
+  products: PosTableAck; baked: PosTableAck; sales: PosTableAck; day_locks: PosTableAck;
+}
+export interface PosPullResult {
+  products: PosProductRow[]; baked: PosBakedRow[]; sales: PosSaleRow[]; day_locks: PosLockRow[];
+  synced_at: string; has_more: boolean;
+}
+
+export function posSyncPush(body: PosPushBody): Promise<PosPushResult> {
+  return request<PosPushResult>('/pos-sync/push', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function posSyncPull(since?: string | null): Promise<PosPullResult> {
+  const q = since ? `?since=${encodeURIComponent(since)}` : '';
+  return request<PosPullResult>(`/pos-sync/pull${q}`);
+}
