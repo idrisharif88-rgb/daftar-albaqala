@@ -30,6 +30,10 @@ export interface PosSyncApi {
 const realApi: PosSyncApi = { push: posSyncPush, pull: posSyncPull };
 
 const CURSOR_KEY = 'pos_sync_since';
+const LAST_KEY = 'pos_last_sync';
+
+/** When the last full sync finished (ISO), or null if it never has. */
+export const getPosLastSync = (): Promise<string | null> => getMeta(LAST_KEY);
 const CHUNK = 200;
 const ms = (iso: string | null | undefined): number => (iso ? new Date(iso).getTime() : 0);
 
@@ -51,6 +55,7 @@ async function doSync(api: PosSyncApi): Promise<PosSyncOutcome> {
   try {
     const { pushed, refused } = await pushDirty(api);
     const pulled = await pullAll(api);
+    await setMeta(LAST_KEY, new Date().toISOString());
     return { status: 'ok', pushed, pulled, refused };
   } catch (err) {
     if (err instanceof ApiError) {

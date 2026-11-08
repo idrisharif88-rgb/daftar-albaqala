@@ -11,8 +11,8 @@ import { FLAVOR } from '../flavors';
 // Modelled on «خماسيات»: ONE file in the app's hidden Drive folder, replaced
 // each time.
 //
-// It holds every contact, entry, price-list item and saved group, plus the
-// synced settings — not the attachments (they are files, and they already sync
+// It holds every contact, entry, price-list item and saved group, the point-of-
+// sale products, baking, sales and day locks, plus the synced settings — not the attachments (they are files, and they already sync
 // to the server), not the sync cursor, not the login.
 //
 // Restoring MERGES, it never wipes: a row missing here is added; a contact,
@@ -24,12 +24,22 @@ const FILE_NAME = FLAVOR.driveBackupFile;
 const LAST_KEY = 'daftar.drive-last';
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Parents before children: an entry, an item or a group points at a contact.
-const TABLES: { name: string; mutable: boolean }[] = [
-  { name: 'customers', mutable: true },
-  { name: 'items', mutable: true },
-  { name: 'item_groups', mutable: true },
-  { name: 'transactions', mutable: false },
+// Parents before children: an entry, an item or a group points at a contact; a
+// baked or sale row points at a product.
+//   mutable — has updated_at, a newer copy replaces an older one.
+//   soft    — has deleted_at (a tombstone, not a live row).
+//   key     — the primary key column (a day lock is keyed by its day).
+interface TableSpec { name: string; mutable: boolean; soft: boolean; key: string }
+const TABLES: TableSpec[] = [
+  { name: 'customers', mutable: true, soft: true, key: 'id' },
+  { name: 'items', mutable: true, soft: true, key: 'id' },
+  { name: 'item_groups', mutable: true, soft: true, key: 'id' },
+  { name: 'transactions', mutable: false, soft: false, key: 'id' },
+  // The point-of-sale section. Empty on an account that never used it.
+  { name: 'pos_products', mutable: true, soft: true, key: 'id' },
+  { name: 'pos_baked', mutable: false, soft: false, key: 'id' },
+  { name: 'pos_sales', mutable: false, soft: false, key: 'id' },
+  { name: 'pos_day_lock', mutable: true, soft: false, key: 'day' },
 ];
 
 type Row = Record<string, unknown>;
@@ -79,17 +89,17 @@ export async function applyBackup(backup: BookBackup): Promise<number> {
   }
   const db = await getDB();
   let changed = 0;
-  for (const { name, mutable } of TABLES) {
+  for (const { name, mutable, key } of TABLES) {
     // Only the columns this version of the app has — a backup from a newer or
     // older app may carry more or fewer.
     const info = await db.query(`PRAGMA table_info(${name})`);
     const cols = new Set(((info.values ?? []) as { name: string }[]).map((c) => c.name));
     for (const raw of backup.tables[name] ?? []) {
-      if (typeof raw?.id !== 'string') continue;
+      if (typeof raw?.[key] !== 'string') continue;
       const row: Row = { ...Object.fromEntries(Object.entries(raw).filter(([k]) => cols.has(k))), synced: 0 };
       // Entries have no updated_at — they never change, only exist or not.
       const found = await db.query(
-        `SELECT ${mutable ? 'updated_at' : 'id'} FROM ${name} WHERE id = ?`, [raw.id],
+        `SELECT ${mutable ? 'updated_at' : key} FROM ${name} WHERE ${key} = ?`, [raw[key]],
       );
       const existing = (found.values ?? [])[0] as Row | undefined;
       const keys = Object.keys(row);
@@ -100,10 +110,10 @@ export async function applyBackup(backup: BookBackup): Promise<number> {
         );
         changed++;
       } else if (mutable && later(row.updated_at, existing.updated_at)) {
-        const sets = keys.filter((k) => k !== 'id');
+        const sets = keys.filter((k) => k !== key);
         await db.run(
-          `UPDATE ${name} SET ${sets.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`,
-          [...sets.map((k) => row[k] ?? null), raw.id],
+          `UPDATE ${name} SET ${sets.map((k) => `${k} = ?`).join(', ')} WHERE ${key} = ?`,
+          [...sets.map((k) => row[k] ?? null), raw[key]],
         );
         changed++;
       }
@@ -138,14 +148,14 @@ export function backupNow({ interactive }: { interactive: boolean }): Promise<nu
   return running;
 }
 
-/** True when this phone's book holds nothing: no live contact, entry, item or
- *  group. A phone in that state must never replace a backup on its own — it is
+/** True when this phone's book holds nothing: no live contact, entry, item,
+ *  group, product or sale. A phone in that state must never replace a backup on its own — it is
  *  a fresh install or a new phone, and its "book" is a blank page. */
 export async function isLocalBookEmpty(): Promise<boolean> {
   const db = await getDB();
-  for (const { name, mutable } of TABLES) {
+  for (const { name, soft } of TABLES) {
     const res = await db.query(
-      `SELECT 1 FROM ${name}${mutable ? ' WHERE deleted_at IS NULL' : ''} LIMIT 1`,
+      `SELECT 1 FROM ${name}${soft ? ' WHERE deleted_at IS NULL' : ''} LIMIT 1`,
     );
     if ((res.values ?? []).length) return false;
   }

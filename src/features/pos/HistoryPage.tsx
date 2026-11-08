@@ -6,7 +6,7 @@ import {
 import { IonBadge } from '@ionic/react';
 import PosFooter from './PosFooter';
 import { shareDayReport } from './reportPdf';
-import { shareSocialOutline } from 'ionicons/icons';
+import { ICONS } from './icons';
 import { getDayRows, listDays, totalsOf, type DayRow, type DaySummary } from './stock';
 import { formatMinor } from '../../data/money';
 
@@ -75,7 +75,7 @@ const HistoryPage: React.FC = () => {
               <IonTitle><span dir="ltr">{open?.day}</span></IonTitle>
               <IonButtons slot="end">
                 <IonButton disabled={sharing} onClick={() => { void share(); }}>
-                  <IonIcon slot="start" icon={shareSocialOutline} />
+                  <IonIcon slot="start" icon={ICONS.share} />
                   مشاركة
                 </IonButton>
                 <IonButton onClick={() => modal.current?.dismiss()}>إغلاق</IonButton>

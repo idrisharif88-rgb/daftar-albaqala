@@ -1,5 +1,5 @@
-import { IonToolbar, IonButton, IonIcon } from '@ionic/react';
-import { bookOutline, storefrontOutline } from 'ionicons/icons';
+import { IonToolbar } from '@ionic/react';
+import IconButton from './IconButton';
 import { useLocation } from 'react-router-dom';
 import { POS_ENABLED } from '../../config';
 import { useAuth } from '../../lib/auth';
@@ -24,20 +24,8 @@ const SectionBar: React.FC = () => {
   return (
     <IonToolbar>
       <div style={{ display: 'flex' }}>
-        <IonButton
-          style={{ flex: 1 }} fill={inPos ? 'clear' : 'solid'}
-          routerLink="/home" routerDirection="root"
-        >
-          <IonIcon slot="start" icon={bookOutline} />
-          الديون
-        </IonButton>
-        <IonButton
-          style={{ flex: 1 }} fill={inPos ? 'solid' : 'clear'}
-          routerLink="/pos/today" routerDirection="root"
-        >
-          <IonIcon slot="start" icon={storefrontOutline} />
-          نقطة البيع
-        </IonButton>
+        <IconButton name="debts" style={{ flex: 1 }} active={!inPos} routerLink="/home" />
+        <IconButton name="pos" style={{ flex: 1 }} active={inPos} routerLink="/pos/today" />
       </div>
     </IonToolbar>
   );
