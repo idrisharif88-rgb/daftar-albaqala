@@ -5,7 +5,7 @@ import {
   useIonViewWillEnter, useIonAlert, useIonToast,
 } from '@ionic/react';
 import { remove, lockClosedOutline, checkmarkCircle } from 'ionicons/icons';
-import { ICONS } from './icons';
+import { ICONS, ICON_LABELS } from './icons';
 import { shareDayReport } from './reportPdf';
 import { matchesQuery } from './search';
 import { runPosSync, getPosLastSync } from './posSync';
@@ -228,8 +228,13 @@ const TodayPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>{lock.reopened > 0 ? 'الكميات مفتوحة للتعديل' : 'الكميات غير معتمدة'}</span>
-                  <IonButton size="small" disabled={t.baked <= 0} onClick={submit}>اعتماد الكميات</IonButton>
+                  <span>{lock.reopened > 0 ? 'الكميات مفتوحة للتعديل' : 'المخزون اليومي'}</span>
+                  <IonButton
+                    disabled={t.baked <= 0} onClick={submit}
+                    aria-label={ICON_LABELS.confirm} title={ICON_LABELS.confirm}
+                  >
+                    <IonIcon slot="icon-only" icon={ICONS.confirm} style={{ fontSize: 36 }} />
+                  </IonButton>
                 </>
               )}
             </div>
