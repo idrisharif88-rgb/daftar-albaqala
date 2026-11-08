@@ -1,12 +1,14 @@
-import { IonFooter, IonToolbar, IonButton } from '@ionic/react';
+import { IonFooter, IonToolbar } from '@ionic/react';
+import IconButton from './IconButton';
+import type { IconName } from './icons';
 import { useLocation } from 'react-router-dom';
 import SectionBar from './SectionBar';
 
-const TABS = [
-  { path: '/pos/today', label: 'اليوم' },
-  { path: '/pos/sell', label: 'بيع' },
-  { path: '/pos/history', label: 'السجل' },
-  { path: '/pos/products', label: 'المنتجات' },
+const TABS: { path: string; icon: IconName }[] = [
+  { path: '/pos/today', icon: 'today' },
+  { path: '/pos/sell', icon: 'sell' },
+  { path: '/pos/history', icon: 'history' },
+  { path: '/pos/products', icon: 'products' },
 ];
 
 /** The bottom of every POS screen: its own three tabs, then the switch between
@@ -18,13 +20,10 @@ const PosFooter: React.FC = () => {
       <IonToolbar>
         <div style={{ display: 'flex' }}>
           {TABS.map((t) => (
-            <IonButton
-              key={t.path} style={{ flex: 1 }} size="small"
-              fill={pathname === t.path ? 'solid' : 'clear'}
-              routerLink={t.path} routerDirection="root"
-            >
-              {t.label}
-            </IonButton>
+            <IconButton
+              key={t.path} name={t.icon} style={{ flex: 1 }}
+              active={pathname === t.path} routerLink={t.path}
+            />
           ))}
         </div>
       </IonToolbar>

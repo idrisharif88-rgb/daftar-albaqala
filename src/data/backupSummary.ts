@@ -10,7 +10,10 @@ export interface BackupSummary {
   entries: number;
   items: number;
   groups: number;
-  /** True when the backup holds no book: no contact, entry, item or group.
+  /** The point-of-sale section: products and recorded sales. */
+  products: number;
+  sales: number;
+  /** True when the backup holds no book: no contact, entry, item, group, product or sale.
    *  Settings alone (names, rates) do not count. */
   isEmpty: boolean;
   /** One line for the grocer, e.g. «12 جهة، 340 حركة، 47 صنف». */
@@ -33,15 +36,19 @@ export function summarizeBackup(backup: unknown): BackupSummary {
   const entries = liveRows(tables, 'transactions');
   const items = liveRows(tables, 'items');
   const groups = liveRows(tables, 'item_groups');
+  const products = liveRows(tables, 'pos_products');
+  const sales = liveRows(tables, 'pos_sales');
   const parts = [
     contacts && `${contacts} جهة`,
     entries && `${entries} حركة`,
     items && `${items} صنف`,
     groups && `${groups} مجموعة`,
+    products && `${products} منتج`,
+    sales && `${sales} عملية بيع`,
   ].filter(Boolean);
   const isEmpty = parts.length === 0;
   return {
-    contacts, entries, items, groups, isEmpty,
+    contacts, entries, items, groups, products, sales, isEmpty,
     sentence: isEmpty ? 'النسخة فارغة — لا توجد فيها جهات ولا حركات.' : parts.join('، '),
   };
 }

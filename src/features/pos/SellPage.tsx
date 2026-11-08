@@ -4,10 +4,11 @@ import {
   IonItem, IonLabel, IonText, IonSpinner, IonToggle, IonSearchbar, IonList, IonBadge,
   useIonViewWillEnter,
 } from '@ionic/react';
-import { cameraOutline, arrowUndoOutline } from 'ionicons/icons';
+import { ICONS } from './icons';
 import PosFooter from './PosFooter';
 import { sellByCode, recordSale, getDayRows, totalsOf, type DayRow } from './stock';
 import { cameraScanAvailable, scanOne } from './scanner';
+import { beepBad, beepOk, setSoundEnabled, soundEnabled, unlockAudio } from './beep';
 import { parseScannedCode } from '../../lib/productCodes';
 import { toLatinDigits } from '../../lib/digits';
 
@@ -35,6 +36,7 @@ const SellPage: React.FC = () => {
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
   const [continuous, setContinuous] = useState<boolean>(readContinuous);
+  const [sound, setSound] = useState<boolean>(soundEnabled);
 
   const refresh = useCallback(async (): Promise<DayRow[]> => {
     const r = await getDayRows();
@@ -43,6 +45,12 @@ const SellPage: React.FC = () => {
   }, []);
   useIonViewWillEnter(() => { void refresh(); });
 
+  const toggleSound = (on: boolean) => {
+    setSound(on);
+    setSoundEnabled(on);
+    if (on) { unlockAudio(); beepOk(); } // let him hear what he just switched on
+  };
+
   const toggleContinuous = (on: boolean) => {
     setContinuous(on);
     try { localStorage.setItem(CONT_KEY, on ? '1' : '0'); } catch { /* a convenience only */ }
@@ -50,15 +58,18 @@ const SellPage: React.FC = () => {
 
   // The browser has no camera scanner: a typed or pasted code stands in.
   const handleTyped = async (raw: string) => {
+    unlockAudio();
     const out = await sellByCode(toLatinDigits(raw), parseScannedCode);
-    if (out.ok) { setLast(out.row); setMessage(null); setSession(null); await refresh(); }
+    if (out.ok) { beepOk(); setLast(out.row); setMessage(null); setSession(null); await refresh(); }
     else {
+      beepBad();
       setLast(null);
       setMessage(out.reason === 'unknown-code' ? 'هذا ليس رمز أحد منتجاتك.' : 'الرمز غير مسجل. ربما حُذف المنتج.');
     }
   };
 
   const scan = async () => {
+    unlockAudio(); // this tap is the gesture that lets the beeps play later
     setBusy(true);
     setMessage(null);
     const counts = new Map<string, number>();
@@ -70,9 +81,11 @@ const SellPage: React.FC = () => {
         if (!raw) break; // he backed out — the session is over
         const out = await sellByCode(toLatinDigits(raw), parseScannedCode);
         if (out.ok) {
+          beepOk();
           counts.set(out.row.product.name, (counts.get(out.row.product.name) ?? 0) + 1);
           lastRow = out.row;
         } else {
+          beepBad();
           unknown += 1;
         }
         if (!continuous) break;
@@ -91,7 +104,9 @@ const SellPage: React.FC = () => {
   };
 
   const tapSell = async (r: DayRow) => {
+    unlockAudio();
     await recordSale(r.product, 1);
+    beepOk();
     const fresh = await refresh();
     setLast(fresh.find((x) => x.product.id === r.product.id) ?? null);
     setMessage(null);
@@ -117,12 +132,17 @@ const SellPage: React.FC = () => {
         {cameraScanAvailable() ? (
           <>
             <IonButton expand="block" size="large" onClick={() => { void scan(); }} disabled={busy}>
-              {busy ? <IonSpinner name="crescent" /> : <IonIcon slot="start" icon={cameraOutline} />}
+              {busy ? <IonSpinner name="crescent" /> : <IonIcon slot="start" icon={ICONS.scan} />}
               مسح منتج
             </IonButton>
             <IonItem lines="none">
               <IonToggle checked={continuous} onIonChange={(e) => toggleContinuous(e.detail.checked)}>
                 مسح متتابع
+              </IonToggle>
+            </IonItem>
+            <IonItem lines="none">
+              <IonToggle checked={sound} onIonChange={(e) => toggleSound(e.detail.checked)}>
+                صوت المسح
               </IonToggle>
             </IonItem>
           </>
@@ -159,7 +179,7 @@ const SellPage: React.FC = () => {
               <IonText color="warning"><p>لم تُسجَّل كمية مخبوزة لهذا المنتج اليوم.</p></IonText>
             )}
             <IonButton fill="outline" color="medium" onClick={() => { void undo(); }}>
-              <IonIcon slot="start" icon={arrowUndoOutline} />
+              <IonIcon slot="start" icon={ICONS.undo} />
               تراجع
             </IonButton>
           </div>

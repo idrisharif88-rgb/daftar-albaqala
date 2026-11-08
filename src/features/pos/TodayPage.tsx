@@ -1,10 +1,17 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonList, IonItem, IonLabel,
-  IonText, IonSpinner, IonBadge, IonButton, IonIcon, useIonViewWillEnter, useIonAlert,
+  IonText, IonSpinner, IonBadge, IonButton, IonIcon, IonFab, IonFabButton, IonModal, IonSearchbar,
+  useIonViewWillEnter, useIonAlert, useIonToast,
 } from '@ionic/react';
-import { add, remove, lockClosedOutline, shareSocialOutline } from 'ionicons/icons';
+import { remove, lockClosedOutline, checkmarkCircle } from 'ionicons/icons';
+import { ICONS } from './icons';
 import { shareDayReport } from './reportPdf';
+import { matchesQuery } from './search';
+import { runPosSync, getPosLastSync } from './posSync';
+import { useDriveBackup } from '../../lib/useDriveBackup';
+import { GOOGLE_ENABLED } from '../../lib/googleDrive';
+import { useAuth } from '../../lib/auth';
 import PosFooter from './PosFooter';
 import {
   addBaked, getDayRows, localDay, totalsOf, retentionDue, keepForAnotherYear,
@@ -19,6 +26,16 @@ const TodayPage: React.FC = () => {
   const [rows, setRows] = useState<DayRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [lock, setLock] = useState<DayLock>({ locked: false, reopened: 0 });
+  const [lastSync, setLastSync] = useState<string | null>(null);
+  // «إضافة منتج لليوم»: the products not baked today are hidden from the list;
+  // this picker is how one joins it.
+  const addModal = useRef<HTMLIonModalElement>(null);
+  const [pickSearch, setPickSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const { driveBackupAllowed } = useAuth();
+  const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
+  const drive = useDriveBackup();
+  const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
   // A SECOND hook for the delete confirmation: one hook keeps one overlay and
   // silently ignores present() while the previous alert is still closing.
@@ -30,6 +47,7 @@ const TodayPage: React.FC = () => {
     const [r, l] = await Promise.all([getDayRows(), getDayLock()]);
     setRows(r);
     setLock(l);
+    setLastSync(await getPosLastSync());
     setLoading(false);
   }, []);
   // After a year of saved days the app ASKS what to do with the oldest ones.
@@ -98,6 +116,41 @@ const TodayPage: React.FC = () => {
     });
   };
 
+  // The round trip the owner can trust: sync with the server; if this account
+  // has no server sync, back up to Google Drive instead (the POS data is in the
+  // Drive file too). The SERVER decides which, at the moment of the tap.
+  const syncNow = async () => {
+    if (syncing || drive.busy) return;
+    setSyncing(true);
+    try {
+      const r = await runPosSync();
+      if (r.status === 'skipped') {
+        if (driveOn) {
+          setSyncing(false);
+          await drive.backup();
+          return;
+        }
+        await presentToast({ message: 'المزامنة متوقفة لهذا الحساب.', color: 'warning', duration: 2600 });
+      } else if (r.status === 'ok') {
+        await load();
+        await presentToast({
+          message: r.refused > 0 ? `تمت المزامنة، لكن ${r.refused} سجل لم يُقبل.` : '',
+          icon: r.refused > 0 ? undefined : checkmarkCircle,
+          cssClass: r.refused > 0 ? undefined : 'toast-sync-ok',
+          position: 'top',
+          color: r.refused > 0 ? 'warning' : undefined,
+          duration: r.refused > 0 ? 3000 : 1200,
+        });
+      } else if (r.status === 'offline') {
+        await presentToast({ message: 'لا يوجد اتصال بالإنترنت.', color: 'medium', duration: 2600 });
+      } else {
+        await presentToast({ message: 'تعذّرت المزامنة. حاول مرة أخرى.', color: 'danger', duration: 2600 });
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const submit = () => {
     presentNote({
       header: 'اعتماد كميات اليوم',
@@ -128,22 +181,32 @@ const TodayPage: React.FC = () => {
   };
 
   const t = totalsOf(rows);
+  // Only what is part of today: baked or sold. A product with nothing today is
+  // not shown — thirty rows of zeros bury the five that matter.
+  const active = rows.filter((r) => r.baked !== 0 || r.sold !== 0);
+  const idle = rows.filter((r) => r.baked === 0 && r.sold === 0);
+  const pickable = idle.filter((r) => matchesQuery(r.product, pickSearch));
   return (
     <IonPage>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>اليوم <small dir="ltr">{localDay()}</small></IonTitle>
-          {rows.length > 0 && (
-            <IonButtons slot="end">
+          <IonTitle>اليوم</IonTitle>
+          <IonButtons slot="end">
+            <IonButton aria-label="مزامنة" disabled={syncing || !!drive.busy} onClick={() => { void syncNow(); }}>
+              {syncing || drive.busy
+                ? <IonSpinner name="crescent" />
+                : <IonIcon slot="icon-only" icon={ICONS.sync} />}
+            </IonButton>
+            {rows.length > 0 && (
               <IonButton aria-label="مشاركة تقرير اليوم" onClick={() => {
                 shareDayReport(localDay()).catch((err: unknown) => {
                   presentNote({ header: 'تعذّرت المشاركة', message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع', buttons: ['حسناً'] });
                 });
               }}>
-                <IonIcon slot="icon-only" icon={shareSocialOutline} />
+                <IonIcon slot="icon-only" icon={ICONS.share} />
               </IonButton>
-            </IonButtons>
-          )}
+            )}
+          </IonButtons>
         </IonToolbar>
         {!loading && rows.length > 0 && (
           <IonToolbar>
@@ -175,15 +238,29 @@ const TodayPage: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', fontSize: '.85rem', opacity: .75 }}>
+          <span dir="ltr">{localDay()}</span>
+          <span>
+            {lastSync
+              ? `آخر مزامنة: ${new Date(lastSync).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+              : 'لم تتم مزامنة بعد'}
+          </span>
+        </div>
         {loading ? (
           <div className="ion-text-center ion-padding"><IonSpinner name="crescent" /></div>
         ) : rows.length === 0 ? (
           <IonText color="medium">
             <p className="ion-text-center ion-padding">أضف منتجاتك أولاً من تبويب «المنتجات».</p>
           </IonText>
+        ) : active.length === 0 ? (
+          <IonText color="medium">
+            <p className="ion-text-center ion-padding">
+              لا توجد منتجات لهذا اليوم بعد. اضغط ➕ لإضافة ما خبزته.
+            </p>
+          </IonText>
         ) : (
           <IonList>
-            {rows.map((r) => (
+            {active.map((r) => (
               <IonItem key={r.product.id}>
                 <IonLabel className="ion-text-wrap">
                   <h2>{r.product.name}</h2>
@@ -216,7 +293,7 @@ const TodayPage: React.FC = () => {
                   </button>
                   {!lock.locked && (
                     <IonButton shape="round" aria-label="زيادة" onClick={() => nudge(r, 1)}>
-                      <IonIcon slot="icon-only" icon={add} />
+                      <IonIcon slot="icon-only" icon={ICONS.add} />
                     </IonButton>
                   )}
                 </div>
@@ -224,6 +301,46 @@ const TodayPage: React.FC = () => {
             ))}
           </IonList>
         )}
+
+        {!lock.locked && idle.length > 0 && (
+          <IonFab slot="fixed" vertical="bottom" horizontal="start">
+            <IonFabButton aria-label="إضافة منتج لليوم" onClick={() => { setPickSearch(''); void addModal.current?.present(); }}>
+              <IonIcon icon={ICONS.add} />
+            </IonFabButton>
+          </IonFab>
+        )}
+
+        <IonModal ref={addModal}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>إضافة منتج لليوم</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => addModal.current?.dismiss()}>إغلاق</IonButton>
+              </IonButtons>
+            </IonToolbar>
+            <IonToolbar>
+              <IonSearchbar
+                value={pickSearch} placeholder="بحث عن منتج"
+                onIonInput={(e) => setPickSearch(e.detail.value ?? '')}
+              />
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <IonList>
+              {pickable.map((r) => (
+                <IonItem
+                  key={r.product.id} button
+                  onClick={() => { void addModal.current?.dismiss().then(() => askBaked(r)); }}
+                >
+                  <IonLabel className="ion-text-wrap">{r.product.name}</IonLabel>
+                </IonItem>
+              ))}
+              {pickable.length === 0 && (
+                <IonText color="medium"><p className="ion-text-center ion-padding">المنتج غير موجود</p></IonText>
+              )}
+            </IonList>
+          </IonContent>
+        </IonModal>
       </IonContent>
       <PosFooter />
     </IonPage>

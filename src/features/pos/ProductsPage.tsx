@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
-  IonInput, IonNote, IonIcon, IonFab, IonCheckbox, IonFabButton, useIonViewWillEnter, useIonAlert,
+  IonInput, IonNote, IonIcon, IonFab, IonCheckbox, IonSearchbar, IonFabButton, useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
-import { add, printOutline, trashOutline, shareSocialOutline } from 'ionicons/icons';
+import { trashOutline } from 'ionicons/icons';
+import { ICONS } from './icons';
 import PosFooter from './PosFooter';
+import IconButton from './IconButton';
+import { matchesQuery } from './search';
 import { Capacitor } from '@capacitor/core';
 import {
   listProducts, createProduct, createProducts, exportProductsJson, importProductsJson, updateProduct, deleteProduct, type PosProduct,
@@ -43,6 +46,7 @@ const SAMPLE_LIST = [
 const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<PosProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const modal = useRef<HTMLIonModalElement>(null);
   const [editing, setEditing] = useState<PosProduct | null>(null);
   const [name, setName] = useState('');
@@ -241,6 +245,7 @@ const ProductsPage: React.FC = () => {
   };
 
   const canPrint = products.length > 0;
+  const visible = products.filter((p) => matchesQuery(p, search));
 
   return (
     <IonPage>
@@ -250,26 +255,30 @@ const ProductsPage: React.FC = () => {
           </IonButtons>
           <IonTitle>المنتجات</IonTitle>
           <IonButtons slot="end">
-            <IonButton onClick={addMany}>إضافة قائمة</IonButton>
+            <IconButton name="copyList" onClick={() => { void copyList(); }} />
+            <IconButton name="importList" onClick={importList} />
+            <IconButton name="addList" onClick={addMany} />
             {canPrint && (
-              <IonButton onClick={() => { void pickModal.current?.present(); }}>
-                <IonIcon slot="start" icon={printOutline} />
-                طباعة الملصقات
-              </IonButton>
+              <IconButton name="print" onClick={() => { void pickModal.current?.present(); }} />
             )}
           </IonButtons>
         </IonToolbar>
         <IonToolbar>
-          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-            <IonButton fill="clear" size="small" onClick={() => { void copyList(); }}>نسخ المنتجات</IonButton>
-            <IonButton fill="clear" size="small" onClick={importList}>استيراد منتجات</IonButton>
-          </div>
+          <IonSearchbar
+            value={search}
+            onIonInput={(e) => setSearch(e.detail.value ?? '')}
+            placeholder="بحث بالاسم أو رقم الباركود"
+          />
         </IonToolbar>
       </IonHeader>
 
       <IonContent>
         {!loading && products.length > 0 && (
-          <div className="items-count">عدد المنتجات: {products.length}</div>
+          <div className="items-count">
+            {search.trim()
+              ? `النتائج: ${visible.length} من ${products.length} منتج`
+              : `عدد المنتجات: ${products.length}`}
+          </div>
         )}
         {loading ? (
           <div className="ion-text-center ion-padding"><IonSpinner name="crescent" /></div>
@@ -279,13 +288,14 @@ const ProductsPage: React.FC = () => {
               لا توجد منتجات بعد. أضف أول منتج بالزر بالأسفل ➕
             </p>
           </IonText>
+        ) : visible.length === 0 ? (
+          <IonText color="medium"><p className="ion-text-center ion-padding">المنتج غير مسجل</p></IonText>
         ) : (
           <IonList>
-            {products.map((p) => (
+            {visible.map((p) => (
               <IonItem key={p.id} button onClick={() => openForm(p)}>
-                <IonLabel>
+                <IonLabel className="ion-text-wrap">
                   <h2>{p.name}</h2>
-                  <p dir="ltr" style={{ textAlign: 'right' }}>{p.code}</p>
                 </IonLabel>
                 <IonText slot="end"><strong>{formatMinor(p.price)}</strong></IonText>
               </IonItem>
@@ -294,7 +304,7 @@ const ProductsPage: React.FC = () => {
         )}
 
         <IonFab slot="fixed" vertical="bottom" horizontal="start">
-          <IonFabButton onClick={() => openForm(null)}><IonIcon icon={add} /></IonFabButton>
+          <IonFabButton onClick={() => openForm(null)}><IonIcon icon={ICONS.add} /></IonFabButton>
         </IonFab>
 
         <IonModal ref={pickModal}>
@@ -325,14 +335,14 @@ const ProductsPage: React.FC = () => {
           </IonContent>
           <div className="ion-padding">
             <IonButton expand="block" disabled={picked.size === 0 || working} onClick={() => { void printPicked(); }}>
-              {working ? <IonSpinner name="crescent" /> : <IonIcon slot="start" icon={printOutline} />}
+              {working ? <IonSpinner name="crescent" /> : <IonIcon slot="start" icon={ICONS.print} />}
               طباعة ({picked.size})
             </IonButton>
             <IonButton
               expand="block" fill="outline" disabled={picked.size === 0 || working}
               onClick={() => { void sharePicked(); }}
             >
-              <IonIcon slot="start" icon={shareSocialOutline} />
+              <IonIcon slot="start" icon={ICONS.share} />
               مشاركة PDF
             </IonButton>
           </div>

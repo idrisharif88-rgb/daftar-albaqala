@@ -10,8 +10,13 @@ import { formatMinor } from '../../data/money';
 // One day's report as a PDF: what was baked, sold and left of each product,
 // and the takings. For sharing the day with someone who does not open the app.
 
-const ROW_H = 54;
-const HEAD_H = 56;
+// Large and bold on purpose: this is read on paper or a phone, by someone
+// glancing at it — not studied. A long name takes two lines.
+const ROW_H = 72;
+const ROW_H_2 = 116;
+const HEAD_H = 72;
+const TEXT = 38;
+const HEAD_TEXT = 34;
 
 export async function buildDayReportPdf(opts: {
   day: string;
@@ -28,8 +33,8 @@ export async function buildDayReportPdf(opts: {
   // is the product's right edge; the rest are the CENTRES of their columns,
   // all inside the margins (the takings column is the narrowest).
   const right = PAGE_W - MARGIN;
-  const colX = [right, right - 590, right - 730, right - 870, right - 1031];
-  const nameW = 500;
+  const colX = [right, right - 600, right - 725, right - 850, right - 1005];
+  const nameW = 520;
 
   const pages: HTMLCanvasElement[] = [];
   let { canvas, ctx } = newPage();
@@ -44,55 +49,60 @@ export async function buildDayReportPdf(opts: {
     ctx.fillStyle = '#e3efe6';
     ctx.fillRect(MARGIN, y, PAGE_W - 2 * MARGIN, HEAD_H);
     ctx.fillStyle = '#000';
-    style(28);
+    style(HEAD_TEXT);
     const labels = ['المنتج', 'مخبوز', 'مباع', 'متبقي', 'الإيراد'];
     labels.forEach((l, i) => {
       ctx.textAlign = i === 0 ? 'right' : 'center';
-      ctx.fillText(l, i === 0 ? colX[0] - 10 : colX[i], y + 12);
+      ctx.fillText(l, i === 0 ? colX[0] - 10 : colX[i], y + 17);
     });
     y += HEAD_H;
   };
 
   // Title block (first page only).
-  style(46);
+  style(58);
   ctx.textAlign = 'right';
   // The date is isolated left-to-right, or the right-to-left line shuffles its
   // year, month and day (2026-11-08 would read 08-11-2026).
   ctx.fillText(`تقرير يوم \u2066${opts.day}\u2069`, right, y);
-  y += 64;
-  style(28, false);
-  if (opts.shopName) { ctx.fillText(opts.shopName, right, y); y += 40; }
-  if (opts.status) { ctx.fillText(opts.status, right, y); y += 40; }
-  style(30);
+  y += 80;
+  style(36);
+  if (opts.shopName) { ctx.fillText(opts.shopName, right, y); y += 50; }
+  if (opts.status) { ctx.fillText(opts.status, right, y); y += 50; }
+  style(38);
   ctx.fillText(
     `مخبوز ${t.baked}  ·  مباع ${t.sold}  ·  متبقي ${t.left}  ·  الإيراد ${formatMinor(t.revenue)}`,
     right, y,
   );
-  y += 64;
+  y += 84;
   header();
 
   for (const r of rows) {
-    if (y + ROW_H > PAGE_H - MARGIN) {
+    style(TEXT);
+    const lines = wrapText(ctx, r.product.name, nameW, 2);
+    const rowH = lines.length > 1 ? ROW_H_2 : ROW_H;
+    if (y + rowH > PAGE_H - MARGIN) {
       pages.push(canvas);
       ({ canvas, ctx } = newPage());
       y = MARGIN;
       header();
+      style(TEXT);
     }
-    style(28, false);
-    ctx.fillStyle = r.baked > 0 && r.left <= 0 ? '#b3261e' : '#000';
+    const out = r.baked > 0 && r.left <= 0; // sold out: red
+    ctx.fillStyle = out ? '#b3261e' : '#000';
     ctx.textAlign = 'right';
-    const name = wrapText(ctx, r.product.name, nameW, 1)[0] ?? '';
-    ctx.fillText(name, colX[0] - 10, y + 12);
+    ctx.direction = 'rtl';
+    lines.forEach((l, i) => ctx.fillText(l, colX[0] - 10, y + 14 + i * 46));
+    const mid = y + (rowH - TEXT) / 2 - 4; // numbers sit in the middle of the row
     ctx.textAlign = 'center';
     ctx.direction = 'ltr';
-    ctx.fillText(String(r.baked), colX[1], y + 12);
-    ctx.fillText(String(r.sold), colX[2], y + 12);
-    ctx.fillText(String(r.left), colX[3], y + 12);
-    ctx.fillText(formatMinor(r.revenue), colX[4], y + 12);
-    ctx.fillStyle = '#ccc';
-    ctx.fillRect(MARGIN, y + ROW_H - 2, PAGE_W - 2 * MARGIN, 2);
+    ctx.fillText(String(r.baked), colX[1], mid);
+    ctx.fillText(String(r.sold), colX[2], mid);
+    ctx.fillText(String(r.left), colX[3], mid);
+    ctx.fillText(formatMinor(r.revenue), colX[4], mid);
+    ctx.fillStyle = '#999';
+    ctx.fillRect(MARGIN, y + rowH - 2, PAGE_W - 2 * MARGIN, 2);
     ctx.fillStyle = '#000';
-    y += ROW_H;
+    y += rowH;
   }
   pages.push(canvas);
   return { base64: await pdfFromPages(pages), filename: `تقرير-${opts.day}.pdf` };
