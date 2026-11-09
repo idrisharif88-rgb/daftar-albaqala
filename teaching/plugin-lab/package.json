@@ -1,0 +1,10 @@
+{
+  "name": "plugin-lab",
+  "private": true,
+  "type": "module",
+  "description": "Teaching lab: a tiny offline plugin host + an EAN-13 barcode plugin / Undervisningslab: en liten offline plugin-vert + en EAN-13-strekkodeplugin",
+  "scripts": {
+    "host": "node host/cli.mjs",
+    "test": "node --test test/plugin-lab.test.mjs"
+  }
+}

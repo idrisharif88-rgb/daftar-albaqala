@@ -1,0 +1,7 @@
+{
+  "id": "invoice-desk",
+  "namespace": "invoice",
+  "version": "1.0.0",
+  "description": "A price list and an invoice maker: pick items, review the total, record, print or share as PDF. Offline, any language.",
+  "main": "index.mjs"
+}

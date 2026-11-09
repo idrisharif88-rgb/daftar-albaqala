@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">𝗕𝗹𝗼𝗰𝗸𝘀</string>
+    <string name="title_activity_main">𝗕𝗹𝗼𝗰𝗸𝘀</string>
+    <string name="package_name">com.idrisahmedsh.pluginlab</string>
+    <string name="custom_url_scheme">com.idrisahmedsh.pluginlab</string>
+</resources>

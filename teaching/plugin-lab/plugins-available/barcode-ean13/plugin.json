@@ -1,0 +1,14 @@
+{
+  "id": "barcode-ean13",
+  "namespace": "barcode",
+  "version": "1.0.0",
+  "description": "Offline EAN-13 barcodes: generate, validate, draw as SVG",
+  "main": "index.mjs",
+  "commands": ["barcode.generate", "barcode.validate", "barcode.checkDigit", "barcode.svg"],
+  "examples": {
+    "barcode.generate": "3",
+    "barcode.validate": "\"4006381333931\", true",
+    "barcode.checkDigit": "\"400638133393\"",
+    "barcode.svg": "\"4006381333931\""
+  }
+}

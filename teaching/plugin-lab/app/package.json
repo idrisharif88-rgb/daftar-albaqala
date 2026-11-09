@@ -1,0 +1,39 @@
+{
+  "name": "plugin-lab-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Plugin Lab — an Ionic/React/Capacitor app that lists, imports and exports offline plugins",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "android": "npm run build && npx cap sync android",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "8.2.2",
+    "@capacitor/android": "8.4.1",
+    "@capacitor/core": "8.4.0",
+    "@capacitor/filesystem": "8.1.2",
+    "@capacitor/share": "8.0.1",
+    "@ionic/react": "^8.5.0",
+    "@ionic/react-router": "^8.5.0",
+    "@types/react-router": "^5.1.20",
+    "@types/react-router-dom": "^5.3.3",
+    "ionicons": "^7.4.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-router": "^5.3.4",
+    "react-router-dom": "^5.3.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.4.0",
+    "jsdom": "^22.1.0",
+    "@types/react": "19.0.10",
+    "@types/react-dom": "19.0.4",
+    "@vitejs/plugin-react": "^4.0.1",
+    "typescript": "~5.9.0",
+    "vite": "^5.0.0",
+    "vitest": "^0.34.6"
+  }
+}

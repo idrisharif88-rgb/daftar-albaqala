@@ -1,0 +1,7 @@
+{
+  "id": "debt-ledger",
+  "namespace": "ledger",
+  "version": "1.0.0",
+  "description": "Contacts, debts and payments with a running balance per currency. Corrections are opposite entries. PDF statements. Offline, any language.",
+  "main": "index.mjs"
+}

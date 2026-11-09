@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- A plain web page — no React, no Ionic, no build step — that accepts blocks.
+     En vanlig nettside — uten React, uten Ionic, uten byggetrinn — som tar imot blokker.
+     Run from the plugin-lab folder / Kjør fra plugin-lab-mappen:
+       python3 -m http.server 8000      then open      http://localhost:8000/block-host/examples/plain-web/ -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blocks — plain web demo</title>
+<style>
+  body{font:700 18px system-ui,sans-serif;margin:0;background:#fff}
+  header{background:#1b5e20;color:#fff;padding:14px 16px;font-size:24px}
+  main{max-width:640px;margin:0 auto;padding:12px}
+  button,label.file{display:inline-block;background:#1b5e20;color:#fff;border:0;border-radius:10px;padding:12px 16px;font:inherit;margin:4px 4px 4px 0;cursor:pointer}
+  #list button{background:#e3e8e3;color:#222}
+  #msg{color:#c62828;min-height:1.4em}
+</style>
+<header>Blocks — plain web demo</header>
+<main>
+  <p>
+    <button id="example">Install Barcode Desk (example)</button>
+    <label class="file">Import a block file… <input id="file" type="file" accept=".json" hidden></label>
+  </p>
+  <p id="msg"></p>
+  <div id="list"></div>
+  <div id="stage"></div>
+</main>
+<script type="module">
+  // 1 · the socket — one file, no dependencies
+  import { PluginHost, blobLoader, localStore, webCapabilities, makeBundle, parseBundle } from '../../dist/block-host.mjs';
+
+  // 2 · make a host: where blocks are kept · how they are loaded · what they may ask for
+  const host = new PluginHost(localStore, blobLoader, webCapabilities({ prefix: 'demo' }));
+  const $ = id => document.getElementById(id);
+  let closeScreen = null;
+
+  function refresh() {
+    $('list').replaceChildren(...host.screens().map(s => {
+      const b = document.createElement('button');
+      b.textContent = `${s.icon} ${s.title}`;
+      // 3 · open a block's screen inside any element you like
+      b.onclick = () => { closeScreen?.(); closeScreen = host.mountScreen(s.pluginId, s.id, $('stage'), { lang: 'en' }); };
+      return b;
+    }));
+  }
+  const run = async job => { try { $('msg').textContent = ''; await job(); refresh(); } catch (e) { $('msg').textContent = '❌ ' + e.message; } };
+
+  await host.loadAll();                      // start every block installed earlier
+  refresh();
+
+  // install from the example folder
+  $('example').onclick = () => run(async () => {
+    const base = '../../../plugins-available/barcode-desk/';
+    const [manifest, code] = await Promise.all(['plugin.json', 'index.mjs'].map(f => fetch(base + f).then(r => r.text())));
+    await host.install(await makeBundle({ 'plugin.json': manifest, 'index.mjs': code }));
+  });
+  // install from a file exported by any host (checked before anything runs)
+  $('file').onchange = e => run(async () => { await host.install(await parseBundle(await e.target.files[0].text())); e.target.value = ''; });
+</script>
+</html>

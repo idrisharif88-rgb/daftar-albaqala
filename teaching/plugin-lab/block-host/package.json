@@ -1,0 +1,12 @@
+{
+  "name": "block-host",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The socket: lets any web app import, list, run and export blocks (plugins). Offline, no dependencies.",
+  "main": "dist/block-host.mjs",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "npx esbuild src/index.ts --bundle --format=esm --target=es2020 --outfile=dist/block-host.mjs"
+  }
+}

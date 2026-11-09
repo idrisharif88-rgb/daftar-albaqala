@@ -60,6 +60,7 @@ daftar-albaqala/
 ├── scripts/flavor-assets.sh # moves each app's web build into its own Android source set
 ├── docs/privacy.html        # privacy policy, published on GitHub Pages
 ├── play-assets/             # Play Store listing material
+├── teaching/plugin-lab/     # «Blocks»: importable features + the host app + the reusable socket (see the Blocks section)
 ├── cypress/ cursorrules     # e2e scaffold; the owner's reverse-learning guide
 └── CLAUDE.md                # this file — update it after every phase
 ```
@@ -1347,6 +1348,11 @@ applied on the droplet; owner verified rows reach the server.
 - **Day flow:** «المخزون اليومي» (baked via +/−, hides products with nothing today) → ✓ submit =
   quantities locked (selling continues; baked can never go below sold; «تعديل» reopens, counted
   and shown in السجل). One-year retention prompt (keep / delete older), never automatic.
+  **Deleting today's list (2026-11-08):** a trash icon per product («حذف من قائمة اليوم») and one in the
+  header («مسح قائمة اليوم»), both behind a confirm. They do NOT erase rows (add-only + synced — the
+  server would hand them back): `reverseDay()` in `stock.ts` writes opposite rows so baked, sold and
+  takings net to zero, sales reversed at the price they were made at; a submitted day is reopened
+  and counted («عُدِّل بعد الاعتماد»). The per-row icon is hidden while the day is submitted.
 - **Sync:** its OWN endpoint `/pos-sync` (`server/src/routes/posSync.ts`), apart from `/sync`:
   auth + active server sync + `users.pos_enabled`; products & day locks LWW, baked/sales add-only,
   per-row acks, tenant isolation, keyset pull on the server clock. Phone: `posSync.ts` +
@@ -1363,3 +1369,89 @@ applied on the droplet; owner verified rows reach the server.
   POS-enabled bundle ships. Known gaps: the labels/report PDFs are bitmaps (Arabic shaping); Drive
   file grows with sales history; «تعديل» (reopen a submitted day) kept — owner once said "delete the
   button, no need" but never confirmed which; don't remove it without a clear yes.
+
+## Status — IN PROGRESS: «Blocks» — features as importable files (teaching/plugin-lab/) (2026-11-09)
+**The idea (owner, 2026-11-09):** the owner is a professor and wants to teach core coding practices by
+turning this project's features into **blocks** — self-contained, offline, global (NOT tied to
+Daftar), customizable features that any app can import and export as a file. He will keep adding
+blocks as he works, and wants **Daftar and every future app** to be able to import blocks.
+A *block* (= plugin) is the **plug**; the *host* (`block-host`) is the **socket**. A block file
+cannot run without a socket, so each app that wants blocks needs the socket + a page to open them
+in + an Import button. Everything lives in the untracked folder `teaching/plugin-lab/` (nothing
+committed yet; the working tree also carries unrelated POS edits — don't mix them in a commit).
+
+### What exists
+```
+teaching/plugin-lab/
+├── plugins-available/       the blocks — each = plugin.json + ONE index.mjs (no imports; loaded from a Blob URL)
+│   ├── barcode-ean13/       commands only (no screen): generate / validate / checkDigit / svg
+│   ├── barcode-desk/        screen: products + price + currency, EAN-13 labels (print / share PDF), camera scan,
+│   │                        counts, «not known» for unknown codes, ok/bad beeps, settings
+│   ├── invoice-desk/        screen: price list → invoice → REVIEW → record (numbered) → print / share PDF, history
+│   └── debt-ledger/         screen: contacts (+ pick from phone contacts), debt/payment, running balance per
+│                            currency, append-only (reversal entries), soft-deleted contacts, PDF statement
+├── block-host/              THE SOCKET (host-agnostic, no deps): src/pluginHost.ts, src/webCapabilities.ts,
+│                            dist/block-host.mjs (esbuild, 9 KB), README.md (5-step guide), examples/plain-web/
+├── app/                     «Blocks» — Ionic 8 / React 19 / Capacitor 8 host app (com.idrisahmedsh.pluginlab),
+│                            same stack + pinned Capacitor versions as Daftar. Tabs: Apps (open / share-export /
+│                            remove) and Add (install an example or import a .plugin.json). Two Java plugins:
+│                            HostPrint (system print dialog from HTML) and ContactPicker (no permission).
+├── host/ + test/            a Node command-line host (list/install/export/import) — same bundle format
+└── package.json             `npm test` = the CLI host's 7 tests
+```
+- **Bundle file** `*.plugin.json`: `{format:'plugin-bundle/1', manifest, files, sha256}`; sha256 of
+  `JSON.stringify(files)` with files sorted by name; verified BEFORE anything runs (`parseBundle`).
+  The CLI host and the app read each other's bundles.
+- **Block contract:** `export function register(host)` → `host.screen?.({id,title,icon,mount(el,ctx)})`
+  and/or `host.provide('namespace.cmd', fn)`. `ctx` = `storage` (per-block namespace), optional `scan`,
+  `print(html,job)`, `share(file,base64,mime)`, `pickContact`, `fontCss`, and `options` (the host passes
+  `{lang}`). **Every capability is optional — blocks feature-detect and degrade** (no scanner → typed-code box,
+  no picker → no button). That is what lets one block run in very different apps.
+- **Host capabilities in the Blocks app** (`app/src/lib/capabilities.ts`): ML Kit Google scanner (no CAMERA
+  permission), HostPrint (hidden WebView → PrintManager), Filesystem+Share, ContactPicker (ACTION_PICK on
+  `Phone.CONTENT_URI`, **no contacts permission** — checked in the merged manifest), Tajawal 700 as data-URI CSS.
+  `webCapabilities()` in block-host gives any plain web page storage + print + download + (Chrome-Android)
+  Contact Picker API.
+- **Tests:** `cd teaching/plugin-lab/app && npx vitest run` → 57 (host, block-host, the 3 screens; jsdom, a fake
+  canvas/print/share); `cd teaching/plugin-lab && npm test` → 7. Blocks are loaded in tests via `?raw` + a `data:`
+  URL import. **Not yet tested:** a second real app importing blocks; scan / print / share / contact-pick on the phone
+  (installed on the Note 9, owner confirmed Barcode Desk + Invoice Desk "work").
+- **Build + install:** `cd teaching/plugin-lab/app && npm run build && npx cap sync android`, then
+  `cd android && JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug --offline`, then
+  `adb install -r app/build/outputs/apk/debug/app-debug.apk`. After editing block-host `src/`, rebuild `dist/`
+  (`../app/node_modules/.bin/esbuild src/index.ts --bundle --format=esm --target=es2020 --outfile=dist/block-host.mjs`).
+  The launcher name is bold math letters «𝗕𝗹𝗼𝗰𝗸𝘀» (Android can't bold a label otherwise); icon = green gear
+  (`app/resources/make-icon.py`, Pillow). **The phone keeps the OLD copy of a block until it is reinstalled**
+  (Add → Install) — remind the owner after every block change.
+
+### The owner's style for blocks (apply to every new block)
+Icons only (no words on buttons, `aria-label` for screen readers), **Tajawal Bold**, big fonts, **one language at a
+time — English / العربية / Norsk, never mixed** (Arabic flips to RTL), short labels («Name», «Price»), currency
+drop-down **YER (default) / SAR / USD** (green, only as wide as «YER»), two-tap deletes (the icon turns into a red
+✓), confirmations are a quick ✓ for 1 s (errors 3.5 s). Comments in code: English + Norwegian. **Say the plan
+before adding a feature and wait for the OK** («say before act»); replies short. Daftar rules kept inside blocks:
+money = whole cents, one currency per invoice, numbers used up only when recorded, append-only ledger.
+
+### Gotchas already paid for
+- Old Android 9 WebView paints a FOCUSED input as a solid box → opaque background + `-webkit-text-fill-color` +
+  `appearance:none` + `color-scheme:light` on inputs, and `windowSoftInputMode=adjustPan` (from the owner's
+  `quran-fives-react/docs/fixes/`; reading that folder was allowed by the owner — it is otherwise off-limits).
+- Ionic's `ion-label h2` beats a plain class → use `!important` to size it. `npm i` Capacitor: pin android 8.4.1 /
+  core 8.4.0 / filesystem 8.1.2 / share 8.0.1 or peer deps clash. Read a block's own code before blaming the host:
+  a stale `const` captured at render time once saved USD items as YER (found by a test).
+- In block DOM code, `replaceChildren(...)` needs a flat spread, and `h()` must flatten nested arrays.
+
+### Plan (agreed in outline, details later)
+1. **Events + shared data in block-host** — `ctx.emit('invoice.recorded', …)` / `host.on(…)` and app→block data,
+   so an app's own components can cooperate with imported blocks (today a block is isolated: it cannot read the
+   app's data and the app is not told what happens inside it).
+2. **A starter template + generator** at `teaching/plugin-lab/new-app/` (`create.sh` + `template/`, the Blocks app
+   turned into a template): `bash create.sh my-app --blocks barcode-desk,debt-ledger` creates `~/projects/my-app`
+   with the socket, an Import button, capabilities and the chosen blocks bundled. No extra running "manager" app.
+3. **Make Daftar (and the other apps) able to import blocks** — add the socket, a route for block screens and an
+   Import button; reuse `capabilities.ts` + the two Java plugins. ⚠️ Before a Play release check Play's rules on
+   code loaded at run time (interpreted JS is allowed only if it cannot violate Play policy).
+4. **More blocks** as the owner works: Tafqeet (amount → Arabic words), message sender (WhatsApp/SMS), authenticator
+   (TOTP), Excel export, currency converter. Ask which one before building.
+- ⚠️ A block is code running inside the app with full page access; the checksum proves a file was not *changed*,
+  not that its author is trustworthy. Import only blocks you trust.

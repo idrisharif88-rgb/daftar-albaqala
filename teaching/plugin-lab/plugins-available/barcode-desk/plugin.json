@@ -1,0 +1,7 @@
+{
+  "id": "barcode-desk",
+  "namespace": "desk",
+  "version": "1.0.0",
+  "description": "Add products, set prices, make EAN-13 barcodes, print labels, scan and count them. Offline, any language, any colour.",
+  "main": "index.mjs"
+}
