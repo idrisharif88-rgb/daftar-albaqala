@@ -283,7 +283,7 @@ const CSS = `
 .bd .ib.pri{background:var(--bd-accent);color:#fff}.bd .ib.sec{background:#e3e8e3;color:#222}
 .bd .ib.dng{background:#fde8e8;color:#c62828}.bd .ib.dng.solid{background:#c62828;color:#fff}
 .bd .ib.red{background:#c62828;color:#fff}.bd .ib.green{background:#2e7d32;color:#fff}
-.bd .ib.big{width:76px;height:64px}
+.bd .acts .ib{width:56px;height:56px}                 /* every action on a contact: the same size */
 .bd .ib.grow{width:auto}
 .bd select[data-f=cur]{width:auto;min-width:0;display:block;padding:8px 32px 8px 14px;margin:4px 0 10px;font-size:18px;border:0;border-radius:8px;
   background:var(--bd-accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path d='M1 1l5 5 5-5' fill='none' stroke='white' stroke-width='2'/></svg>") no-repeat right 10px center;
@@ -464,16 +464,16 @@ ${s.footer ? `<div class="f">${esc(s.footer)}</div>` : ''}</html>`;
         h('div', { 'data-balance': '', style: 'margin-top:8px' }, balanceBlock(balanceOf(entries, c.id)))),
       editing === c.id ? contactForm() : null,
       h('div', { class: 'acts' },
-        iconBtn('back', t('back'), 'sec', 'back', () => { viewing = null; entryForm = null; editing = null; confirm = null; render(); }, 28),
-        iconBtn('plus', t('debt'), 'red big', 'debt', () => { entryForm = 'debt'; render(); }, 34),
-        iconBtn('minus', t('payment'), 'green big', 'payment', () => { entryForm = 'payment'; render(); }, 34),
-        iconBtn('print', t('print'), 'pri', 'print', () => printStatement(c), 28),
-        iconBtn('share', t('share'), 'pri', 'share', () => shareStatement(c), 28),
-        iconBtn('edit', t('edit'), 'sec', 'edit-contact', () => { editing = c.id; cDraft = { name: c.name, phone: c.phone || '', note: c.note || '' }; render(); }, 26),
+        iconBtn('back', t('back'), 'sec', 'back', () => { viewing = null; entryForm = null; editing = null; confirm = null; render(); }, 30),
+        iconBtn('plus', t('debt'), 'red', 'debt', () => { entryForm = 'debt'; render(); }, 30),
+        iconBtn('minus', t('payment'), 'green', 'payment', () => { entryForm = 'payment'; render(); }, 30),
+        iconBtn('print', t('print'), 'pri', 'print', () => printStatement(c), 30),
+        iconBtn('share', t('share'), 'pri', 'share', () => shareStatement(c), 30),
+        iconBtn('edit', t('edit'), 'sec', 'edit-contact', () => { editing = c.id; cDraft = { name: c.name, phone: c.phone || '', note: c.note || '' }; render(); }, 30),
         iconBtn(confirm === delKey ? 'check' : 'trash', confirm === delKey ? t('sure') : t('del'), confirm === delKey ? 'dng solid' : 'dng', 'del-contact', () => {
           if (confirm !== delKey) { confirm = delKey; render(); return; }
           c.deleted = true; viewing = null; confirm = null; persist(); render();           // soft delete: history is kept
-        }, 26)),
+        }, 30)),
       entryForm && h('div', { class: 'card' },
         h('h2', { class: entryForm === 'debt' ? 'owes' : 'owe', style: 'margin:0 0 6px;font-size:26px' }, entryForm === 'debt' ? t('debt') : t('payment')),
         h('label', {}, t('amount')),
