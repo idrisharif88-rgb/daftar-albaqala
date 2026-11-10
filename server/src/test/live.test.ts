@@ -94,6 +94,25 @@ describe('live events', () => {
     ans.close();
   });
 
+  test('a chat message reaches the staff member at once, and the reply reaches the owner', async () => {
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1 WHERE id = ?', [user]);
+    const add = await request(app).post('/pos-staff').set(AUTH(token))
+      .send({ name: 'علي', phone: '591112223', role: 'cashier', password: 'secret123' });
+    const login = await request(app).post('/auth/staff/login').send({ phone: '591112223', password: 'secret123' });
+    const staffTicket = (await request(app).post('/events/staff-ticket').set(AUTH(login.body.token))).body.ticket as string;
+    const ownerTicket = (await request(app).post('/events/ticket').set(AUTH(token))).body.ticket as string;
+    const toStaff = firstEvent(base, staffTicket, 'chat');
+    const toOwner = firstEvent(base, ownerTicket, 'chat');
+    await new Promise((r) => setTimeout(r, 100));
+    await request(app).post(`/pos-chat/${add.body.staff.id}/messages`).set(AUTH(token)).send({ body: 'أهلاً' });
+    (await toStaff).close();
+    const o = await toOwner;
+    assert.equal(o.data.staff_id, add.body.staff.id);
+    o.close();
+    // an owner token cannot take a staff ticket
+    assert.equal((await request(app).post('/events/staff-ticket').set(AUTH(token))).status, 400);
+  });
+
   test('a ticket needs a token; the admin ticket needs an admin token', async () => {
     assert.equal((await request(app).post('/events/ticket')).status, 401);
     assert.equal((await request(app).post('/admin/events/ticket').set(AUTH(token))).status, 401);

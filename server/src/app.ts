@@ -11,7 +11,7 @@ import attachmentsRouter, { attachmentsBodyParser } from './routes/attachments';
 import accountRouter from './routes/account';
 import adminRouter from './routes/admin';
 import { requireAuth, AuthedRequest } from './middleware/auth';
-import { requirePosActor, requireStaffFeature, requireStaffManager } from './middleware/posActor';
+import { requirePosActor, requireStaffFeature, requireStaffManager, PosRequest } from './middleware/posActor';
 import staffAuthRouter from './routes/staffAuth';
 import posStaffRouter from './routes/posStaff';
 import posChatRouter from './routes/posChat';
@@ -111,6 +111,11 @@ app.use(
 // at /admin/events/ticket.
 app.post('/events/ticket', requireAuth, (req: AuthedRequest, res) => {
   res.json({ ticket: issueTicket(`user:${req.userId}`) });
+});
+// A STAFF member's ticket: their own channel (chat with the owner).
+app.post('/events/staff-ticket', requirePosActor, (req: PosRequest, res) => {
+  if (!req.staff) return res.status(400).json({ error: 'not a staff token' });
+  res.json({ ticket: issueTicket(`staff:${req.staff.id}`) });
 });
 app.use('/events', eventsRouter);
 

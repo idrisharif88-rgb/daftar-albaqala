@@ -7,7 +7,7 @@ import {
 } from '@ionic/react';
 import { sendOutline } from 'ionicons/icons';
 import PosFooter from './PosFooter';
-import { useAuth } from '../../lib/auth';
+import { CHAT_EVENT, useAuth } from '../../lib/auth';
 import {
   ApiError, chatMessages, chatRead, chatSend, chatThreads, type ChatMessage, type ChatThread,
 } from '../../lib/api';
@@ -17,10 +17,11 @@ import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 
 // «المحادثة» — private chat between the shop owner and each staff member.
 // The owner sees a list (one conversation per member) and opens one; a member
-// goes straight to their own conversation with the owner. Text only, online:
-// an open conversation is re-read every 4 s; the tab badge does the rest.
+// goes straight to their own conversation with the owner. Text only, online.
+// A new message arrives AT ONCE over the live line (CHAT_EVENT); a slow timer
+// is only the fallback for a broken line.
 
-const POLL_MS = 4000;
+const POLL_MS = 30_000;
 const hhmm = (iso: string) => {
   const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso.replace(' ', 'T')}Z`);
   const p = (n: number) => String(n).padStart(2, '0');
@@ -41,6 +42,11 @@ const ThreadList: React.FC = () => {
     }
   }, []);
   useIonViewWillEnter(() => { void load(); void refreshChatUnread(); });
+  useEffect(() => {
+    const onChat = () => { void load(); };
+    window.addEventListener(CHAT_EVENT, onChat);
+    return () => window.removeEventListener(CHAT_EVENT, onChat);
+  }, [load]);
   const pull = usePosRefresh(load);
   return (
     <IonPage>
@@ -111,6 +117,11 @@ const Thread: React.FC<{ staffId: string; title: string; back: boolean }> = ({ s
   });
   useIonViewWillLeave(() => { if (timer.current) clearInterval(timer.current); timer.current = null; });
   useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+  useEffect(() => {
+    const onChat = () => { void load(); };
+    window.addEventListener(CHAT_EVENT, onChat);
+    return () => window.removeEventListener(CHAT_EVENT, onChat);
+  }, [load]);
   const pull = usePosRefresh(load);
 
   const send = async () => {

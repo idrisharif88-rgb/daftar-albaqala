@@ -1548,3 +1548,12 @@ Branch `live-and-round3`. No migration. Server 193/193, app 137/137.
 - **«تأكيد كل بيعة ✓ / ✕»** on «بيع» (default ON, localStorage `daftar.pos.confirm-sale`): every scan
   and tap waits for green ✓ / red ✕ (`ion-alert.mark-ask`) before the sale is recorded
   (`findByScan` looks the code up without selling).
+
+## Status — BUILT (Phase 39: short Watcher texts + live chat) (2026-11-10)
+Branch `short-texts-live-chat`. No migration. Server 194/194.
+- **Watcher confirms shortened** to one line each (sync off, POS, staff, notes, report, Drive,
+  contractor, suspend, allow, rename, password). The delete-account warning stays full on purpose.
+- **Live chat:** `POST /pos-chat/:id/messages` and `/read` publish `chat` to `user:<owner>` and
+  `staff:<staff_id>`. Staff take a ticket at `POST /events/staff-ticket` (requirePosActor). The app
+  opens the live line for owner AND staff (auth.tsx); `chat` → `CHAT_EVENT` → the open thread, the
+  thread list and the tab badge reload at once. Fallback timers slowed: thread 30 s, badge 60 s.

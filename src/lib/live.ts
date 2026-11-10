@@ -9,7 +9,7 @@ import { liveTicket } from './api';
 
 export type LiveHandler = (event: string, data: Record<string, unknown>) => void;
 
-const EVENTS = ['sync-request', 'access'];
+const EVENTS = ['sync-request', 'access', 'chat'];
 const RETRY_MS = 5000;
 
 /** Open the line; returns a function that closes it for good. */
