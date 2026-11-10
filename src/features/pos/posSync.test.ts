@@ -22,7 +22,7 @@ import { SCHEMA } from '../../data/schema';
 import { runMigrations } from '../../data/migrations';
 import { createProduct, listProducts } from './products';
 import { addBaked, recordSale, lockDay, getDayRows } from './stock';
-import { applyPull, runPosSync, type PosSyncApi } from './posSync';
+import { applyPull, countUnsyncedPos, runPosSync, type PosSyncApi } from './posSync';
 import { ApiError, type PosPullResult, type PosPushBody, type PosPushResult } from '../../lib/api';
 import { getMeta } from '../../data/meta';
 
@@ -75,6 +75,16 @@ describe('POS sync — push', () => {
     expect(out).toMatchObject({ status: 'ok', pushed: 4, refused: 0 });
     for (const t of ['pos_products', 'pos_baked', 'pos_sales', 'pos_day_lock']) expect(await dirty(t)).toBe(0);
     expect(api.pushes[0].sales?.[0]).toMatchObject({ product_id: p.id, qty: 1, price: 5000 });
+  });
+
+  it('counts what is still waiting — what guards a staff sign-out', async () => {
+    const before = await countUnsyncedPos();
+    const p = await createProduct({ name: 'عدّاد', price: 100 });
+    await addBaked(p.id, 3);
+    await recordSale(p);
+    expect(await countUnsyncedPos()).toBe(before + 3);
+    await runPosSync(acceptingApi());
+    expect(await countUnsyncedPos()).toBe(0);
   });
 
   it('keeps a REFUSED row dirty — only what the server named is forgotten', async () => {

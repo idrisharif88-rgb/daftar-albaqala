@@ -41,6 +41,20 @@ type Row = Record<string, unknown>;
 const rowsOf = async (sql: string, params: unknown[] = []): Promise<Row[]> =>
   (((await (await getDB()).query(sql, params)).values ?? []) as Row[]);
 
+/** How many POS rows on this phone the server has not acknowledged yet. A
+ *  staff session must not end while this is above zero: the next sign-in on
+ *  the phone wipes the local store (data/owner.ts), and these rows exist
+ *  nowhere else. */
+export async function countUnsyncedPos(): Promise<number> {
+  const [r] = await rowsOf(
+    `SELECT (SELECT COUNT(*) FROM pos_products WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_baked WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_sales WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_day_lock WHERE synced = 0) AS n`,
+  );
+  return Number(r?.n) || 0;
+}
+
 let inFlight: Promise<PosSyncOutcome> | null = null;
 
 /** Run one sync. Concurrent calls share the run in progress. */
