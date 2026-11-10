@@ -80,6 +80,8 @@ const STAFF_KEY = 'daftar.staff';
 
 export interface StoredStaff {
   id: string; name: string; role: string; permissions: string[]; store_name: string | null;
+  /** «رمز المدير» as a salted hash, checked offline to undo a sale; null = not set. */
+  manager_pin?: string | null;
 }
 
 export function getStaff(): StoredStaff | null {

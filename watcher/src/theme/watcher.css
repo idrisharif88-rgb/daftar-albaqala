@@ -178,3 +178,21 @@ ion-alert.confirm-input .alert-input:focus {
   border-color: var(--ion-color-primary);
   box-shadow: 0 0 0 4px rgba(27, 94, 32, 0.14);
 }
+
+/* ---- Feature icons on an account card (components/FeatureIcons.tsx) ----
+   One row, one round chip per feature; the colour says the state, the legend
+   (tap) says it in words. */
+.features {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; padding: 0;
+  background: none; border: 0; cursor: pointer; font: inherit;
+}
+.feature {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; font-size: 17px;
+  border: 1.5px solid currentColor;
+}
+.feature--on   { color: #1b5e20; background: #e8f5e9; }
+.feature--off  { color: #90a4ae; background: #f5f7f8; border-style: dashed; }
+.feature--wait { color: #8a5a00; background: #fff4d6; }
+.feature--bad  { color: #c62828; background: #fdecea; }
+ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 700; }

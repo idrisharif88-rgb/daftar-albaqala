@@ -15,23 +15,24 @@ describe('POS tabs by permission', () => {
     expect(posTabsFor(all, false, false).map((t) => t.path))
       .toEqual(['/pos/today', '/pos/sell', '/pos/history', '/pos/products']);
     expect(posTabsFor(all, false, true).map((t) => t.path)).toContain('/pos/staff');
+    expect(posTabsFor(all, false, true).map((t) => t.path)).toContain('/pos/chat');
   });
 
   it('cashier preset: selling only (+ notes once the developer switched them on)', () => {
-    expect(paths(ROLE_PRESETS.cashier)).toEqual(['/pos/sell']);
+    expect(paths(ROLE_PRESETS.cashier)).toEqual(['/pos/sell', '/pos/chat']);
     expect(posTabsFor(holding(ROLE_PRESETS.cashier), true, true, true).map((t) => t.path))
-      .toEqual(['/pos/sell', '/pos/notes']);
+      .toEqual(['/pos/sell', '/pos/notes', '/pos/chat']);
   });
 
   it('adder preset: the day and the history, no selling, no products', () => {
-    expect(paths(ROLE_PRESETS.adder)).toEqual(['/pos/today', '/pos/history']);
+    expect(paths(ROLE_PRESETS.adder)).toEqual(['/pos/today', '/pos/history', '/pos/chat']);
   });
 
   it('admin preset: everything, including staff', () => {
-    expect(paths(ROLE_PRESETS.admin)).toEqual(['/pos/today', '/pos/sell', '/pos/history', '/pos/products', '/pos/staff']);
+    expect(paths(ROLE_PRESETS.admin)).toEqual(['/pos/today', '/pos/sell', '/pos/history', '/pos/products', '/pos/staff', '/pos/chat']);
   });
 
-  it('no permissions at all: no tab, so the account page is the landing', () => {
-    expect(firstPosTab(posTabsFor(holding([]), true, true))).toBeNull();
+  it('no permissions at all: only the chat with the owner, which becomes the landing', () => {
+    expect(firstPosTab(posTabsFor(holding([]), true, true))).toBe('/pos/chat');
   });
 });

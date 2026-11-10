@@ -14,6 +14,7 @@ import SellPage from './features/pos/SellPage';
 import HistoryPage from './features/pos/HistoryPage';
 import StaffPage from './features/pos/StaffPage';
 import StaffReportPage from './features/pos/StaffReportPage';
+import { ChatPage, ChatThreadPage } from './features/pos/ChatPage';
 import StaffAccountPage from './features/pos/StaffAccountPage';
 import NotesPage from './features/pos/NotesPage';
 import SyncConsentPrompt from './components/SyncConsentPrompt';
@@ -248,6 +249,12 @@ const Routes: React.FC = () => {
         </Route>
         <Route exact path="/pos/staff/:id/report">
           {pos('/pos/staff', <StaffReportPage />)}
+        </Route>
+        <Route exact path="/pos/chat">
+          {pos('/pos/chat', <ChatPage />)}
+        </Route>
+        <Route exact path="/pos/chat/:id">
+          {staff ? <Redirect to="/pos/chat" /> : pos('/pos/chat', <ChatThreadPage />)}
         </Route>
         <Route exact path="/pos/notes">
           {pos('/pos/notes', <NotesPage />)}

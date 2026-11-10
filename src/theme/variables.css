@@ -852,3 +852,20 @@ ion-select::part(text), ion-select::part(placeholder) {
   --background-hover-opacity: 0;
   font-weight: 800;
 }
+
+/* A count on an icon button (unread chat messages). */
+.icon-badge {
+  position: absolute; top: 2px; inset-inline-end: 18%;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--ion-color-danger); color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+}
+
+/* Chat bubbles (features/pos/ChatPage.tsx). As in WhatsApp's Arabic layout,
+   my messages sit on the left (the end side in RTL), theirs on the right. */
+.chat { display: flex; flex-direction: column; gap: 8px; }
+.chat__msg { max-width: 80%; padding: 8px 12px; border-radius: 14px; }
+.chat__msg--mine { align-self: flex-end; background: var(--ion-color-primary); color: var(--ion-color-primary-contrast); border-end-end-radius: 4px; }
+.chat__msg--theirs { align-self: flex-start; background: var(--ion-color-light); color: var(--ion-text-color); border-end-start-radius: 4px; }
+.chat__body { white-space: pre-wrap; font-size: 1.05rem; }
+.chat__meta { font-size: .75rem; opacity: .8; margin-top: 2px; }

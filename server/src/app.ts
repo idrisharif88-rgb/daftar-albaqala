@@ -14,6 +14,7 @@ import { requireAuth, AuthedRequest } from './middleware/auth';
 import { requirePosActor, requireStaffFeature, requireStaffManager } from './middleware/posActor';
 import staffAuthRouter from './routes/staffAuth';
 import posStaffRouter from './routes/posStaff';
+import posChatRouter from './routes/posChat';
 import { requireSubscription, requireNotSuspended, appOf } from './middleware/requireSubscription';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
@@ -102,6 +103,10 @@ app.use(
   requirePosActor, requireNotSuspended, requirePos, requireStaffFeature, requireStaffManager,
   posStaffRouter,
 );
+
+// Private chat owner ↔ each staff member (routes/posChat.ts decides who sees
+// which conversation). Same shop switches as staff accounts.
+app.use('/pos-chat', requirePosActor, requireNotSuspended, requirePos, requireStaffFeature, posChatRouter);
 
 // Attachments — a file pinned to an entry. Behind the same gates as sync (it is
 // part of the paid cloud backup) and tenant-filtered by req.userId. The global

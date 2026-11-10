@@ -1489,3 +1489,29 @@ Discussed 3 at a time, each confirmed by the owner (memory: «Confirmed plans to
 - **Fix (2026-11-10, branch `limit-direction-fix`): the debt limit was silent for صاحب متجر.** Its
   «تسجيل دين» is stored as a `payment` (balance goes DOWN), and the check only measured "balance up".
   `checkDebtLimit` now measures in the direction the entry pushes (`sign = debt ? +1 : −1`); tested.
+
+## Status — BUILT (Phase 36: round-2 fixes + requests) (2026-11-10)
+Branch `round2-fixes`. Server migration **020** (`020_manager_pin_chat.sql`). App tests 136/136.
+- **Fix — sync request not asked (test 19):** an old "yes" carried over, so switching sync on for
+  an account that once approved never asked. Now off → on ALWAYS sets `pending`, except while the
+  account's OTHER app still syncs on that yes (`consentOnChange(self, other)` in routes/admin.ts).
+- **Fix — staff add after the warning (test 9):** a number already used by one of this shop's staff
+  is reported before the book warning, and every save refusal is shown in a message box (it used to
+  be a line at the foot of the form).
+- **«نفد» → icon** `ICONS.empty` (empty tray, red, labelled «نفد»).
+- **«اليوم» big number = what is LEFT** (drops with each sale); the line under it is «مباع N».
+- **«الموظفون»:** refresh icon + pull-down.
+- **«رمز المدير»:** owner sets 4 digits in «الموظفون» (`PUT /pos-staff/manager-pin`); stored as
+  `users.pos_manager_pin` = `s1:salt:sha256(salt+pin)` (`server/src/pos/managerPin.ts`), handed to
+  staff phones in staff login / `/auth/staff/me`; «تراجع» on «بيع» by STAFF asks for it and checks it
+  OFFLINE (`src/features/pos/managerPin.ts`, WebCrypto). Not set → staff cannot undo. Owner not asked.
+  UI-level gate only (the opposite sale row is still in every report).
+- **Chat owner ↔ each staff member** (`/pos-chat`, `server/src/routes/posChat.ts`; table
+  `pos_messages`): text only, online, private (a member sees only `me`, the owner all of his; scoped by
+  owner_id). Tab «المحادثة» (`/pos/chat`, `ChatPage.tsx`): owner = list with unread counts → a thread;
+  member = their thread. Open thread re-read every 4 s and marked read; tab badge from
+  `/pos-chat/unread` every 20 s (`chat.ts`). No push notifications (owner's choice).
+- **Watcher:** feature icons per account card (`watcher/src/components/FeatureIcons.tsx`,
+  `accountFeatures()`): sync / Drive / POS / staff / notes / report / contractor; green on, grey
+  off (dashed), amber waiting, red refused; tap = legend in words.
+- ⚠️ **MIGRATION 020 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet.

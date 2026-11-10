@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const staffLogin = useCallback(async (phone: string, password: string) => {
     const res = await api.staffLogin(phone, password);
     setToken(res.token);
-    const next = { ...res.staff, store_name: res.store_name };
+    const next = { ...res.staff, store_name: res.store_name, manager_pin: res.manager_pin ?? null };
     setStaff(next);
     setStaffState(next);
     rememberNotes(res.notes_enabled === true);
@@ -145,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (staffRef.current) {
       try {
         const res = await api.staffMe();
-        const next = { ...res.staff, store_name: res.store_name };
+        const next = { ...res.staff, store_name: res.store_name, manager_pin: res.manager_pin ?? null };
         setStaff(next);
         setStaffState(next);
         rememberNotes(res.notes_enabled === true);

@@ -281,14 +281,18 @@ const SETTABLE = new Set(['active', 'none', 'suspended']);
 // has already approved. The developer cannot answer for him: the server keeps
 // refusing sync until the shopkeeper's own app says yes (routes/account.ts).
 // Takes one bound parameter: the status being set.
-// Switching sync ON asks the user (pending, unless already approved).
-// Switching it OFF — once neither app syncs any more — forgets the answer, so
-// the next switch-on asks again: sync never restarts without a yes to THAT
-// request. (One answer covers the account, so turning one app off while the
-// other still syncs keeps it.) `other` = the other app's status column.
-const consentOnChange = (other: 'contractor_status' | 'subscription_status') =>
-  `sync_consent = CASE WHEN ? = 'active' AND sync_consent <> 'approved' THEN 'pending'
-                       WHEN ? = 'none' AND ${other} <> 'active' THEN 'none' ELSE sync_consent END`;
+// Switching sync ON from off ALWAYS asks the user again (pending) — an old
+// "yes" does not carry over to a new switch-on. The one exception: the
+// account's OTHER app is still syncing on that yes, and asking again would
+// stop it until answered. Switching OFF — once neither app syncs — forgets
+// the answer. `self` / `other` = the two apps' status columns; the CASE runs
+// before `self` is assigned, so it sees the status as it was.
+const consentOnChange = (self: 'subscription_status' | 'contractor_status', other: 'contractor_status' | 'subscription_status') =>
+  `sync_consent = CASE
+     WHEN ? = 'active' AND ${self} <> 'active' AND ${other} <> 'active' THEN 'pending'
+     WHEN ? = 'active' AND sync_consent <> 'approved' THEN 'pending'
+     WHEN ? = 'none' AND ${other} <> 'active' THEN 'none'
+     ELSE sync_consent END`;
 
 // POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended' }
 //                               { app: 'contractor', status: 'active' | 'none' }
@@ -305,8 +309,8 @@ router.post(
         return res.status(400).json({ error: "contractor status must be 'active' or 'none'" });
       }
       const [r] = await pool.query(
-        `UPDATE users SET ${consentOnChange('subscription_status')}, contractor_status = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?`,
-        [status, status, status, req.params.id],
+        `UPDATE users SET ${consentOnChange('contractor_status', 'subscription_status')}, contractor_status = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?`,
+        [status, status, status, status, req.params.id],
       );
       if ((r as { affectedRows: number }).affectedRows === 0) {
         return res.status(404).json({ error: 'user not found' });
@@ -320,12 +324,12 @@ router.post(
     // not active-until-a-date-set-long-ago.
     const [result] = await pool.query(
       `UPDATE users
-          SET ${consentOnChange('contractor_status')},
+          SET ${consentOnChange('subscription_status', 'contractor_status')},
               subscription_status = ?,
               subscription_expires_at = CASE WHEN ? = 'active' THEN NULL ELSE subscription_expires_at END,
               updated_at = UTC_TIMESTAMP()
         WHERE id = ?`,
-      [status, status, status, status, req.params.id]
+      [status, status, status, status, status, req.params.id]
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       return res.status(404).json({ error: 'user not found' });
