@@ -17,6 +17,8 @@ import { parsePermissions } from '../pos/permissions';
 // cashier ends up holding an owner's token.
 
 const router = Router();
+/** Wrong passwords in a row before a staff login is locked (owner unlocks). */
+export const MAX_STAFF_FAILURES = 4;
 const throttle = createLoginThrottle();
 
 // Compared against when the phone is unknown, so a wrong NUMBER takes as long
@@ -45,18 +47,34 @@ router.post(
 
     const [rows] = await pool.query(
       `SELECT s.id, s.name, s.role, s.permissions, s.password_hash, s.token_version, s.disabled_at,
+              s.failed_logins, s.locked_at,
               u.subscription_status, u.pos_staff_enabled, u.pos_notes_enabled, u.store_name
          FROM pos_staff s JOIN users u ON u.id = s.owner_id
         WHERE s.phone = ?`,
       [phone],
     );
     const staff = (rows as Row[])[0];
+    // Locked after MAX_STAFF_FAILURES wrong passwords: refused, even with the
+    // right one, until the owner sets a new password.
+    if (staff && staff.locked_at !== null) return res.status(423).json({ error: 'account locked' });
     const ok = await bcrypt.compare(password, staff ? String(staff.password_hash) : DUMMY_HASH);
     if (!staff || !ok) {
       throttle.fail(phone);
+      if (staff) {
+        const failed = Number(staff.failed_logins) + 1;
+        const lock = failed >= MAX_STAFF_FAILURES;
+        await pool.query(
+          'UPDATE pos_staff SET failed_logins = ?, locked_at = IF(?, NOW(3), locked_at) WHERE id = ?',
+          [failed, lock ? 1 : 0, staff.id],
+        );
+        if (lock) return res.status(423).json({ error: 'account locked' });
+      }
       return res.status(401).json({ error: 'invalid phone or password' });
     }
     throttle.succeed(phone);
+    if (Number(staff.failed_logins) > 0) {
+      await pool.query('UPDATE pos_staff SET failed_logins = 0 WHERE id = ?', [staff.id]);
+    }
 
     // Checked only AFTER the password, so neither answer tells a stranger that
     // the number exists.

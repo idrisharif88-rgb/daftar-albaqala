@@ -13,6 +13,7 @@ import { useDriveBackup } from '../../lib/useDriveBackup';
 import { GOOGLE_ENABLED } from '../../lib/googleDrive';
 import { useAuth } from '../../lib/auth';
 import { usePosPermissions } from './permissions';
+import { PosRefresher, usePosRefresh } from './PosRefresh';
 import PosFooter from './PosFooter';
 import {
   addBaked, getDayRows, localDay, totalsOf, retentionDue, keepForAnotherYear,
@@ -92,6 +93,7 @@ const TodayPage: React.FC = () => {
 
   // The one-year question is the owner's: a staff member's phone keeps a copy only.
   useIonViewWillEnter(() => { void load().then(() => (staff ? undefined : askRetention())); });
+  const pull = usePosRefresh(load);
 
   // + / − change the baked count by one, instantly: the screen updates first
   // and the write follows (a failed write reloads the truth).
@@ -242,9 +244,16 @@ const TodayPage: React.FC = () => {
   // Carry-over products (vinegar, honey, ghee) are a list of their own: they
   // are always shown, with the stock on the shelf, whatever happened today.
   const dailyRows = rows.filter((r) => r.product.daily);
-  const stockRows = rows.filter((r) => !r.product.daily);
+  // A carry-over product with nothing on the shelf is hidden; it comes back
+  // when stock is added (from «المنتجات» or the picker below).
+  const stockRows = rows.filter((r) => !r.product.daily && r.left > 0);
   const active = dailyRows.filter((r) => r.baked !== 0 || r.sold !== 0);
-  const idle = dailyRows.filter((r) => r.baked === 0 && r.sold === 0);
+  // The picker offers what is not on screen: a daily product with nothing today,
+  // and a carry-over product whose stock ran out (hidden above).
+  const idle = [
+    ...dailyRows.filter((r) => r.baked === 0 && r.sold === 0),
+    ...rows.filter((r) => !r.product.daily && r.left <= 0),
+  ];
   const pickable = idle.filter((r) => matchesQuery(r.product, pickSearch));
   return (
     <IonPage>
@@ -310,6 +319,7 @@ const TodayPage: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <PosRefresher onRefresh={pull.run} />
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', fontSize: '.85rem', opacity: .75 }}>
           <span dir="ltr">{localDay()}</span>
           <span>

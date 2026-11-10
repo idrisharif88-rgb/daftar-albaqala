@@ -3,8 +3,10 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton, IonList, IonItem,
   IonLabel, IonText, IonSpinner, IonModal, IonInput, IonInputPasswordToggle, IonNote, IonIcon,
   IonFab, IonFabButton, IonCheckbox, IonSelect, IonSelectOption, IonBadge, IonListHeader, IonToggle,
-  useIonViewWillEnter, useIonToast, useIonRouter,
+  useIonViewWillEnter, useIonToast, useIonRouter, useIonAlert,
 } from '@ionic/react';
+import { findContactByPhone } from '../../data/customers';
+import { roleDef } from '../../data/roles';
 import PosFooter from './PosFooter';
 import { ICONS, ICON_LABELS } from './icons';
 import {
@@ -61,6 +63,18 @@ const StaffPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [presentToast] = useIonToast();
+  const [presentAlert] = useIonAlert();
+  const confirmContact = (name: string, role: string) => new Promise<boolean>((resolve) => {
+    void presentAlert({
+      header: 'رقم مسجّل في الدفتر',
+      message: `هذا الرقم مسجّل في دفترك باسم «${name}» (${role}). متابعة؟`,
+      backdropDismiss: false,
+      buttons: [
+        { text: 'إلغاء', role: 'cancel', handler: () => resolve(false) },
+        { text: 'متابعة', handler: () => resolve(true) },
+      ],
+    });
+  });
   const router = useIonRouter();
 
   const load = useCallback(async () => {
@@ -113,6 +127,13 @@ const StaffPage: React.FC = () => {
     if (!editing && password.length < 6) { setError('كلمة المرور من 6 أحرف على الأقل.'); return; }
     if (editing && password && password.length < 6) { setError('كلمة المرور من 6 أحرف على الأقل.'); return; }
     const permissions = PERMISSIONS.filter((p) => perms.has(p));
+    // The same person already in the book (customer, partner, shop owner):
+    // warn, and let the owner decide. Only on a new member — the phone of an
+    // existing one does not change.
+    if (!editing) {
+      const contact = await findContactByPhone(phone).catch(() => null);
+      if (contact && !(await confirmContact(contact.name, roleDef(contact.role).labelAr))) return;
+    }
     setSaving(true);
     try {
       if (editing) {
@@ -157,6 +178,7 @@ const StaffPage: React.FC = () => {
                   </p>
                 </IonLabel>
                 {m.disabled && <IonBadge slot="end" color="medium">موقوف</IonBadge>}
+                {m.locked && <IonBadge slot="end" color="danger">مقفل</IonBadge>}
                 {/* The owner's report on this member — owner only. */}
                 {!me && reportOn && (
                   <IonButton
@@ -235,6 +257,13 @@ const StaffPage: React.FC = () => {
               </IonItem>
             )}
 
+            {editing?.locked && (
+              <IonText color="danger">
+                <p style={{ fontSize: '.9rem' }}>
+                  الحساب مقفل بسبب محاولات دخول خاطئة متكررة. ضع كلمة مرور جديدة لفتحه.
+                </p>
+              </IonText>
+            )}
             {error && <IonNote color="danger" className="ion-padding-start"><IonText>{error}</IonText></IonNote>}
 
             <IonButton expand="block" onClick={() => { void save(); }} disabled={saving} className="ion-margin-top">

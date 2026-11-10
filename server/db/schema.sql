@@ -274,6 +274,8 @@ CREATE TABLE IF NOT EXISTS pos_staff (
   permissions    VARCHAR(500) NOT NULL DEFAULT '[]',      -- JSON array, see pos/permissions.ts (015)
   password_hash  VARCHAR(255) NOT NULL,
   token_version  INT          NOT NULL DEFAULT 0,
+  failed_logins TINYINT UNSIGNED NOT NULL DEFAULT 0, -- wrong passwords in a row (019)
+  locked_at   DATETIME(3) NULL,                    -- locked after 4; cleared by a new password
   disabled_at    DATETIME(3)  NULL,
   created_at     DATETIME(3)  NOT NULL,
   updated_at     DATETIME(3)  NOT NULL,
@@ -291,6 +293,7 @@ CREATE TABLE IF NOT EXISTS pos_notes (
   author_name      VARCHAR(100)  NOT NULL DEFAULT '',   -- set by the SERVER, never by the phone
   day              CHAR(10)      NOT NULL,              -- the shop's local day
   body             VARCHAR(1000) NOT NULL,
+  edited_at        DATETIME(3)   NULL,          -- last edit (editor's clock); NULL = never edited (019)
   created_at       DATETIME(3)   NOT NULL,
   updated_at       DATETIME(3)   NOT NULL,
   deleted_at       DATETIME(3)   NULL,                  -- tombstone (owner only)

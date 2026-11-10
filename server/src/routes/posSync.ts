@@ -16,7 +16,7 @@ import { can, canWrite, type PosTable } from '../pos/permissions';
 //                     changed by a later push: it is already on printed labels.
 //   - pos_baked / pos_sales → APPEND-ONLY, insert only if the UUID is new.
 //   - pos_day_lock  → one row per day, last-write-wins by updated_at.
-//   - pos_notes     → add-only; the OWNER may tombstone one. The author is set
+//   - pos_notes     → the author or the OWNER may edit (LWW on edited_at) or tombstone one. The author is set
 //                     HERE from the token, never taken from the phone. Notes
 //                     travel only where the developer switched them on and to
 //                     an actor holding `notes` — both directions.
@@ -222,7 +222,9 @@ router.post(
         result.day_locks.accepted.push(day);
       }
 
-      // ---- notes: add-only; only the owner may delete (a tombstone) ----
+      // ---- notes: the AUTHOR (or the shop owner) may edit or delete one ----
+      // Edits are last-write-wins on edited_at (the editor's clock); a delete
+      // is a tombstone. Anyone else's change is refused as `forbidden`.
       for (const n of notes) {
         const id = str(n.id);
         if (!ID_RE.test(id)) continue;
@@ -234,29 +236,47 @@ router.post(
           result.notes.rejected.push({ id, reason: 'invalid' });
           continue;
         }
-        if (deletedAt && req.staff) { // a staff member cannot delete a note
-          result.notes.rejected.push({ id, reason: 'forbidden' });
+        const editedAt = n.edited_at ? toDate(n.edited_at) : null;
+        if (n.edited_at && !editedAt) {
+          result.notes.rejected.push({ id, reason: 'invalid' });
           continue;
         }
-        const [found] = await conn.query('SELECT user_id, deleted_at FROM pos_notes WHERE id = ?', [id]);
+        const [found] = await conn.query(
+          'SELECT user_id, author_staff_id, body, edited_at, deleted_at FROM pos_notes WHERE id = ?', [id]);
         const existing = (found as Row[])[0];
         if (existing && existing.user_id !== userId) {
           result.notes.rejected.push({ id, reason: 'foreign_owner' });
           continue;
         }
+        // Who may change an existing note: the owner, or the member who wrote it.
+        const mayChange = !existing || !req.staff || existing.author_staff_id === req.staff.id;
+        const wantsDelete = !!deletedAt && (!existing || existing.deleted_at === null);
+        const wantsEdit = !!existing && existing.deleted_at === null && body !== String(existing.body) &&
+          !!editedAt && (existing.edited_at === null || editedAt.getTime() > asDate(existing.edited_at).getTime());
+        if (existing && (wantsDelete || wantsEdit) && !mayChange) {
+          result.notes.rejected.push({ id, reason: 'forbidden' });
+          continue;
+        }
         const now = new Date();
         if (!existing) {
           await conn.query(
-            `INSERT INTO pos_notes (id, user_id, author_staff_id, author_name, day, body, created_at, updated_at, deleted_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, userId, req.staff?.id ?? null, authorName, day, body, createdAt, now, deletedAt]
+            `INSERT INTO pos_notes (id, user_id, author_staff_id, author_name, day, body, edited_at, created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, userId, req.staff?.id ?? null, authorName, day, body, editedAt, createdAt, now, deletedAt]
           );
-        } else if (deletedAt && existing.deleted_at === null) {
-          // The text is never edited — only the owner's deletion is applied.
-          await conn.query(
-            'UPDATE pos_notes SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
-            [deletedAt, now, id, userId]
-          );
+        } else {
+          if (wantsEdit) {
+            await conn.query(
+              'UPDATE pos_notes SET body = ?, edited_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+              [body, editedAt, now, id, userId]
+            );
+          }
+          if (wantsDelete) {
+            await conn.query(
+              'UPDATE pos_notes SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+              [deletedAt, now, id, userId]
+            );
+          }
         }
         result.notes.accepted.push(id);
       }
@@ -340,7 +360,7 @@ router.get(
     // receives every note written before.
     const notesOn = await notesAllowed(req);
     const n = notesOn
-      ? await fetchPage('pos_notes', 'id, author_staff_id, author_name, day, body, created_at, updated_at, deleted_at', 'id', cursor.notes)
+      ? await fetchPage('pos_notes', 'id, author_staff_id, author_name, day, body, edited_at, created_at, updated_at, deleted_at', 'id', cursor.notes)
       : { rows: [] as Row[], more: false };
     const hasMore = p.more || b.more || s.more || l.more || n.more;
 

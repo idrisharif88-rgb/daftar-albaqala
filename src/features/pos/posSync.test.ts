@@ -211,7 +211,7 @@ describe('POS sync — notes', () => {
     const sent = api.pushes[0].notes!;
     expect(sent).toHaveLength(1);
     expect(sent[0].body).toBe('نفد السكر');
-    expect(Object.keys(sent[0]).sort()).toEqual(['body', 'created_at', 'day', 'deleted_at', 'id']); // no author
+    expect(Object.keys(sent[0]).sort()).toEqual(['body', 'created_at', 'day', 'deleted_at', 'edited_at', 'id']); // no author
     expect(await dirty('pos_notes')).toBe(0);
 
     await applyPull(emptyPull({ notes: [{ ...sent[0], author_staff_id: 's1', author_name: 'سالم', updated_at: sent[0].created_at }] }));

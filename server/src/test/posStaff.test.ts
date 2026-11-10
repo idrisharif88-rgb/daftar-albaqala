@@ -407,16 +407,40 @@ describe('POS notes', () => {
     assert.deepEqual(await pullNotes(token), []);
   });
 
-  test('only the owner deletes; the text is never edited', async () => {
+  test('the author edits and deletes their own note; the owner any; another member none', async () => {
     const t = await staffWith(['sell', 'notes']);
     const n = aNote();
     await push(t, [n]);
-    const byStaff = await push(t, [{ ...n, deleted_at: '2026-11-10T09:00:00Z' }]);
-    assert.equal(byStaff.body.notes.rejected[0].reason, 'forbidden');
-    await push(token, [{ ...n, body: 'نص آخر', deleted_at: '2026-11-10T09:00:00Z' }]);
-    const [[row]] = await pool.query('SELECT body, deleted_at FROM pos_notes WHERE id = ?', [n.id]) as unknown as [[Record<string, unknown>]];
-    assert.equal(row.body, 'نفد الكيس الكبير');
+    // the author edits (last edit wins on edited_at)
+    const edit = await push(t, [{ ...n, body: 'نفد الكيس الصغير', edited_at: '2026-11-10T09:00:00Z' }]);
+    assert.deepEqual(edit.body.notes.accepted, [n.id]);
+    // an older edit does not win
+    await push(t, [{ ...n, body: 'قديم', edited_at: '2026-11-10T08:00:00Z' }]);
+    let [[row]] = await pool.query('SELECT body, edited_at, deleted_at FROM pos_notes WHERE id = ?', [n.id]) as unknown as [[Record<string, unknown>]];
+    assert.equal(row.body, 'نفد الكيس الصغير');
+    assert.ok(row.edited_at);
+    // the owner edits it too
+    await push(token, [{ ...n, body: 'تعديل المالك', edited_at: '2026-11-10T10:00:00Z' }]);
+    [[row]] = await pool.query('SELECT body FROM pos_notes WHERE id = ?', [n.id]) as unknown as [[Record<string, unknown>]];
+    assert.equal(row.body, 'تعديل المالك');
+    // the author deletes it
+    const del = await push(t, [{ ...n, body: 'تعديل المالك', deleted_at: '2026-11-10T11:00:00Z' }]);
+    assert.deepEqual(del.body.notes.accepted, [n.id]);
+    [[row]] = await pool.query('SELECT deleted_at FROM pos_notes WHERE id = ?', [n.id]) as unknown as [[Record<string, unknown>]];
     assert.ok(row.deleted_at);
+  });
+
+  test("another member cannot edit or delete someone else's note", async () => {
+    const owner2Note = aNote();
+    await push(token, [owner2Note]); // the owner's note
+    const t = await staffWith(['sell', 'notes']);
+    const edit = await push(t, [{ ...owner2Note, body: 'محاولة', edited_at: '2026-11-10T09:00:00Z' }]);
+    assert.equal(edit.body.notes.rejected[0].reason, 'forbidden');
+    const del = await push(t, [{ ...owner2Note, deleted_at: '2026-11-10T09:00:00Z' }]);
+    assert.equal(del.body.notes.rejected[0].reason, 'forbidden');
+    const [[row]] = await pool.query('SELECT body, deleted_at FROM pos_notes WHERE id = ?', [owner2Note.id]) as unknown as [[Record<string, unknown>]];
+    assert.equal(row.body, 'نفد الكيس الكبير');
+    assert.equal(row.deleted_at, null);
   });
 
   test('invalid notes are refused; another shop never sees them', async () => {

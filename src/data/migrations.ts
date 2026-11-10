@@ -339,6 +339,13 @@ CREATE TABLE IF NOT EXISTS pos_notes (
       await db.run('ALTER TABLE customers ADD COLUMN reminder_consent INTEGER NOT NULL DEFAULT 0');
     },
   },
+  {
+    version: 14,
+    name: 'pos_notes.edited_at (a note can be edited by its author or the owner)',
+    async run(db) {
+      await db.run('ALTER TABLE pos_notes ADD COLUMN edited_at TEXT');
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

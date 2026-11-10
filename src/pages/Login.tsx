@@ -61,7 +61,9 @@ const Login: React.FC = () => {
       }
       // Success: AuthProvider flips isAuthenticated; App.tsx routes onward.
     } catch (err) {
-      if (err instanceof ApiError && err.status === 429) {
+      if (staffMode && err instanceof ApiError && err.status === 423) {
+        setError('تم قفل الحساب بسبب محاولات دخول خاطئة متكررة. تواصل مع صاحب المتجر.');
+      } else if (err instanceof ApiError && err.status === 429) {
         setError('محاولات كثيرة خاطئة. حاول بعد ربع ساعة.');
       } else if (staffMode && err instanceof ApiError && err.status === 401) {
         setError('رقم الهاتف أو كلمة المرور غير صحيحة.');

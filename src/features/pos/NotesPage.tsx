@@ -1,18 +1,21 @@
 import { useCallback, useState } from 'react';
 import {
-  IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonList, IonItem, IonLabel, IonText,
+  IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonList, IonItem, IonLabel, IonText,
   IonButton, IonIcon, IonTextarea, IonFooter, IonNote, useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
-import { sendOutline, timeOutline } from 'ionicons/icons';
+import { createOutline, sendOutline, shareSocialOutline, timeOutline } from 'ionicons/icons';
+import { Share } from '@capacitor/share';
 import PosFooter from './PosFooter';
 import { ICONS } from './icons';
-import { NOTE_MAX, addNote, deleteNote, listNotes, type PosNote } from './notes';
+import { NOTE_MAX, addNote, deleteNote, editNote, listNotes, type PosNote } from './notes';
 import { useAuth } from '../../lib/auth';
+import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 
 // «الملاحظات» — the shop's notes, newest first. Everyone allowed here can
-// write; only the owner can delete (a staff member's delete would be refused
-// by the server, so it is not offered). A note shows a clock until the server
-// has it — that is also when its author's name arrives.
+// write and share any note; a note is edited or deleted by whoever wrote it,
+// or by the owner (the server refuses anyone else, so it is not offered). A
+// note shows a clock until the server has it — that is also when its author's
+// name arrives.
 
 const when = (iso: string): string => {
   const d = new Date(iso);
@@ -30,6 +33,7 @@ const NotesPage: React.FC = () => {
 
   const load = useCallback(async () => { setNotes(await listNotes()); }, []);
   useIonViewWillEnter(() => { void load(); });
+  const pull = usePosRefresh(load);
 
   const author = (n: PosNote): string => {
     if (n.pending) return staff ? staff.name : 'صاحب المتجر'; // written here; the server signs it on sync
@@ -47,6 +51,38 @@ const NotesPage: React.FC = () => {
     }
   };
 
+  /** The owner, or the member who wrote it (a note still on this phone is ours). */
+  const mayChange = (n: PosNote) =>
+    !staff || n.authorStaffId === staff.id || (n.pending && n.authorStaffId === null && !n.authorName);
+
+  const edit = (n: PosNote) => {
+    presentAlert({
+      header: 'تعديل الملاحظة',
+      inputs: [{ name: 'body', type: 'textarea', value: n.body, attributes: { maxlength: NOTE_MAX } }],
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        {
+          text: 'حفظ',
+          handler: (v: { body?: string }) => {
+            void editNote(n.id, v.body ?? '').then(load).catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : 'حدث خطأ');
+            });
+          },
+        },
+      ],
+    });
+  };
+
+  const share = async (n: PosNote) => {
+    const text = `${n.body}\n— ${author(n)} · ${when(n.createdAt)}`;
+    try {
+      await Share.share({ text, dialogTitle: 'مشاركة الملاحظة' });
+    } catch {
+      // cancelled, or no share on this platform — copy instead
+      try { await navigator.clipboard.writeText(text); } catch { /* nothing more to do */ }
+    }
+  };
+
   const remove = (n: PosNote) => {
     presentAlert({
       header: 'حذف الملاحظة',
@@ -60,8 +96,14 @@ const NotesPage: React.FC = () => {
 
   return (
     <IonPage>
-      <IonHeader><IonToolbar><IonTitle>الملاحظات</IonTitle></IonToolbar></IonHeader>
+      <IonHeader>
+        <IonToolbar>
+          <IonTitle>الملاحظات</IonTitle>
+          <IonButtons slot="end"><RefreshButton busy={pull.busy} onClick={() => { void pull.run(); }} /></IonButtons>
+        </IonToolbar>
+      </IonHeader>
       <IonContent>
+        <PosRefresher onRefresh={pull.run} />
         {notes.length === 0 ? (
           <IonText color="medium">
             <p className="ion-text-center ion-padding">لا توجد ملاحظات بعد.</p>
@@ -76,11 +118,20 @@ const NotesPage: React.FC = () => {
                     {n.pending && <IonIcon icon={timeOutline} aria-label="لم تُرفع بعد" style={{ marginInlineStart: 6 }} />}
                   </p>
                   <h2 style={{ whiteSpace: 'pre-wrap', fontSize: '1.1rem' }}>{n.body}</h2>
+                  {n.editedAt && <p style={{ fontSize: '.8rem' }}>(معدّلة)</p>}
                 </IonLabel>
-                {!staff && (
-                  <IonButton slot="end" fill="clear" color="danger" aria-label="حذف الملاحظة" onClick={() => remove(n)}>
-                    <IonIcon slot="icon-only" icon={ICONS.trash} />
-                  </IonButton>
+                <IonButton slot="end" fill="clear" aria-label="مشاركة الملاحظة" onClick={() => { void share(n); }}>
+                  <IonIcon slot="icon-only" icon={shareSocialOutline} />
+                </IonButton>
+                {mayChange(n) && (
+                  <>
+                    <IonButton slot="end" fill="clear" aria-label="تعديل الملاحظة" onClick={() => edit(n)}>
+                      <IonIcon slot="icon-only" icon={createOutline} />
+                    </IonButton>
+                    <IonButton slot="end" fill="clear" color="danger" aria-label="حذف الملاحظة" onClick={() => remove(n)}>
+                      <IonIcon slot="icon-only" icon={ICONS.trash} />
+                    </IonButton>
+                  </>
                 )}
               </IonItem>
             ))}

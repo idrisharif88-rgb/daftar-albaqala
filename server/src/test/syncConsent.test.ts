@@ -81,6 +81,22 @@ describe('sync consent', () => {
     assert.equal((await pull()).status, 200);
   });
 
+  test('switching sync OFF forgets the answer: the next switch-on asks again', async () => {
+    await pool.query("UPDATE users SET sync_consent = 'approved' WHERE id = ?", [user]);
+    await adminActivate();
+    assert.equal(await consent(), 'approved');
+    resetAdminLoginState();
+    const login = await request(app).post('/admin/login')
+      .send({ phone: ADMIN_PHONE, password: ADMIN_PASSWORD, code: codeAt() });
+    const off = await request(app).post(`/admin/users/${user}/status`).set(AUTH(login.body.token))
+      .send({ status: 'none', code: codeAt(1) });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    assert.equal(await consent(), 'none');
+    await adminActivate();
+    assert.equal(await consent(), 'pending');
+    assert.equal((await pull()).status, 402);
+  });
+
   test('only the shopkeeper answers: a bad body, no token, a staff token are all refused', async () => {
     assert.equal((await request(app).post('/account/sync-consent').set(AUTH(token)).send({ approve: 'yes' })).status, 400);
     assert.equal((await request(app).post('/account/sync-consent').send({ approve: true })).status, 401);

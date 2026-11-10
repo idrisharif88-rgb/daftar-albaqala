@@ -1458,3 +1458,30 @@ Branch `staff-report` (on top of `debt-limit-reminders`). Server migration **018
 - App: «الموظفون» → chart icon per member (owner, switch on) → `/pos/staff/:id/report`
   (`StaffReportPage`): اليوم / أمس / 7 أيام / هذا الشهر; per day: دخول/خروج times, pieces sold, amount.
 - ⚠️ **MIGRATION 018 REQUIRED** after 017 (root): local `daftar_test` + `daftar_db`, then droplet.
+
+## Status — BUILT (Phase 35: the owner's test-notes round) (2026-11-10)
+Branch `test-notes-round`. Server migration **019**; server 183/183, app 134/134. Local migration 14.
+Discussed 3 at a time, each confirmed by the owner (memory: «Confirmed plans to build»).
+- **Permanent stock at 0** is hidden from «المخزون الدائم»; the «+» picker offers it again.
+- **Cashier with nothing to sell:** «لا توجد كميات للبيع. تواصل مع مُدخل الكميات أو المدير.»
+- **Staff phone already in the book** (customer / partner / shop owner, last 9 digits,
+  `findContactByPhone`): a WARNING with «متابعة / إلغاء» — not a block.
+- **Refresh:** `src/features/pos/PosRefresh.tsx` — header icon (بيع / المنتجات / الملاحظات) +
+  pull-down on all four POS screens: `refreshAccess()` (auth.tsx, re-reads /me or /auth/staff/me →
+  staff permissions + tabs apply at once) + `runPosSync()` + redraw.
+- **Sync after each sale: instant**, background (`requestPosSync`: runs now, or one queued run if
+  a sync is in flight). The 3 s debounce is gone.
+- **Staff login lock:** 4 wrong passwords in a row → 423, refused even with the right password,
+  until the owner sets a new one (`pos_staff.failed_logins` / `locked_at`; a right password resets
+  the count). Login: «تم قفل الحساب بسبب محاولات دخول خاطئة متكررة. تواصل مع صاحب المتجر.»;
+  «الموظفون» shows «مقفل».
+- **Notes: edit / delete / share.** Author or owner edits and deletes (server: `forbidden` for anyone
+  else); edit = LWW on `pos_notes.edited_at`; «(معدّلة)»; share = system share sheet.
+- **Developer sees all notes:** `GET /admin/users/:id/notes`, Watcher «المزيد» → «عرض الملاحظات»
+  (`watcher/src/pages/ShopNotes.tsx`).
+- **Sync approval asked at once, for every user (both apps):** `refreshAccess` runs on app resume
+  and every minute, so `SyncConsentPrompt` appears as soon as the Watcher asks. Switching sync OFF
+  (once neither app syncs) resets `sync_consent` to `none`, so the next switch-on asks again.
+- ⚠️ **MIGRATION 019 REQUIRED** (root): local `daftar_test` ✓ + `daftar_db`, then droplet.
+- Still open: «تذكير فليكتب» as a separate app (decided, not built — then remove the `direct`
+  build from فليكتب); debt-limit failure to test on the device; re-test PDF tests 26–36.

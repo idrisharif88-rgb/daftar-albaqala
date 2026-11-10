@@ -604,6 +604,11 @@ const Accounts: React.FC = () => {
                 <IonNote slot="end">{managed.pos_report_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
               </IonItem>
             )}
+            {managed.pos_enabled && (
+              <IonItem button detail onClick={() => { const id = managed.id; setManageId(null); setTimeout(() => router.push(`/accounts/${id}/notes`), 350); }}>
+                <IonLabel>عرض الملاحظات</IonLabel>
+              </IonItem>
+            )}
             {managed.pos_staff_enabled && (
               <IonItem button detail onClick={() => { const id = managed.id; setManageId(null); setTimeout(() => router.push(`/accounts/${id}/staff`), 350); }}>
                 <IonLabel>عرض تقارير الموظفين</IonLabel>

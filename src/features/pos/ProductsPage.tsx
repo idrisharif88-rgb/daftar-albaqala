@@ -6,6 +6,7 @@ import {
 } from '@ionic/react';
 import { trashOutline } from 'ionicons/icons';
 import { ICONS } from './icons';
+import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 import PosFooter from './PosFooter';
 import IconButton from './IconButton';
 import { matchesQuery } from './search';
@@ -68,6 +69,7 @@ const ProductsPage: React.FC = () => {
     setLoading(false);
   }, []);
   useIonViewWillEnter(() => { void load(); });
+  const pull = usePosRefresh(load);
 
   // The barcode of the open product, drawn on demand.
   useEffect(() => {
@@ -257,6 +259,7 @@ const ProductsPage: React.FC = () => {
           </IonButtons>
           <IonTitle>المنتجات</IonTitle>
           <IonButtons slot="end">
+            <RefreshButton busy={pull.busy} onClick={() => { void pull.run(); }} />
             <IconButton name="copyList" onClick={() => { void copyList(); }} />
             <IconButton name="importList" onClick={importList} />
             <IconButton name="addList" onClick={addMany} />
@@ -275,6 +278,7 @@ const ProductsPage: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <PosRefresher onRefresh={pull.run} />
         {!loading && products.length > 0 && (
           <div className="items-count">
             {search.trim()

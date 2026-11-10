@@ -2,7 +2,7 @@ import {
   add, arrowUndoOutline, checkmarkCircle, bookOutline, cameraOutline, cardOutline, cartOutline, copyOutline,
   downloadOutline, listOutline, pricetagsOutline, printOutline, shareSocialOutline,
   syncOutline, timeOutline, todayOutline, trashOutline, peopleOutline, personCircleOutline, chatbubblesOutline,
-  barChartOutline,
+  barChartOutline, refreshOutline,
 } from 'ionicons/icons';
 
 // The icons of the app's sections and of the POS section, in ONE place.
@@ -37,6 +37,7 @@ export const ICONS = {
   account: personCircleOutline,
   notes: chatbubblesOutline,
   report: barChartOutline,
+  refresh: refreshOutline,
 } as const;
 
 export type IconName = keyof typeof ICONS;
@@ -64,4 +65,5 @@ export const ICON_LABELS: Record<IconName, string> = {
   account: 'حسابي',
   notes: 'الملاحظات',
   report: 'التقرير',
+  refresh: 'تحديث',
 };

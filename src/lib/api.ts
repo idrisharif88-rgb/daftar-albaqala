@@ -128,7 +128,11 @@ export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null
   return request('/auth/staff/me');
 }
 
-export interface StaffMember extends StaffInfo { phone: string; disabled: boolean; created_at: string }
+export interface StaffMember extends StaffInfo {
+  phone: string; disabled: boolean; created_at: string;
+  /** Locked after 4 wrong passwords; a new password unlocks. Absent from an older server. */
+  locked?: boolean;
+}
 
 /** Sign the staff member out on the server — closes their session for the
  *  owner's report. */
@@ -364,6 +368,8 @@ export interface PosTableAck { accepted: string[]; rejected: { id: string; reaso
  *  phone sends only what it wrote. */
 export interface PosNoteRow {
   id: string; day: string; body: string; created_at: string; deleted_at: string | null;
+  /** When the text was last edited (editor's clock); null = never. */
+  edited_at?: string | null;
   updated_at?: string; author_staff_id?: string | null; author_name?: string;
 }
 export interface PosPushBody {

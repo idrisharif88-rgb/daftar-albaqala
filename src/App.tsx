@@ -27,7 +27,7 @@ import BiometricGate from './components/BiometricGate';
 import SplashIntro from './components/SplashIntro';
 import { FLAVOR } from './flavors';
 import { POS_ENABLED } from './config';
-import { runPosSync } from './features/pos/posSync';
+import { requestPosSync, runPosSync } from './features/pos/posSync';
 import { setPosKick } from './features/pos/posSyncKick';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -91,24 +91,20 @@ const AutoSync: React.FC = () => {
 };
 
 // Sync of the point-of-sale section, for an account that has it: once on app
-// open, whenever the network returns, and ~3 s after anything changes (the data
-// layer calls the kick; a burst of sales becomes one sync). Silent: an account
+// open, whenever the network returns, and at once after anything changes (the
+// data layer calls the kick; sales made during a run share the next one). Silent: an account
 // without server sync gets a 402, which is simply "nothing to do".
 const PosAutoSync: React.FC = () => {
   const { isAuthenticated, isOwner, posAllowed } = useAuth();
   const allowed = isAuthenticated && POS_ENABLED && (isOwner || posAllowed);
   useEffect(() => {
     if (!allowed) return undefined;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    setPosKick(() => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => { void runPosSync(); }, 3000);
-    });
+    // Instantly, in the background, after every change (a sale, stock, a note).
+    setPosKick(requestPosSync);
     void runPosSync();
     const onOnline = () => void runPosSync();
     window.addEventListener('online', onOnline);
     return () => {
-      if (timer) clearTimeout(timer);
       setPosKick(null);
       window.removeEventListener('online', onOnline);
     };
