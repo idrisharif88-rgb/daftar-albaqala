@@ -26,7 +26,7 @@ import {
   retentionDue, keepForAnotherYear, deleteOlderThanYear, getDayLock, lockDay, unlockDay, eraseDay,
   removeProductFromDay,
 } from './stock';
-import { deleteProduct, exportProductsJson, importProductsJson, listProducts } from './products';
+import { deleteProduct, exportProductsJson, importProductsJson, listProducts, updateProduct } from './products';
 import { parseScannedCode } from '../../lib/productCodes';
 
 beforeAll(async () => {
@@ -253,5 +253,46 @@ describe("removing one product from today's list", () => {
     await removeProductFromDay(p.id);
     const after = await getDayLock();
     expect([after.locked, after.reopened]).toEqual([false, before.reopened + 1]);
+  });
+});
+
+describe('carry-over (non-daily) stock', () => {
+  it('stock runs across days, ignores the day lock, and is left out of the day totals and the erase', async () => {
+    const v = await createProduct({ name: 'خل', price: 700, daily: false });
+    const d = await createProduct({ name: 'خبز يومي', price: 100 });
+    expect(v.daily).toBe(false);
+    await addBaked(v.id, 10, '2020-02-01');          // stocked on an earlier day
+    await addBaked(d.id, 5);
+    await lockDay();                                  // today is submitted…
+    await addBaked(v.id, 4);                          // …stock can still be added
+    await recordSale(v); await recordSale(v);
+
+    const rows = await getDayRows();
+    const rv = rows.find((r) => r.product.id === v.id)!;
+    expect([rv.baked, rv.sold, rv.left]).toEqual([4, 2, 12]); // 10 + 4 − 2
+    const t = totalsOf(rows);
+    expect(t.sold).toBeGreaterThanOrEqual(2);
+    // the vinegar's stock is not today's baking
+    expect(rows.filter((r) => r.product.daily).reduce((n, r) => n + r.baked, 0)).toBe(t.baked);
+
+    await eraseDay();                                 // clears the day's list only
+    const after = (await getDayRows()).find((r) => r.product.id === v.id)!;
+    expect(after.left).toBe(12);
+  });
+
+  it('refuses to take stock below what was sold, over all days', async () => {
+    const h = await createProduct({ name: 'عسل', price: 9000, daily: false });
+    await addBaked(h.id, 3, '2020-03-01');
+    await recordSale(h);
+    await expect(addBaked(h.id, -3)).rejects.toThrow('أقل من المباع');
+    await addBaked(h.id, -2);                         // 3 − 2 = 1 ≥ 1 sold
+    expect((await getDayRows()).find((r) => r.product.id === h.id)!.left).toBe(0);
+  });
+
+  it('can be switched on an existing product', async () => {
+    const p = await createProduct({ name: 'سمن', price: 5000 });
+    expect(p.daily).toBe(true);
+    await updateProduct(p.id, { name: 'سمن', price: 5000, daily: false });
+    expect((await listProducts()).find((x) => x.id === p.id)!.daily).toBe(false);
   });
 });

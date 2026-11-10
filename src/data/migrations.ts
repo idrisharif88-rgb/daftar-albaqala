@@ -296,6 +296,15 @@ CREATE TABLE IF NOT EXISTS pos_day_lock (
       );
     },
   },
+  {
+    version: 11,
+    name: 'pos_products.daily (1 = baked fresh each day, 0 = stock that carries over)',
+    async run(db) {
+      // Vinegar, honey and ghee are not baked every morning: their stock is a
+      // running total across days. Every existing product stays daily.
+      await db.run('ALTER TABLE pos_products ADD COLUMN daily INTEGER NOT NULL DEFAULT 1');
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

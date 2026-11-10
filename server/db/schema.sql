@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS pos_products (
   name        VARCHAR(255) NOT NULL,
   code        CHAR(13)     NOT NULL,              -- EAN-13, issued once, never edited
   price       BIGINT       NOT NULL DEFAULT 0,    -- minor units
+  daily       TINYINT(1)   NOT NULL DEFAULT 1,    -- 0 = stock that carries over between days (013)
   created_at  DATETIME(3)  NOT NULL,
   updated_at  DATETIME(3)  NOT NULL,
   deleted_at  DATETIME(3)  NULL,                  -- tombstone (synced)

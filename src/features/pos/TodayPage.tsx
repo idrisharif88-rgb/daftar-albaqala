@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonList, IonItem, IonLabel,
-  IonText, IonSpinner, IonBadge, IonButton, IonIcon, IonFab, IonFabButton, IonModal, IonSearchbar,
+  IonText, IonListHeader, IonSpinner, IonBadge, IonButton, IonIcon, IonFab, IonFabButton, IonModal, IonSearchbar,
   useIonViewWillEnter, useIonAlert, useIonToast,
 } from '@ionic/react';
 import { remove, lockClosedOutline, checkmarkCircle } from 'ionicons/icons';
@@ -88,6 +88,7 @@ const TodayPage: React.FC = () => {
   const nudge = (r: DayRow, by: 1 | -1) => {
     setRows((all) => all.map((x) => x.product.id === r.product.id
       ? { ...x, baked: x.baked + by, left: x.left + by } : x));
+    // (for a carry-over product `left` is the shelf stock, which moves the same way)
     addBaked(r.product.id, by).catch((err: unknown) => {
       void load(); // show the truth again
       presentNote({ header: 'لا يمكن التعديل', message: err instanceof Error ? err.message : 'حدث خطأ', buttons: ['حسناً'] });
@@ -98,7 +99,7 @@ const TodayPage: React.FC = () => {
   const askBaked = (r: DayRow) => {
     presentAlert({
       header: r.product.name,
-      message: `مخبوز اليوم: ${r.baked}. كم تضيف؟`,
+      message: r.product.daily ? `مخبوز اليوم: ${r.baked}. كم تضيف؟` : `المخزون الحالي: ${r.left}. كم تضيف؟`,
       inputs: [{ name: 'n', type: 'text', placeholder: 'العدد', attributes: { inputmode: 'numeric' } }],
       buttons: [
         { text: 'إلغاء', role: 'cancel' },
@@ -226,8 +227,12 @@ const TodayPage: React.FC = () => {
   const t = totalsOf(rows);
   // Only what is part of today: baked or sold. A product with nothing today is
   // not shown — thirty rows of zeros bury the five that matter.
-  const active = rows.filter((r) => r.baked !== 0 || r.sold !== 0);
-  const idle = rows.filter((r) => r.baked === 0 && r.sold === 0);
+  // Carry-over products (vinegar, honey, ghee) are a list of their own: they
+  // are always shown, with the stock on the shelf, whatever happened today.
+  const dailyRows = rows.filter((r) => r.product.daily);
+  const stockRows = rows.filter((r) => !r.product.daily);
+  const active = dailyRows.filter((r) => r.baked !== 0 || r.sold !== 0);
+  const idle = dailyRows.filter((r) => r.baked === 0 && r.sold === 0);
   const pickable = idle.filter((r) => matchesQuery(r.product, pickSearch));
   return (
     <IonPage>
@@ -305,7 +310,7 @@ const TodayPage: React.FC = () => {
           <IonText color="medium">
             <p className="ion-text-center ion-padding">أضف منتجاتك أولاً من تبويب «المنتجات».</p>
           </IonText>
-        ) : active.length === 0 ? (
+        ) : active.length === 0 && stockRows.length > 0 ? null : active.length === 0 ? (
           <IonText color="medium">
             <p className="ion-text-center ion-padding">
               لا توجد منتجات لهذا اليوم بعد. اضغط ➕ لإضافة ما خبزته.
@@ -358,6 +363,44 @@ const TodayPage: React.FC = () => {
                       <IonIcon slot="icon-only" icon={ICONS.add} />
                     </IonButton>
                   )}
+                </div>
+              </IonItem>
+            ))}
+          </IonList>
+        )}
+
+        {stockRows.length > 0 && (
+          <IonList>
+            <IonListHeader><IonLabel>المخزون الدائم</IonLabel></IonListHeader>
+            {stockRows.map((r) => (
+              <IonItem key={r.product.id}>
+                <IonLabel className="ion-text-wrap">
+                  <h2>{r.product.name}</h2>
+                  <p>
+                    مباع اليوم {r.sold} · في المخزون{' '}
+                    {r.left <= 0 ? <IonBadge color="danger">نفد</IonBadge> : <b>{r.left}</b>}
+                  </p>
+                </IonLabel>
+                <div slot="end" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <IonButton
+                    fill="outline" shape="round" aria-label="إنقاص"
+                    disabled={r.left <= 0} onClick={() => nudge(r, -1)}
+                  >
+                    <IonIcon slot="icon-only" icon={remove} />
+                  </IonButton>
+                  <button
+                    type="button" onClick={() => askBaked(r)} aria-label="إضافة مخزون"
+                    style={{
+                      minWidth: 44, padding: '8px 4px', font: 'inherit', fontWeight: 700,
+                      fontSize: '1.25rem', background: 'transparent', border: 0,
+                      color: 'inherit', fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {r.left}
+                  </button>
+                  <IonButton shape="round" aria-label="زيادة" onClick={() => nudge(r, 1)}>
+                    <IonIcon slot="icon-only" icon={ICONS.add} />
+                  </IonButton>
                 </div>
               </IonItem>
             ))}

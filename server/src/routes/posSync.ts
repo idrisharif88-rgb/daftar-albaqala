@@ -69,6 +69,7 @@ router.post(
         const name = str(p.name).trim();
         const code = str(p.code);
         const price = Number(p.price);
+        const daily = p.daily === 0 || p.daily === false ? 0 : 1;
         const updatedAt = toDate(p.updated_at);
         const createdAt = toDate(p.created_at) ?? updatedAt;
         const deletedAt = p.deleted_at ? toDate(p.deleted_at) : null;
@@ -88,9 +89,9 @@ router.post(
           // the server already holds something at least as new.
           if (updatedAt.getTime() > asDate(existing.updated_at).getTime()) {
             await conn.query(
-              `UPDATE pos_products SET name = ?, price = ?, updated_at = ?, deleted_at = ?
+              `UPDATE pos_products SET name = ?, price = ?, daily = ?, updated_at = ?, deleted_at = ?
                 WHERE id = ? AND user_id = ?`,
-              [name, price, updatedAt, deletedAt, id, userId]
+              [name, price, daily, updatedAt, deletedAt, id, userId]
             );
           }
           result.products.accepted.push(id);
@@ -98,9 +99,9 @@ router.post(
         }
         try {
           await conn.query(
-            `INSERT INTO pos_products (id, user_id, name, code, price, created_at, updated_at, deleted_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, userId, name, code, price, createdAt, updatedAt, deletedAt]
+            `INSERT INTO pos_products (id, user_id, name, code, price, daily, created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, userId, name, code, price, daily, createdAt, updatedAt, deletedAt]
           );
           result.products.accepted.push(id);
         } catch (err) {
@@ -246,7 +247,7 @@ router.get(
       return { rows: all.length > limit ? all.slice(0, limit) : all, more: all.length > limit };
     };
 
-    const p = await fetchPage('pos_products', 'id, name, code, price, created_at, updated_at, deleted_at', 'id', cursor.products);
+    const p = await fetchPage('pos_products', 'id, name, code, price, daily, created_at, updated_at, deleted_at', 'id', cursor.products);
     const b = await fetchPage('pos_baked', 'id, product_id, day, qty, created_at', 'id', cursor.baked);
     const s = await fetchPage('pos_sales', 'id, product_id, day, qty, price, created_at', 'id', cursor.sales);
     const l = await fetchPage('pos_day_lock', 'day, locked_at, reopened, updated_at', 'day', cursor.locks);

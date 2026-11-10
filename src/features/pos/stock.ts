@@ -17,20 +17,26 @@ export { localDay };
 
 export interface DayRow {
   product: PosProduct;
+  /** A daily product: baked today. A carry-over product: stock ADDED today. */
   baked: number;
   sold: number;
+  /** Daily: baked − sold today. Carry-over: the stock on the shelf, all days. */
   left: number;
   /** Takings, minor units: each sale at the price it was made at. */
   revenue: number;
 }
 
+const DAILY_IDS = 'SELECT id FROM pos_products WHERE daily = 1';
+
 export async function getDayRows(day: string = localDay()): Promise<DayRow[]> {
   const db = await getDB();
   const res = await db.query(
-    `SELECT p.id, p.name, p.code, p.price, p.created_at, p.updated_at,
+    `SELECT p.id, p.name, p.code, p.price, p.daily, p.created_at, p.updated_at,
        COALESCE((SELECT SUM(qty) FROM pos_baked b WHERE b.product_id = p.id AND b.day = ?), 0) AS baked,
        COALESCE((SELECT SUM(qty) FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?), 0) AS sold,
-       COALESCE((SELECT SUM(qty * price) FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?), 0) AS revenue
+       COALESCE((SELECT SUM(qty * price) FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?), 0) AS revenue,
+       COALESCE((SELECT SUM(qty) FROM pos_baked b WHERE b.product_id = p.id), 0) -
+       COALESCE((SELECT SUM(qty) FROM pos_sales s WHERE s.product_id = p.id), 0) AS stock
      FROM pos_products p
      WHERE p.deleted_at IS NULL
         OR EXISTS (SELECT 1 FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?)
@@ -41,22 +47,27 @@ export async function getDayRows(day: string = localDay()): Promise<DayRow[]> {
   return ((res.values ?? []) as Record<string, unknown>[]).map((r) => {
     const baked = Number(r.baked) || 0;
     const sold = Number(r.sold) || 0;
+    const daily = Number(r.daily ?? 1) !== 0;
     return {
       product: {
         id: String(r.id), name: String(r.name), code: String(r.code),
-        price: Number(r.price) || 0,
+        price: Number(r.price) || 0, daily,
         created_at: String(r.created_at), updated_at: String(r.updated_at),
       },
-      baked, sold, left: baked - sold, revenue: Number(r.revenue) || 0,
+      baked, sold, left: daily ? baked - sold : Number(r.stock) || 0,
+      revenue: Number(r.revenue) || 0,
     };
   });
 }
 
+/** The day's totals. Baked and left count DAILY products only — a carry-over
+ *  product's shelf stock is not today's baking — while sold and takings count
+ *  everything sold today. */
 export function totalsOf(rows: DayRow[]): { baked: number; sold: number; left: number; revenue: number } {
   return rows.reduce(
     (t, r) => ({
-      baked: t.baked + r.baked, sold: t.sold + r.sold,
-      left: t.left + r.left, revenue: t.revenue + r.revenue,
+      baked: t.baked + (r.product.daily ? r.baked : 0), sold: t.sold + r.sold,
+      left: t.left + (r.product.daily ? r.left : 0), revenue: t.revenue + r.revenue,
     }),
     { baked: 0, sold: 0, left: 0, revenue: 0 },
   );
@@ -110,14 +121,22 @@ export async function unlockDay(day: string = localDay()): Promise<void> {
  *  a submitted day, and refused if it would leave less baked than sold. */
 export async function addBaked(productId: string, qty: number, day: string = localDay()): Promise<void> {
   if (!Number.isInteger(qty) || qty === 0) throw new Error('أدخل عدداً صحيحاً');
-  if ((await getDayLock(day)).locked) {
+  const db = await getDB();
+  // A carry-over product is stock, not the day's baking: the day's lock does
+  // not apply, and «baked vs sold» is counted over ALL days.
+  const prod = ((await db.query('SELECT daily FROM pos_products WHERE id = ?', [productId])).values ?? [])[0] as
+    { daily: number } | undefined;
+  const carryOver = !!prod && Number(prod.daily) === 0;
+  if (!carryOver && (await getDayLock(day)).locked) {
     throw new Error('الكميات معتمدة. اضغط «تعديل» لإعادة فتحها أولاً.');
   }
-  const db = await getDB();
   const cur = ((await db.query(
-    `SELECT COALESCE((SELECT SUM(qty) FROM pos_baked WHERE product_id = ? AND day = ?), 0) AS baked,
-            COALESCE((SELECT SUM(qty) FROM pos_sales WHERE product_id = ? AND day = ?), 0) AS sold`,
-    [productId, day, productId, day],
+    carryOver
+      ? `SELECT COALESCE((SELECT SUM(qty) FROM pos_baked WHERE product_id = ?), 0) AS baked,
+                COALESCE((SELECT SUM(qty) FROM pos_sales WHERE product_id = ?), 0) AS sold`
+      : `SELECT COALESCE((SELECT SUM(qty) FROM pos_baked WHERE product_id = ? AND day = ?), 0) AS baked,
+                COALESCE((SELECT SUM(qty) FROM pos_sales WHERE product_id = ? AND day = ?), 0) AS sold`,
+    carryOver ? [productId, productId] : [productId, day, productId, day],
   )).values ?? [])[0] as { baked: number; sold: number };
   const baked = Number(cur.baked) || 0;
   const sold = Number(cur.sold) || 0;
@@ -245,7 +264,8 @@ async function reverseDay(
 ): Promise<{ baked: number; sold: number }> {
   const db = await getDB();
   const now = new Date().toISOString();
-  const only = productId ? ' AND product_id = ?' : '';
+  // Carry-over stock is not part of a day's list: it is never reversed here.
+  const only = ` AND product_id IN (${DAILY_IDS})` + (productId ? ' AND product_id = ?' : '');
   const args = productId ? [day, productId] : [day];
   const sales = ((await db.query(
     `SELECT product_id, price, SUM(qty) AS qty FROM pos_sales WHERE day = ?${only}

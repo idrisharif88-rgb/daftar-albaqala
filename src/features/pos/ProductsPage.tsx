@@ -51,6 +51,7 @@ const ProductsPage: React.FC = () => {
   const [editing, setEditing] = useState<PosProduct | null>(null);
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
+  const [daily, setDaily] = useState(true);
   const [qr, setQr] = useState('');
   // Which products' labels to print (ids).
   const pickModal = useRef<HTMLIonModalElement>(null);
@@ -77,6 +78,7 @@ const ProductsPage: React.FC = () => {
     setEditing(p);
     setName(p?.name ?? '');
     setPrice(p ? String(fromMinor(p.price)) : '');
+    setDaily(p ? p.daily : true);
     setError(null);
     void modal.current?.present();
   };
@@ -88,8 +90,8 @@ const ProductsPage: React.FC = () => {
     if (!price.trim() || Number.isNaN(major) || major < 0) { setError('أدخل سعراً صحيحاً'); return; }
     setSaving(true);
     try {
-      if (editing) await updateProduct(editing.id, { name, price: toMinor(major) });
-      else await createProduct({ name, price: toMinor(major) });
+      if (editing) await updateProduct(editing.id, { name, price: toMinor(major), daily });
+      else await createProduct({ name, price: toMinor(major), daily });
       await load();
       await modal.current?.dismiss();
     } catch (err) {
@@ -376,6 +378,17 @@ const ProductsPage: React.FC = () => {
                 placeholder="0"
               />
             </IonItem>
+
+            <IonItem lines="none">
+              <IonCheckbox checked={daily} onIonChange={(e) => setDaily(e.detail.checked)} labelPlacement="end">
+                يُخبز كل يوم
+              </IonCheckbox>
+            </IonItem>
+            {!daily && (
+              <IonNote className="ion-padding-start">
+                مخزون يستمر من يوم لآخر (مثل الخل والعسل والسمن) ويظهر دائماً في «اليوم».
+              </IonNote>
+            )}
 
             {error && (
               <IonNote color="danger" className="ion-padding-start"><IonText>{error}</IonText></IonNote>

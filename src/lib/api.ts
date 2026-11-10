@@ -277,6 +277,8 @@ export function syncPull(since?: string | null, limit?: number): Promise<PullRes
 
 export interface PosProductRow {
   id: string; name: string; code: string; price: number;
+  /** 1 = daily, 0 = carries-over stock. Absent from an older server = daily. */
+  daily?: number;
   created_at: string; updated_at: string; deleted_at: string | null;
 }
 export interface PosBakedRow { id: string; product_id: string; day: string; qty: number; created_at: string }
