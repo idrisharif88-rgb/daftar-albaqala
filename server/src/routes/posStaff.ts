@@ -5,7 +5,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { PosRequest } from '../middleware/posActor';
 import { buildStaffReport, reportEnabled, validRange } from '../pos/staffReport';
-import { PIN_RE, hashPin } from '../pos/managerPin';
+import { PIN_RE, hashPin, weakPin } from '../pos/managerPin';
 import { normalizePhone, isValidPhone } from '../auth/phone';
 import {
   PERMISSIONS, ROLE_PRESETS, checkPermissionList, isStaffRole, parsePermissions,
@@ -214,14 +214,20 @@ async function managerPinSet(ownerId: string): Promise<boolean> {
   return !!(rows as Row[])[0]?.pos_manager_pin;
 }
 
-// PUT /pos-staff/manager-pin { pin: '1234' } — the OWNER sets «رمز المدير».
+// PUT /pos-staff/manager-pin { pin: '583920' } — the OWNER sets «رمز المدير».
 // Staff phones pick it up on their next refresh (/auth/staff/me).
 router.put(
   '/manager-pin',
   asyncHandler(async (req: PosRequest, res) => {
     if (req.staff) return res.status(403).json({ error: 'owner only' });
     const pin = String(req.body?.pin ?? '');
-    if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'pin must be 4 digits' });
+    if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'pin must be 6 digits' });
+    if (weakPin(pin)) return res.status(400).json({ error: 'pin is too easy to guess' });
+    // Not the owner's own phone number (its last six digits).
+    const [owner] = await pool.query('SELECT phone FROM users WHERE id = ?', [req.userId]);
+    if (String((owner as Row[])[0]?.phone ?? '').endsWith(pin)) {
+      return res.status(400).json({ error: 'pin is too easy to guess' });
+    }
     await pool.query('UPDATE users SET pos_manager_pin = ? WHERE id = ?', [hashPin(pin), req.userId]);
     return res.json({ ok: true });
   }),

@@ -1501,7 +1501,7 @@ Branch `round2-fixes`. Server migration **020** (`020_manager_pin_chat.sql`). Ap
 - **«نفد» → icon** `ICONS.empty` (empty tray, red, labelled «نفد»).
 - **«اليوم» big number = what is LEFT** (drops with each sale); the line under it is «مباع N».
 - **«الموظفون»:** refresh icon + pull-down.
-- **«رمز المدير»:** owner sets 4 digits in «الموظفون» (`PUT /pos-staff/manager-pin`); stored as
+- **«رمز المدير»:** owner sets **6 digits** (refused: all one digit, a run like 123456/654321, the tail of his own phone) — follow-up branch `manager-pin-6`; **3 wrong tries lock «تراجع» on that phone for 5 min** (localStorage). Owner sets in «الموظفون» (`PUT /pos-staff/manager-pin`); stored as
   `users.pos_manager_pin` = `s1:salt:sha256(salt+pin)` (`server/src/pos/managerPin.ts`), handed to
   staff phones in staff login / `/auth/staff/me`; «تراجع» on «بيع» by STAFF asks for it and checks it
   OFFLINE (`src/features/pos/managerPin.ts`, WebCrypto). Not set → staff cannot undo. Owner not asked.

@@ -23,20 +23,23 @@ describe('manager pin', () => {
 
   test('owner sets it; staff receive a salted hash that matches; never the pin itself', async () => {
     assert.equal((await request(app).get('/pos-staff').set(AUTH(ownerToken))).body.manager_pin_set, false);
-    assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(ownerToken)).send({ pin: '12a4' })).status, 400);
-    assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(ownerToken)).send({ pin: '4321' })).status, 200);
+    assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(ownerToken)).send({ pin: '12a456' })).status, 400);
+    for (const weak of ['1234', '111111', '123456', '987654']) {
+      assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(ownerToken)).send({ pin: weak })).status, 400, weak);
+    }
+    assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(ownerToken)).send({ pin: '583920' })).status, 200);
     assert.equal((await request(app).get('/pos-staff').set(AUTH(ownerToken))).body.manager_pin_set, true);
 
     await request(app).post('/pos-staff').set(AUTH(ownerToken))
       .send({ name: 'كاشير', phone: '581234567', role: 'cashier', password: 'secret123' });
     const login = await request(app).post('/auth/staff/login').send({ phone: '581234567', password: 'secret123' });
     const stored = String(login.body.manager_pin);
-    assert.ok(!stored.includes('4321'));
+    assert.ok(!stored.includes('583920'));
     const [, salt, digest] = stored.split(':');
-    assert.equal(createHash('sha256').update(salt + '4321').digest('hex'), digest);
+    assert.equal(createHash('sha256').update(salt + '583920').digest('hex'), digest);
     const me = await request(app).get('/auth/staff/me').set(AUTH(login.body.token));
     assert.equal(me.body.manager_pin, stored);
     // staff cannot set it
-    assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(login.body.token)).send({ pin: '0000' })).status, 403);
+    assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(login.body.token)).send({ pin: '583921' })).status, 403);
   });
 });
