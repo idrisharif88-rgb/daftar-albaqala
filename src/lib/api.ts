@@ -96,6 +96,11 @@ export interface Me {
   pos_enabled: boolean;
   /** POS staff accounts, switched on per account by the developer (Watcher). */
   pos_staff_enabled?: boolean;
+  /** POS notes, switched on per account by the developer (Watcher). */
+  pos_notes_enabled?: boolean;
+  /** The shopkeeper's answer to «keep my book on the server?». 'pending' =
+   *  the developer switched sync on and the app must ask. */
+  sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
 }
 
 export function me(): Promise<{ user: Me }> {
@@ -107,7 +112,9 @@ export function me(): Promise<{ user: Me }> {
 // owner's point-of-sale data. Codes in features/pos/permissions.ts.
 
 export interface StaffInfo { id: string; name: string; role: string; permissions: string[] }
-export interface StaffSessionResult { token: string; staff: StaffInfo; store_name: string | null }
+export interface StaffSessionResult {
+  token: string; staff: StaffInfo; store_name: string | null; notes_enabled?: boolean;
+}
 
 export function staffLogin(phone: string, password: string): Promise<StaffSessionResult> {
   return request<StaffSessionResult>('/auth/staff/login', {
@@ -117,7 +124,7 @@ export function staffLogin(phone: string, password: string): Promise<StaffSessio
 }
 
 /** Who this staff token is, and what they may do NOW. */
-export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null }> {
+export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null; notes_enabled?: boolean }> {
   return request('/auth/staff/me');
 }
 
@@ -140,6 +147,11 @@ export function updateStaff(id: string, body: {
 }
 
 // ---- Account ----
+
+/** The shopkeeper's answer to the sync request (or a withdrawal later). */
+export function answerSyncConsent(approve: boolean): Promise<{ sync_consent: string }> {
+  return request('/account/sync-consent', { method: 'POST', body: JSON.stringify({ approve }) });
+}
 
 /** Erase this account and everything in it, server-side. Hard delete: the rows
  *  are gone, not tombstoned — there is no other device left to tell. */
@@ -325,14 +337,24 @@ export interface PosSaleRow extends PosBakedRow { price: number }
 export interface PosLockRow { day: string; locked_at: string | null; reopened: number; updated_at: string }
 
 export interface PosTableAck { accepted: string[]; rejected: { id: string; reason: string }[] }
+/** A note. `author_*` come FROM the server (it sets them from the token); the
+ *  phone sends only what it wrote. */
+export interface PosNoteRow {
+  id: string; day: string; body: string; created_at: string; deleted_at: string | null;
+  updated_at?: string; author_staff_id?: string | null; author_name?: string;
+}
 export interface PosPushBody {
   products?: PosProductRow[]; baked?: PosBakedRow[]; sales?: PosSaleRow[]; day_locks?: PosLockRow[];
+  notes?: PosNoteRow[];
 }
 export interface PosPushResult {
   products: PosTableAck; baked: PosTableAck; sales: PosTableAck; day_locks: PosTableAck;
+  /** Absent from a server older than notes. */
+  notes?: PosTableAck;
 }
 export interface PosPullResult {
   products: PosProductRow[]; baked: PosBakedRow[]; sales: PosSaleRow[]; day_locks: PosLockRow[];
+  notes?: PosNoteRow[];
   synced_at: string; has_more: boolean;
 }
 

@@ -305,6 +305,28 @@ CREATE TABLE IF NOT EXISTS pos_day_lock (
       await db.run('ALTER TABLE pos_products ADD COLUMN daily INTEGER NOT NULL DEFAULT 1');
     },
   },
+  {
+    version: 12,
+    name: 'pos_notes (short notes written at the point of sale)',
+    async run(db) {
+      // Add-only; the owner may tombstone one. author_staff_id NULL = the
+      // owner. The author is set by the SERVER — a note written here shows its
+      // author once it comes back from a sync.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS pos_notes (
+  id              TEXT PRIMARY KEY NOT NULL,
+  author_staff_id TEXT,
+  author_name     TEXT NOT NULL DEFAULT '',
+  day             TEXT NOT NULL,
+  body            TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  deleted_at      TEXT,
+  synced          INTEGER NOT NULL DEFAULT 0
+);
+`);
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

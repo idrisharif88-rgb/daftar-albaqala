@@ -3,7 +3,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import { PosRequest } from '../middleware/posActor';
-import { canWrite, type PosTable } from '../pos/permissions';
+import { can, canWrite, type PosTable } from '../pos/permissions';
 
 // Sync of the point-of-sale section — its OWN endpoint, on purpose. The ledger's
 // /sync is the most important code in the app and carries four tables and a
@@ -16,6 +16,10 @@ import { canWrite, type PosTable } from '../pos/permissions';
 //                     changed by a later push: it is already on printed labels.
 //   - pos_baked / pos_sales → APPEND-ONLY, insert only if the UUID is new.
 //   - pos_day_lock  → one row per day, last-write-wins by updated_at.
+//   - pos_notes     → add-only; the OWNER may tombstone one. The author is set
+//                     HERE from the token, never taken from the phone. Notes
+//                     travel only where the developer switched them on and to
+//                     an actor holding `notes` — both directions.
 //   - every row is acknowledged individually (the sender forgets only what the
 //     receiver named), a foreign owner's id is refused, and the pull cursor is a
 //     keyset on the SERVER's clock, never the phone's.
@@ -39,6 +43,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CODE_RE = /^2\d{12}$/;
 const MAX_QTY = 1_000_000;
 const MAX_MONEY = 1_000_000_000_000;
+const NOTE_MAX = 1000;
 
 const asArray = (v: unknown): Row[] => (Array.isArray(v) ? (v as Row[]) : []);
 const str = (v: unknown): string => (v === undefined || v === null ? '' : String(v));
@@ -58,12 +63,13 @@ router.post(
   '/push',
   asyncHandler(async (req: PosRequest, res) => {
     const userId = req.userId as string;
-    const result = { products: empty(), baked: empty(), sales: empty(), day_locks: empty() };
+    const result = { products: empty(), baked: empty(), sales: empty(), day_locks: empty(), notes: empty() };
+    const notesOn = await notesAllowed(req);
     // Rows of a table this actor may not change are refused, by name, and
     // never reach the database.
     const allowed = (table: PosTable, idKey: 'id' | 'day'): Row[] => {
       const rows = asArray(req.body?.[table]);
-      if (canWrite(req.staff, table)) return rows;
+      if (canWrite(req.staff, table) && (table !== 'notes' || notesOn)) return rows;
       for (const r of rows) {
         const id = str(r[idKey]);
         if (id) result[table].rejected.push({ id, reason: 'forbidden' });
@@ -74,6 +80,14 @@ router.post(
     const baked = allowed('baked', 'id');
     const sales = allowed('sales', 'id');
     const dayLocks = allowed('day_locks', 'day');
+    const notes = allowed('notes', 'id');
+    // The name a staff member's note is signed with — from their record, not
+    // from what the phone sends. The owner's notes carry no name (NULL author).
+    let authorName = '';
+    if (req.staff && notes.length > 0) {
+      const [rows] = await pool.query('SELECT name FROM pos_staff WHERE id = ? AND owner_id = ?', [req.staff.id, userId]);
+      authorName = str((rows as Row[])[0]?.name);
+    }
 
     const conn = await pool.getConnection();
     try {
@@ -207,6 +221,45 @@ router.post(
         result.day_locks.accepted.push(day);
       }
 
+      // ---- notes: add-only; only the owner may delete (a tombstone) ----
+      for (const n of notes) {
+        const id = str(n.id);
+        if (!ID_RE.test(id)) continue;
+        const day = str(n.day);
+        const body = str(n.body).trim();
+        const createdAt = toDate(n.created_at);
+        const deletedAt = n.deleted_at ? toDate(n.deleted_at) : null;
+        if (!DAY_RE.test(day) || !body || body.length > NOTE_MAX || !createdAt || (n.deleted_at && !deletedAt)) {
+          result.notes.rejected.push({ id, reason: 'invalid' });
+          continue;
+        }
+        if (deletedAt && req.staff) { // a staff member cannot delete a note
+          result.notes.rejected.push({ id, reason: 'forbidden' });
+          continue;
+        }
+        const [found] = await conn.query('SELECT user_id, deleted_at FROM pos_notes WHERE id = ?', [id]);
+        const existing = (found as Row[])[0];
+        if (existing && existing.user_id !== userId) {
+          result.notes.rejected.push({ id, reason: 'foreign_owner' });
+          continue;
+        }
+        const now = new Date();
+        if (!existing) {
+          await conn.query(
+            `INSERT INTO pos_notes (id, user_id, author_staff_id, author_name, day, body, created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, userId, req.staff?.id ?? null, authorName, day, body, createdAt, now, deletedAt]
+          );
+        } else if (deletedAt && existing.deleted_at === null) {
+          // The text is never edited — only the owner's deletion is applied.
+          await conn.query(
+            'UPDATE pos_notes SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+            [deletedAt, now, id, userId]
+          );
+        }
+        result.notes.accepted.push(id);
+      }
+
       await conn.commit();
     } catch (err) {
       await conn.rollback();
@@ -220,30 +273,43 @@ router.post(
 
 // ---- pull: a keyset cursor per table, on the server's own clock ----
 interface TableCursor { ts: Date; id: string }
-interface PullCursor { products: TableCursor; baked: TableCursor; sales: TableCursor; locks: TableCursor }
+interface PullCursor { products: TableCursor; baked: TableCursor; sales: TableCursor; locks: TableCursor; notes: TableCursor }
 const EPOCH = () => new Date(0);
 const fresh = (): TableCursor => ({ ts: EPOCH(), id: '' });
 
+// `p2` = five tables. A `p1` cursor (four tables, from before notes) is still
+// read: its notes start from zero, so nothing written before is missed.
 function encodeCursor(c: PullCursor): string {
-  return ['p1', ...[c.products, c.baked, c.sales, c.locks].flatMap((t) => [t.ts.toISOString(), t.id])].join('|');
+  return ['p2', ...[c.products, c.baked, c.sales, c.locks, c.notes].flatMap((t) => [t.ts.toISOString(), t.id])].join('|');
 }
 
 function decodeCursor(raw: string | undefined): PullCursor | null {
-  if (!raw) return { products: fresh(), baked: fresh(), sales: fresh(), locks: fresh() };
+  if (!raw) return { products: fresh(), baked: fresh(), sales: fresh(), locks: fresh(), notes: fresh() };
   const parts = raw.split('|');
-  if (parts[0] !== 'p1' || parts.length !== 9) return null;
+  const v1 = parts[0] === 'p1' && parts.length === 9;
+  const v2 = parts[0] === 'p2' && parts.length === 11;
+  if (!v1 && !v2) return null;
   const cur = (i: number): TableCursor | null => {
     const ts = new Date(parts[i]);
     return Number.isNaN(ts.getTime()) ? null : { ts, id: parts[i + 1] ?? '' };
   };
   const products = cur(1), baked = cur(3), sales = cur(5), locks = cur(7);
-  return products && baked && sales && locks ? { products, baked, sales, locks } : null;
+  const notes = v2 ? cur(9) : fresh();
+  return products && baked && sales && locks && notes ? { products, baked, sales, locks, notes } : null;
+}
+
+/** May this actor send and receive notes? The developer's switch for the shop
+ *  AND the `notes` permission (the owner holds every permission). */
+async function notesAllowed(req: PosRequest): Promise<boolean> {
+  if (!can(req.staff, 'notes')) return false;
+  const [rows] = await pool.query('SELECT pos_notes_enabled FROM users WHERE id = ?', [req.userId]);
+  return Number((rows as Row[])[0]?.pos_notes_enabled) === 1;
 }
 
 // GET /pos-sync/pull?since=<cursor>&limit=<n>
 router.get(
   '/pull',
-  asyncHandler(async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: PosRequest, res) => {
     const userId = req.userId as string;
     const cursor = decodeCursor(typeof req.query.since === 'string' ? req.query.since : undefined);
     if (!cursor) return res.status(400).json({ error: 'since must be a valid cursor' });
@@ -268,7 +334,14 @@ router.get(
     const b = await fetchPage('pos_baked', 'id, product_id, day, qty, created_at', 'id', cursor.baked);
     const s = await fetchPage('pos_sales', 'id, product_id, day, qty, price, created_at', 'id', cursor.sales);
     const l = await fetchPage('pos_day_lock', 'day, locked_at, reopened, updated_at', 'day', cursor.locks);
-    const hasMore = p.more || b.more || s.more || l.more;
+    // Notes only to an actor allowed them. Otherwise none are sent AND their
+    // cursor stays where it was, so a member given `notes` later still
+    // receives every note written before.
+    const notesOn = await notesAllowed(req);
+    const n = notesOn
+      ? await fetchPage('pos_notes', 'id, author_staff_id, author_name, day, body, created_at, updated_at, deleted_at', 'id', cursor.notes)
+      : { rows: [] as Row[], more: false };
+    const hasMore = p.more || b.more || s.more || l.more || n.more;
 
     const advance = (rows: Row[], idCol: string, prev: TableCursor): TableCursor => {
       const last = rows[rows.length - 1];
@@ -279,15 +352,19 @@ router.get(
       baked: advance(b.rows, 'id', cursor.baked),
       sales: advance(s.rows, 'id', cursor.sales),
       locks: advance(l.rows, 'day', cursor.locks),
+      notes: advance(n.rows, 'id', cursor.notes),
     };
     // Once drained, rewind to a moment safely in the past (see REWIND_MS).
     if (!hasMore) {
       const safe = { ts: new Date(serverNow.getTime() - REWIND_MS), id: '' };
-      next = { products: safe, baked: { ...safe }, sales: { ...safe }, locks: { ...safe } };
+      next = {
+        products: safe, baked: { ...safe }, sales: { ...safe }, locks: { ...safe },
+        notes: notesOn ? { ...safe } : cursor.notes,
+      };
     }
 
     return res.json({
-      products: p.rows, baked: b.rows, sales: s.rows, day_locks: l.rows,
+      products: p.rows, baked: b.rows, sales: s.rows, day_locks: l.rows, notes: n.rows,
       synced_at: encodeCursor(next), has_more: hasMore,
     });
   })

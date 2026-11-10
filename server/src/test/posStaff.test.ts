@@ -342,6 +342,102 @@ describe('POS staff: developer switch and permissions', () => {
   });
 });
 
+describe('POS notes', () => {
+  let owner: string; let token: string;
+  let seq = 0;
+  const phone = () => `57${String(seq++).padStart(7, '0')}`;
+  const aNote = (over: Record<string, unknown> = {}) => ({
+    id: randomUUID(), day: '2026-11-10', body: 'نفد الكيس الكبير', created_at: '2026-11-10T08:00:00Z',
+    deleted_at: null, ...over,
+  });
+
+  beforeEach(async () => {
+    await cleanDb();
+    owner = await seedUser();
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1, pos_notes_enabled = 1 WHERE id = ?', [owner]);
+    token = tokenFor(owner);
+  });
+
+  async function staffWith(permissions: string[]) {
+    const p = phone();
+    await request(app).post('/pos-staff').set(AUTH(token))
+      .send({ name: 'سالم', phone: p, role: 'cashier', password: PASSWORD, permissions });
+    const login = await request(app).post('/auth/staff/login').send({ phone: p, password: PASSWORD });
+    return login.body.token as string;
+  }
+  const push = (t: string, notes: unknown[]) => request(app).post('/pos-sync/push').set(AUTH(t)).send({ notes });
+  const pullNotes = async (t: string) => (await request(app).get('/pos-sync/pull').set(AUTH(t))).body.notes as Record<string, unknown>[];
+
+  test('the author is set by the server, not by the phone', async () => {
+    const t = await staffWith(['sell', 'notes']);
+    const n = aNote({ author_name: 'المالك', author_staff_id: null }); // a forged author
+    const res = await push(t, [n]);
+    assert.deepEqual(res.body.notes.accepted, [n.id]);
+    const [[row]] = await pool.query('SELECT author_name, author_staff_id FROM pos_notes WHERE id = ?', [n.id]) as unknown as [[Record<string, unknown>]];
+    assert.equal(row.author_name, 'سالم');
+    assert.ok(row.author_staff_id);
+    // the owner sees it
+    assert.equal((await pullNotes(token)).length, 1);
+  });
+
+  test('without the permission, notes neither go up nor come down', async () => {
+    await push(token, [aNote()]);
+    const t = await staffWith(['sell']);
+    const res = await push(t, [aNote()]);
+    assert.equal(res.body.notes.rejected[0].reason, 'forbidden');
+    assert.deepEqual(await pullNotes(t), []);
+  });
+
+  test("a member given `notes` later still receives the notes written before", async () => {
+    await push(token, [aNote({ body: 'قديمة' })]);
+    const t = await staffWith(['sell']);
+    const first = await request(app).get('/pos-sync/pull').set(AUTH(t));
+    assert.deepEqual(first.body.notes, []);
+    const [[s]] = await pool.query("SELECT id FROM pos_staff WHERE owner_id = ?", [owner]) as unknown as [[{ id: string }]];
+    await request(app).patch(`/pos-staff/${s.id}`).set(AUTH(token)).send({ permissions: ['sell', 'notes'] });
+    const next = await request(app).get('/pos-sync/pull').query({ since: first.body.synced_at }).set(AUTH(t));
+    assert.equal(next.body.notes.length, 1);
+    assert.equal(next.body.notes[0].body, 'قديمة');
+  });
+
+  test('switched off by the developer: no notes for anyone, owner included', async () => {
+    await pool.query('UPDATE users SET pos_notes_enabled = 0 WHERE id = ?', [owner]);
+    const res = await push(token, [aNote()]);
+    assert.equal(res.body.notes.rejected[0].reason, 'forbidden');
+    assert.deepEqual(await pullNotes(token), []);
+  });
+
+  test('only the owner deletes; the text is never edited', async () => {
+    const t = await staffWith(['sell', 'notes']);
+    const n = aNote();
+    await push(t, [n]);
+    const byStaff = await push(t, [{ ...n, deleted_at: '2026-11-10T09:00:00Z' }]);
+    assert.equal(byStaff.body.notes.rejected[0].reason, 'forbidden');
+    await push(token, [{ ...n, body: 'نص آخر', deleted_at: '2026-11-10T09:00:00Z' }]);
+    const [[row]] = await pool.query('SELECT body, deleted_at FROM pos_notes WHERE id = ?', [n.id]) as unknown as [[Record<string, unknown>]];
+    assert.equal(row.body, 'نفد الكيس الكبير');
+    assert.ok(row.deleted_at);
+  });
+
+  test('invalid notes are refused; another shop never sees them', async () => {
+    const res = await push(token, [aNote({ body: '   ' }), aNote({ body: 'x'.repeat(1001) }), aNote({ day: 'today' })]);
+    assert.equal(res.body.notes.rejected.length, 3);
+    await push(token, [aNote()]);
+    const other = await seedUser();
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_notes_enabled = 1 WHERE id = ?', [other]);
+    assert.deepEqual(await pullNotes(tokenFor(other)), []);
+  });
+
+  test('an older p1 cursor still works, and its notes start from zero', async () => {
+    await push(token, [aNote()]);
+    const p1 = ['p1', ...Array(4).fill(['2026-11-10T23:00:00.000Z', ''])].flat().join('|');
+    const res = await request(app).get('/pos-sync/pull').query({ since: p1 }).set(AUTH(token));
+    assert.equal(res.status, 200);
+    assert.equal(res.body.notes.length, 1);
+    assert.ok(String(res.body.synced_at).startsWith('p2|'));
+  });
+});
+
 describe('login throttle', () => {
   test('locks a phone after 10 failures, frees it after the window, and a success clears it', () => {
     let now = 0;

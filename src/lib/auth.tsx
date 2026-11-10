@@ -3,7 +3,7 @@ import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
 import {
   getToken, setToken, clearToken, getPhone, setPhone, getDriveAllowed, setDriveAllowed,
-  getPosAllowed, setPosAllowed, getPosStaffAllowed, setPosStaffAllowed, getStaff, setStaff,
+  getPosAllowed, setPosAllowed, getPosStaffAllowed, setPosStaffAllowed, getStaff, setStaff, getPosNotesAllowed, setPosNotesAllowed,
   type StoredStaff,
 } from './storage';
 import { ensureLocalOwner } from '../data/owner';
@@ -33,6 +33,13 @@ interface AuthState {
   /** Set when a STAFF member is signed in (not the owner): who, and what they
    *  may do. Null for the owner. */
   staff: StoredStaff | null;
+  /** POS notes are switched on for this shop (developer, Watcher). */
+  posNotesAllowed: boolean;
+  /** The shopkeeper's answer to the server-sync request (owner only; null
+   *  until the server has said). 'pending' = ask him. */
+  syncConsent: 'none' | 'pending' | 'approved' | 'rejected' | null;
+  /** Record his answer on the server; resolves once it is stored there. */
+  answerSyncConsent: (approve: boolean) => Promise<void>;
   login: (phone: string, password: string) => Promise<void>;
   staffLogin: (phone: string, password: string) => Promise<void>;
   register: (phone: string, password: string, storeName: string) => Promise<void>;
@@ -51,6 +58,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [posAllowed, setPosAllowedState] = useState<boolean>(getPosAllowed);
   const [posStaffAllowed, setPosStaffAllowedState] = useState<boolean>(getPosStaffAllowed);
   const [staff, setStaffState] = useState<StoredStaff | null>(getStaff);
+  const [posNotesAllowed, setPosNotesAllowedState] = useState<boolean>(getPosNotesAllowed);
+  const [syncConsent, setSyncConsent] = useState<AuthState['syncConsent']>(null);
+  const rememberNotes = (on: boolean) => {
+    setPosNotesAllowed(on);
+    setPosNotesAllowedState(on);
+  };
 
   const rememberPhone = (value: string) => {
     setPhone(value);
@@ -77,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const next = { ...res.staff, store_name: res.store_name };
     setStaff(next);
     setStaffState(next);
+    rememberNotes(res.notes_enabled === true);
     await ensureLocalOwner(`staff:${res.staff.id}`);
     setAuthed(true);
   }, []);
@@ -103,6 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPosAllowedState(false);
     setPosStaffAllowedState(false);
     setStaffState(null);
+    setPosNotesAllowedState(false);
+    setSyncConsent(null);
     setUser(null);
     setAuthed(false);
   }, []);
@@ -122,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const next = { ...res.staff, store_name: res.store_name };
         setStaff(next);
         setStaffState(next);
+        rememberNotes(res.notes_enabled === true);
       }).catch((err: unknown) => {
         if (err instanceof api.ApiError && (err.status === 401 || err.status === 403)) logout();
       });
@@ -135,11 +152,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPosAllowedState(res.user.pos_enabled === true);
       setPosStaffAllowed(res.user.pos_staff_enabled === true);
       setPosStaffAllowedState(res.user.pos_staff_enabled === true);
+      rememberNotes(res.user.pos_notes_enabled === true);
+      setSyncConsent(res.user.sync_consent ?? null);
     }).catch(() => undefined);
     // Only on sign-in / launch: `staff` changes when /auth/staff/me answers,
     // and re-asking then would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
+
+  const answerSyncConsent = useCallback(async (approve: boolean) => {
+    const res = await api.answerSyncConsent(approve);
+    setSyncConsent(res.sync_consent as AuthState['syncConsent']);
+  }, []);
 
   return (
     <AuthContext.Provider
@@ -152,6 +176,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         posAllowed: authed && (staff !== null || posAllowed),
         posStaffAllowed: authed && !staff && posStaffAllowed,
         staff: authed ? staff : null,
+        posNotesAllowed: authed && posNotesAllowed,
+        syncConsent: authed && !staff ? syncConsent : null,
+        answerSyncConsent,
         login, staffLogin, register, logout,
       }}
     >

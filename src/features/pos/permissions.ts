@@ -9,7 +9,7 @@ import { useAuth } from '../../lib/auth';
 // (refreshed from GET /auth/staff/me on every launch).
 
 export const PERMISSIONS = [
-  'sell', 'add_stock', 'see_stock', 'see_reports', 'manage_products', 'submit_day', 'manage_staff',
+  'sell', 'add_stock', 'see_stock', 'see_reports', 'manage_products', 'submit_day', 'manage_staff', 'notes',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -21,6 +21,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   manage_products: 'إدارة المنتجات والأسعار',
   submit_day: 'اعتماد اليوم',
   manage_staff: 'إدارة الموظفين',
+  notes: 'الملاحظات',
 };
 
 export const STAFF_ROLES = ['admin', 'cashier', 'adder'] as const;
@@ -36,8 +37,8 @@ export const ROLE_LABELS: Record<StaffRole, string> = {
  *  them when none are sent, so a mismatch here only changes the form's ticks. */
 export const ROLE_PRESETS: Record<StaffRole, readonly Permission[]> = {
   admin: PERMISSIONS,
-  cashier: ['sell'],
-  adder: ['add_stock', 'see_stock', 'see_reports'],
+  cashier: ['sell', 'notes'],
+  adder: ['add_stock', 'see_stock', 'see_reports', 'notes'],
 };
 
 export const isPermission = (v: unknown): v is Permission =>

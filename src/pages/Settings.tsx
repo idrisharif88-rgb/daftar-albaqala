@@ -11,6 +11,7 @@ import {
   getSettings, saveSettings, messageSender, type Settings as AppSettings,
 } from '../data/settings';
 import { runSync } from '../data/sync';
+import { SYNC_CONSENT_MESSAGE } from '../components/SyncConsentPrompt';
 import { isAccountActive } from '../data/account';
 import { getRatesState, saveRates, ratesAreStale, RATE_STALE_AFTER_DAYS } from '../data/rates';
 import {
@@ -65,7 +66,7 @@ const Settings: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
   const [version, setVersion] = useState<string | null>(null);
-  const { logout, isOwner } = useAuth();
+  const { logout, isOwner, syncConsent, answerSyncConsent } = useAuth();
   const { accent, night, cycleAccent, toggleNight } = useAppearance();
   const { scale, setScale } = useAppScale();
   const [scaleOpen, setScaleOpen] = useState(false);
@@ -84,6 +85,43 @@ const Settings: React.FC = () => {
   const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
   const [presentSheet] = useIonActionSheet();
+  // Its own alert hook: one hook keeps one overlay at a time.
+  const [presentConsent] = useIonAlert();
+
+  // The shopkeeper's answer to «keep my book on the server?» — given, changed
+  // or withdrawn here at any time (the prompt at launch asks the same thing).
+  const consent = (approve: boolean) => {
+    answerSyncConsent(approve)
+      .then(() => {
+        if (approve) void runSync({ force: true });
+        void presentToast({
+          message: approve ? 'تم تفعيل المزامنة مع الخادم' : 'تم إيقاف المزامنة مع الخادم',
+          duration: 2200, color: approve ? 'success' : 'medium',
+        });
+      })
+      .catch(() => {
+        void presentToast({ message: 'تعذّر الإرسال. تحقق من الاتصال.', duration: 2600, color: 'danger' });
+      });
+  };
+  const askConsent = () => {
+    if (syncConsent === 'approved') {
+      presentConsent({
+        header: 'إيقاف المزامنة مع الخادم',
+        message: 'لن تُرفع بياناتك إلى الخادم بعد الآن، وتبقى على هاتفك. متأكد؟',
+        buttons: [{ text: 'إلغاء', role: 'cancel' }, { text: 'إيقاف', role: 'destructive', handler: () => consent(false) }],
+      });
+      return;
+    }
+    presentConsent({
+      header: 'طلب تفعيل المزامنة',
+      message: SYNC_CONSENT_MESSAGE,
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        ...(syncConsent === 'pending' ? [{ text: 'رفض', role: 'destructive', handler: () => consent(false) }] : []),
+        { text: 'موافق', handler: () => consent(true) },
+      ],
+    });
+  };
 
   // The latest values and what still needs writing, in refs so the delayed save
   // and the leave handler read what was typed last, not a stale render's copy.
@@ -615,6 +653,15 @@ const Settings: React.FC = () => {
                 <IonLabel>مزامنة الآن</IonLabel>
                 {syncing && <IonSpinner slot="end" name="crescent" />}
               </IonItem>
+              {syncConsent && syncConsent !== 'none' && (
+                <IonItem button detail onClick={askConsent}>
+                  <IonLabel>
+                    {syncConsent === 'pending' ? 'طلب تفعيل المزامنة بانتظار ردك'
+                      : syncConsent === 'approved' ? 'إيقاف المزامنة مع الخادم'
+                        : 'السماح بالمزامنة مع الخادم'}
+                  </IonLabel>
+                </IonItem>
+              )}
             </IonList>
 
             {/* ---- Copies of the book: Excel export, followed by the backup rows ---- */}

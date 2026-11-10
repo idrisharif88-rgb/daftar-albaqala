@@ -1384,6 +1384,20 @@ applied on the droplet; owner verified rows reach the server.
   (POS builds only); a staff session has no ledger (every ledger route → their first POS tab, AutoSync
   off), tabs from `posTabsFor()` (router uses the same list), «حسابي» page (`/pos/account`) with logout;
   owner/manager «الموظفون» page (`/pos/staff`, online only). Local store for staff keyed `staff:<id>`.
+- **Staff sign-out guard (2026-11-10):** «حسابي» → «تسجيل الخروج» syncs first and REFUSES while any POS row
+  is unsynced (`countUnsyncedPos`) — the next sign-in wipes the local store.
+- **Notes + sync consent (2026-11-10, branch `notes-and-sync-consent`, migration 016):**
+  - **Sync consent:** Watcher «تفعيل المزامنة» now only ASKS (`users.sync_consent` → `pending` unless already
+    `approved`). `requireSubscription` also requires `sync_consent='approved'` (else 402, so the app behaves
+    as a free account). The shopkeeper answers in the app (`SyncConsentPrompt` at launch: موافق / رفض /
+    لاحقاً; Settings «المزامنة» row to answer later or WITHDRAW) → `POST /account/sync-consent`
+    (owner token only). Accounts already syncing were backfilled `approved`. Watcher badges:
+    «بانتظار موافقته» / «رفض المزامنة». Test helper `seedUser` makes active users `approved`.
+  - **POS notes:** Watcher switch «الملاحظات» (`users.pos_notes_enabled`, under «نقطة البيع») + permission
+    `notes` (in the cashier and adder presets). `pos_notes` (server + local migration 12): add-only, text never
+    edited, only the OWNER tombstones; the AUTHOR is set by the server from the token. Travels in `/pos-sync`
+    (cursor now `p2`, `p1` still read; notes cursor frozen for an actor without notes so a later grant
+    still receives old notes). Tab `/pos/notes` (`NotesPage`). In the Drive backup and the account wipe.
 - **Watcher:** per-account «مفعّل / موقوف» button (allow/block use of the app); everything else
   (مزامنة الخادم, نقطة البيع, Drive, المقاول, name, password, delete) in the «المزيد» sheet; all
   Watcher text bold. Server tests 133/133, app tests 110/110.

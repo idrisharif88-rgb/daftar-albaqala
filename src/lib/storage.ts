@@ -22,6 +22,7 @@ export function clearToken(): void {
   localStorage.removeItem(POS_KEY);
   localStorage.removeItem(POS_STAFF_KEY);
   localStorage.removeItem(STAFF_KEY);
+  localStorage.removeItem(POS_NOTES_KEY);
 }
 
 // Whether the owner granted this account Google Drive backup — remembered so the
@@ -94,4 +95,16 @@ export function getStaff(): StoredStaff | null {
 
 export function setStaff(staff: StoredStaff): void {
   localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
+}
+
+// Whether this shop's POS notes are switched on (developer, Watcher). For the
+// owner from GET /me, for a staff member from /auth/staff/me.
+const POS_NOTES_KEY = 'daftar.pos-notes-allowed';
+
+export function getPosNotesAllowed(): boolean {
+  return localStorage.getItem(POS_NOTES_KEY) === '1';
+}
+
+export function setPosNotesAllowed(on: boolean): void {
+  if (on) localStorage.setItem(POS_NOTES_KEY, '1'); else localStorage.removeItem(POS_NOTES_KEY);
 }

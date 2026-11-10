@@ -9,7 +9,7 @@ type Row = Record<string, unknown>;
 // trust it — we check the user's subscription here, on every sync request.
 //
 // Sync is allowed only when subscription_status = 'active' AND the subscription
-// has not expired (subscription_expires_at is null = no expiry, or in the future).
+// has not expired AND the shopkeeper approved it (sync_consent = 'approved') (subscription_expires_at is null = no expiry, or in the future).
 // Otherwise we refuse with 402 Payment Required so the app can prompt to subscribe.
 //
 // TWO APPS, one account: each app sends `X-App` and is activated on its own.
@@ -29,7 +29,7 @@ export async function requireSubscription(
 ) {
   try {
     const [rows] = await pool.query(
-      'SELECT subscription_status, subscription_expires_at, contractor_status FROM users WHERE id = ?',
+      'SELECT subscription_status, subscription_expires_at, contractor_status, sync_consent FROM users WHERE id = ?',
       [req.userId]
     );
     const user = (rows as Row[])[0];
@@ -52,6 +52,18 @@ export async function requireSubscription(
         error: 'subscription inactive',
         subscription_status: status,
         subscription_expires_at: expiresAt ? expiresAt.toISOString() : null,
+      });
+    }
+
+    // CONSENT: the developer switching sync on is a request, not a decision.
+    // Until the book's owner approves it (POST /account/sync-consent), the
+    // server keeps nothing of his — same 402, so the app carries on exactly as
+    // an account without sync (phone + Drive).
+    if (user.sync_consent !== 'approved') {
+      return res.status(402).json({
+        error: 'sync consent required',
+        subscription_status: status,
+        sync_consent: user.sync_consent,
       });
     }
 

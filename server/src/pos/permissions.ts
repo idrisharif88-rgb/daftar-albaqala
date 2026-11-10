@@ -11,7 +11,9 @@
 //
 // What the SERVER enforces:
 //   sell, add_stock, manage_products, submit_day — the rows a member may push
-//   to /pos-sync (WRITE_PERMISSION below); manage_staff — /pos-staff.
+//   to /pos-sync (WRITE_PERMISSION below); manage_staff — /pos-staff; notes —
+//   both writing AND receiving notes (routes/posSync.ts), and only in a shop
+//   whose notes the developer switched on.
 // What only the APP enforces (by what it shows):
 //   see_stock, see_reports — /pos-sync/pull returns the whole POS data to every
 //   member, because selling needs the products and «in stock» needs the
@@ -26,6 +28,7 @@ export const PERMISSIONS = [
   'manage_products', // add / edit products and their prices
   'submit_day',      // submit (lock) and reopen the day
   'manage_staff',    // add / edit / disable other staff
+  'notes',           // read and write the shop's notes (only where the developer switched notes on)
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -34,17 +37,18 @@ export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const ROLE_PRESETS: Record<StaffRole, readonly Permission[]> = {
   admin: PERMISSIONS,
-  cashier: ['sell'],
-  adder: ['add_stock', 'see_stock', 'see_reports'],
+  cashier: ['sell', 'notes'],
+  adder: ['add_stock', 'see_stock', 'see_reports', 'notes'],
 };
 
-export type PosTable = 'products' | 'baked' | 'sales' | 'day_locks';
+export type PosTable = 'products' | 'baked' | 'sales' | 'day_locks' | 'notes';
 
 const WRITE_PERMISSION: Record<PosTable, Permission> = {
   products: 'manage_products',
   baked: 'add_stock',
   sales: 'sell',
   day_locks: 'submit_day',
+  notes: 'notes',
 };
 
 /** The owner (no staff record) may do everything. */

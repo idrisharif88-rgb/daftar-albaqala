@@ -15,6 +15,7 @@ export function mysqlDate(d: Date): string {
 // Wipe every table in FK-safe order (transactions → customers → users) so each
 // test starts from a known-empty state.
 export async function cleanDb(): Promise<void> {
+  await pool.query('DELETE FROM pos_notes');
   await pool.query('DELETE FROM pos_staff');
   await pool.query('DELETE FROM pos_sales');
   await pool.query('DELETE FROM pos_baked');
@@ -48,9 +49,11 @@ export async function seedUser(
     sub.expiresAt === undefined ? null : sub.expiresAt ? mysqlDate(sub.expiresAt) : null;
   await pool.query(
     `INSERT INTO users
-       (id, phone, password_hash, subscription_status, subscription_expires_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, phone, 'x', status, expiresAt, now, now]
+       (id, phone, password_hash, subscription_status, subscription_expires_at, sync_consent, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    // An active test tenant has also APPROVED sync (migration 016) — the consent
+    // gate is tested on its own in syncConsent.test.ts.
+    [id, phone, 'x', status, expiresAt, status === 'active' ? 'approved' : 'none', now, now]
   );
   return id;
 }

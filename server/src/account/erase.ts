@@ -27,6 +27,7 @@ export async function eraseAccount(userId: string): Promise<boolean> {
     await conn.query('DELETE FROM customers WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM user_settings WHERE user_id = ?', [userId]);
     // Point of sale: every table holds a foreign key onto users.
+    await conn.query('DELETE FROM pos_notes WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM pos_staff WHERE owner_id = ?', [userId]);
     await conn.query('DELETE FROM pos_sales WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM pos_baked WHERE user_id = ?', [userId]);

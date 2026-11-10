@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS users (
   pos_enabled              TINYINT(1)      NOT NULL DEFAULT 0,       -- قسم نقطة البيع: يمنحه المالك (011)
   pos_staff_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- حسابات الموظفين: يفعّلها المطوّر (015)
   contractor_status        VARCHAR(16)     NOT NULL DEFAULT 'none',  -- تفعيل «دفتر المقاول» (010)
+  sync_consent             ENUM('none','pending','approved','rejected') NOT NULL DEFAULT 'none', -- موافقة صاحب الدفتر على المزامنة (016)
+  sync_consent_at          DATETIME(3)     NULL,
+  pos_notes_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- ملاحظات نقطة البيع: يفعّلها المطوّر (016)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
@@ -272,4 +275,22 @@ CREATE TABLE IF NOT EXISTS pos_staff (
   UNIQUE KEY uq_pos_staff_phone (phone),
   KEY idx_pos_staff_owner (owner_id),
   CONSTRAINT fk_pos_staff_owner FOREIGN KEY (owner_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---- POS notes (016) ----
+CREATE TABLE IF NOT EXISTS pos_notes (
+  id               CHAR(36)      NOT NULL,
+  user_id          CHAR(36)      NOT NULL,              -- the OWNER (the shop)
+  author_staff_id  CHAR(36)      NULL,                  -- NULL = written by the owner
+  author_name      VARCHAR(100)  NOT NULL DEFAULT '',   -- set by the SERVER, never by the phone
+  day              CHAR(10)      NOT NULL,              -- the shop's local day
+  body             VARCHAR(1000) NOT NULL,
+  created_at       DATETIME(3)   NOT NULL,
+  updated_at       DATETIME(3)   NOT NULL,
+  deleted_at       DATETIME(3)   NULL,                  -- tombstone (owner only)
+  server_updated_at DATETIME(3)  NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  KEY idx_pos_notes_sync (user_id, server_updated_at),
+  CONSTRAINT fk_pos_notes_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

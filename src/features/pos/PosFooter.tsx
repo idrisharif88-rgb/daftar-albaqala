@@ -14,19 +14,20 @@ export interface PosTab { path: string; icon: IconName }
  *  same list, so a tab that is not shown cannot be reached by its address
  *  either. */
 export function usePosTabs(): PosTab[] {
-  const { staff, posStaffAllowed } = useAuth();
-  return posTabsFor(usePosPermissions(), staff !== null, posStaffAllowed);
+  const { staff, posStaffAllowed, posNotesAllowed } = useAuth();
+  return posTabsFor(usePosPermissions(), staff !== null, posStaffAllowed, posNotesAllowed);
 }
 
 /** The rule itself, without React — so it can be tested. */
 export function posTabsFor(
-  can: (p: Permission) => boolean, isStaff: boolean, staffFeatureOn: boolean,
+  can: (p: Permission) => boolean, isStaff: boolean, staffFeatureOn: boolean, notesOn = false,
 ): PosTab[] {
   const tabs: PosTab[] = [];
   if (can('see_stock') || can('add_stock')) tabs.push({ path: '/pos/today', icon: 'today' });
   if (can('sell')) tabs.push({ path: '/pos/sell', icon: 'sell' });
   if (can('see_reports')) tabs.push({ path: '/pos/history', icon: 'history' });
   if (can('manage_products')) tabs.push({ path: '/pos/products', icon: 'products' });
+  if (notesOn && can('notes')) tabs.push({ path: '/pos/notes', icon: 'notes' });
   if (isStaff ? can('manage_staff') : staffFeatureOn) tabs.push({ path: '/pos/staff', icon: 'staff' });
   return tabs;
 }
