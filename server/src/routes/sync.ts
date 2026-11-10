@@ -3,7 +3,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import {
-  DEFAULT_CURRENCY, DEFAULT_ROLE, MAX_GROUP_LINES_LENGTH, maxSettingLength,
+  DEFAULT_CURRENCY, DEFAULT_ROLE, MAX_GROUP_LINES_LENGTH, maxSettingLength, REMINDER_DAYS,
   SYNCABLE_SETTING_KEYS, VALID_CURRENCIES, VALID_ROLES, VALID_TXN_TYPES,
 } from '../domain';
 
@@ -118,6 +118,15 @@ router.post(
         // An unknown role is not worth rejecting a contact over — the contact
         // and its debts matter, the label doesn't. Fall back to the default.
         const role = VALID_ROLES.has(String(c.role)) ? String(c.role) : DEFAULT_ROLE;
+        // Limit + reminder. An older app sends none of them — then the stored
+        // values are KEPT (an edit made on an old phone must not wipe a limit
+        // set on a new one). A bad value is dropped to "none", not rejected.
+        const hasLimits = 'debt_limit' in c || 'reminder_days' in c || 'reminder_consent' in c;
+        const limitNum = Number(c.debt_limit);
+        const debtLimit = c.debt_limit !== null && c.debt_limit !== undefined &&
+          Number.isFinite(limitNum) && limitNum > 0 && limitNum < 1e10 ? limitNum.toFixed(2) : null;
+        const reminderDays = REMINDER_DAYS.has(Number(c.reminder_days)) ? Number(c.reminder_days) : null;
+        const reminderConsent = c.reminder_consent === true || Number(c.reminder_consent) === 1 ? 1 : 0;
 
         const [rows] = await conn.query(
           'SELECT user_id, updated_at FROM customers WHERE id = ?',
@@ -128,9 +137,11 @@ router.post(
         if (!existing) {
           await conn.query(
             `INSERT INTO customers
-               (id, user_id, name, phone, note, role, created_at, updated_at, deleted_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id, req.userId, name, phone, note, role, createdAt, updatedAt, deletedAt]
+               (id, user_id, name, phone, note, role, debt_limit, reminder_days, reminder_consent,
+                created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.userId, name, phone, note, role, debtLimit, reminderDays, reminderConsent,
+             createdAt, updatedAt, deletedAt]
           );
           result.customers.accepted.push(id);
         } else if (existing.user_id !== req.userId) {
@@ -148,6 +159,13 @@ router.post(
              WHERE id = ? AND user_id = ?`,
             [name, phone, note, role, updatedAt, deletedAt, id, req.userId]
           );
+          if (hasLimits) {
+            await conn.query(
+              `UPDATE customers SET debt_limit = ?, reminder_days = ?, reminder_consent = ?
+                WHERE id = ? AND user_id = ?`,
+              [debtLimit, reminderDays, reminderConsent, id, req.userId]
+            );
+          }
           result.customers.accepted.push(id);
         }
       }
@@ -561,7 +579,8 @@ router.get(
 
     // Fetch one extra row to detect a further page without a second COUNT query.
     const [customerRows] = await pool.query(
-      `SELECT id, name, phone, note, role, created_at, updated_at, deleted_at, server_updated_at
+      `SELECT id, name, phone, note, role, debt_limit, reminder_days, reminder_consent,
+              created_at, updated_at, deleted_at, server_updated_at
          FROM customers
         WHERE user_id = ? AND ${after}
         ORDER BY server_updated_at ASC, id ASC

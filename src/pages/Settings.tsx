@@ -36,6 +36,7 @@ import { useAppScale } from '../lib/appScale';
 import { onPrefsArrived } from '../lib/prefKeys';
 import AppScaleSheet from '../components/AppScaleSheet';
 import BackupSection from '../components/BackupSection';
+import AutoReminderSection from '../components/AutoReminderSection';
 import {
   biometricEnabled, setBiometricEnabled, unlockMethods, verifyFinger, verifyDevicePin,
   BiometricCancelled,
@@ -693,6 +694,9 @@ const Settings: React.FC = () => {
                 )}
               </>
             )}
+
+            {/* Automatic debt reminders — direct build only (renders nothing elsewhere). */}
+            <AutoReminderSection />
 
             {/* ---- About ---- Privacy policy: not required by Play for an app
                 that collects what this one does, but reviewers look for it, and

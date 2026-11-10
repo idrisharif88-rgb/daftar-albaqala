@@ -1,5 +1,6 @@
 import { getDB, persist } from './db';
 import { uuidv4 } from './uuid';
+import { kickReminders } from './reminders';
 import {
   BASE_CURRENCY, CURRENCIES, isCurrencyCode,
   type CurrencyBalance, type CurrencyCode,
@@ -89,6 +90,7 @@ export async function addTransaction(input: {
      input.note ?? null, occurredAt, now]
   );
   await persist();
+  kickReminders(); // the balance a reminder quotes just changed
   return {
     id, customer_id: input.customerId, type: input.type, amount: input.amount,
     currency, note: input.note ?? null, occurred_at: occurredAt, created_at: now,

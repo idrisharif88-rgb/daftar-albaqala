@@ -31,6 +31,7 @@ import { setPosKick } from './features/pos/posSyncKick';
 import { AppearanceProvider } from './theme/appearance';
 import { AuthProvider, useAuth } from './lib/auth';
 import { getSyncHealth, runSync } from './data/sync';
+import { kickReminders } from './data/reminders';
 import { dailyBackupIfDue } from './data/driveBackup';
 import { GOOGLE_ENABLED, linkedEmail } from './lib/googleDrive';
 
@@ -69,6 +70,7 @@ const AutoSync: React.FC = () => {
   useEffect(() => {
     if (!ledger) return;
     void runSync({ force: true }); // app open: also where an activation is noticed
+    kickReminders(); // the automatic-reminder outbox (direct build only)
     const onOnline = () => void runSync();
     window.addEventListener('online', onOnline);
     // The `online` event alone is not enough: on the owner's Note 9 it never

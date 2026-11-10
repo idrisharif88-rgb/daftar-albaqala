@@ -167,6 +167,8 @@ export function deleteAccount(): Promise<{ deleted: boolean }> {
 export interface PushCustomer {
   id: string; name: string; phone: string; note: string | null; role: string;
   created_at: string; updated_at: string; deleted_at: string | null;
+  /** MAJOR riyal units, like every amount on the wire; null = no limit. */
+  debt_limit: number | null; reminder_days: number | null; reminder_consent: boolean;
 }
 export interface PushTransaction {
   id: string; customer_id: string; type: string; amount: number; currency: string;
@@ -221,6 +223,8 @@ export interface SettingRow {
 export interface PullCustomer {
   id: string; name: string; phone: string; note: string | null; role: string | null;
   created_at: string; updated_at: string; deleted_at: string | null;
+  /** Absent from a server older than limits. */
+  debt_limit?: string | number | null; reminder_days?: number | null; reminder_consent?: number | boolean;
 }
 export interface PullTransaction {
   id: string; customer_id: string; type: string; amount: string | number;

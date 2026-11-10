@@ -327,6 +327,18 @@ CREATE TABLE IF NOT EXISTS pos_notes (
 `);
     },
   },
+  {
+    version: 13,
+    name: 'customers.debt_limit / reminder_days / reminder_consent',
+    async run(db) {
+      // debt_limit: riyal MINOR units, NULL = no limit. reminder_days: 3/7/14/30,
+      // NULL = no reminder. reminder_consent: 1 once the owner records that the
+      // contact agreed to automatic reminders. All three sync with the contact.
+      await db.run('ALTER TABLE customers ADD COLUMN debt_limit INTEGER');
+      await db.run('ALTER TABLE customers ADD COLUMN reminder_days INTEGER');
+      await db.run('ALTER TABLE customers ADD COLUMN reminder_consent INTEGER NOT NULL DEFAULT 0');
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

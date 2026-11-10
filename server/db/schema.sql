@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS customers (
   phone       VARCHAR(32)     NOT NULL,                -- مطلوب
   note        TEXT            NULL,
   role        VARCHAR(16)     NOT NULL DEFAULT 'customer', -- عميل / مورد / شريك
+  debt_limit  DECIMAL(12,2)   NULL,                    -- حد الدين (ريال)، NULL = بلا حد
+  reminder_days TINYINT UNSIGNED NULL,                 -- تذكير كل 3/7/14/30 يوماً
+  reminder_consent TINYINT(1) NOT NULL DEFAULT 0,      -- الزبون وافق على التذكير
 
   created_at  DATETIME        NOT NULL,
   updated_at  DATETIME        NOT NULL,                -- آخر-كتابة-تفوز (بساعة الجهاز)

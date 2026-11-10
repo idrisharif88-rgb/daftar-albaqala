@@ -1,6 +1,7 @@
 import { persist } from './db';
 import { getMeta, setMetaRaw } from './meta';
 import { fromMinor, toMinor } from './money';
+import { kickReminders } from './reminders';
 import { BASE_CURRENCY, isCurrencyCode } from './currencies';
 import {
   getDirtyCustomers, markCustomersSynced, applyServerCustomer, type Customer,
@@ -86,6 +87,8 @@ function toPushCustomer(c: Customer): PushCustomer {
   return {
     id: c.id, name: c.name, phone: c.phone, note: c.note, role: c.role,
     created_at: c.created_at, updated_at: c.updated_at, deleted_at: c.deleted_at,
+    debt_limit: c.debt_limit === null ? null : fromMinor(c.debt_limit),
+    reminder_days: c.reminder_days, reminder_consent: c.reminder_consent,
   };
 }
 
@@ -355,6 +358,11 @@ async function doSync(): Promise<SyncOutcome> {
         await applyServerCustomer({
           id: c.id, name: c.name, phone: c.phone, note: c.note, role: c.role,
           created_at: c.created_at, updated_at: c.updated_at, deleted_at: c.deleted_at,
+          ...('debt_limit' in c ? {
+            debt_limit: c.debt_limit === null || c.debt_limit === undefined ? null : toMinor(Number(c.debt_limit)),
+            reminder_days: c.reminder_days ?? null,
+            reminder_consent: c.reminder_consent === true || Number(c.reminder_consent) === 1,
+          } : {}),
         });
       }
       for (const i of page.items ?? []) {
@@ -400,6 +408,8 @@ async function doSync(): Promise<SyncOutcome> {
       cursor = page.synced_at;
       await setCursor(cursor);
       await persist();
+
+      if (page.customers.length || page.transactions.length) kickReminders();
 
       pages++;
       if (!page.has_more) { drained = true; break; }

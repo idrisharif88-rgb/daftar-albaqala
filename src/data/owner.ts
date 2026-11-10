@@ -1,4 +1,5 @@
 import { getDB, persist } from './db';
+import { kickReminders } from './reminders';
 
 // The on-phone SQLite store is single-tenant: it holds one grocer's data with
 // no user_id columns. When a DIFFERENT account logs in, the previous grocer's
@@ -50,6 +51,7 @@ DELETE FROM customers;
 DELETE FROM app_meta;`,
   );
   await persist();
+  kickReminders(); // the previous account's contacts must not be reminded
 }
 
 export async function ensureLocalOwner(userId: string): Promise<void> {

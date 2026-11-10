@@ -1,5 +1,6 @@
 import { getDB, persist } from './db';
 import { uuidv4 } from './uuid';
+import { kickReminders } from './reminders';
 import { DEFAULT_ROLE, VISIBLE_ROLE_CODES, isContactRole, type ContactRole } from './roles';
 
 // Contact repository — the only code that reads/writes the local `customers`
@@ -20,9 +21,18 @@ export interface Customer {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  /** Highest debt allowed, riyal MINOR units; null = no limit. */
+  debt_limit: number | null;
+  /** Automatic SMS reminder every N days (REMINDER_INTERVALS); null = none. */
+  reminder_days: number | null;
+  /** The owner recorded that this contact agreed to automatic reminders. */
+  reminder_consent: boolean;
 }
 
-const COLS = 'id, name, phone, note, role, created_at, updated_at, deleted_at';
+/** The reminder intervals the owner may pick, in days. Same list on the server. */
+export const REMINDER_INTERVALS = [3, 7, 14, 30] as const;
+
+const COLS = 'id, name, phone, note, role, created_at, updated_at, deleted_at, debt_limit, reminder_days, reminder_consent';
 const nowIso = () => new Date().toISOString();
 
 // Rows arrive untyped from SQLite; an unrecognised role degrades to the default
@@ -37,7 +47,15 @@ function toCustomer(row: Record<string, unknown>): Customer {
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     deleted_at: (row.deleted_at as string | null) ?? null,
+    debt_limit: row.debt_limit === null || row.debt_limit === undefined ? null : Number(row.debt_limit),
+    reminder_days: validDays(row.reminder_days),
+    reminder_consent: Number(row.reminder_consent) === 1,
   };
+}
+
+function validDays(v: unknown): number | null {
+  const n = Number(v);
+  return v !== null && v !== undefined && (REMINDER_INTERVALS as readonly number[]).includes(n) ? n : null;
 }
 
 // List active (non-deleted) contacts of THIS build, alphabetical. A contact
@@ -102,6 +120,7 @@ export async function createCustomer(input: {
   return {
     id, name, phone, note: input.note ?? null, role,
     created_at: now, updated_at: now, deleted_at: null,
+    debt_limit: null, reminder_days: null, reminder_consent: false,
   };
 }
 
@@ -127,6 +146,26 @@ export async function updateCustomer(
     [name, phone, note, role, nowIso(), id]
   );
   await persist();
+}
+
+/**
+ * The debt limit and the automatic reminder — kept apart from updateCustomer:
+ * those fields are open to the shopkeeper, while name/phone/role are not.
+ */
+export async function setCustomerLimits(
+  id: string,
+  fields: { debtLimit: number | null; reminderDays: number | null; reminderConsent: boolean },
+): Promise<void> {
+  const limit = fields.debtLimit !== null && fields.debtLimit > 0 ? Math.round(fields.debtLimit) : null;
+  const days = validDays(fields.reminderDays);
+  const db = await getDB();
+  await db.run(
+    `UPDATE customers SET debt_limit = ?, reminder_days = ?, reminder_consent = ?, updated_at = ?, synced = 0
+      WHERE id = ?`,
+    [limit, days, fields.reminderConsent ? 1 : 0, nowIso(), id],
+  );
+  await persist();
+  kickReminders();
 }
 
 // Soft-delete: write a tombstone (deleted_at) so the deletion syncs to the
@@ -166,22 +205,30 @@ export async function markCustomersSynced(rows: { id: string; updated_at: string
 export async function applyServerCustomer(row: {
   id: string; name: string; phone: string; note: string | null; role: string | null;
   created_at: string; updated_at: string; deleted_at: string | null;
+  /** Absent from a server older than limits — then the local values stay. */
+  debt_limit?: number | null; reminder_days?: number | null; reminder_consent?: boolean;
 }): Promise<void> {
   const db = await getDB();
   const existing = await getCustomer(row.id);
   const role = isContactRole(row.role) ? row.role : DEFAULT_ROLE;
+  const limit = row.debt_limit !== undefined ? row.debt_limit : (existing?.debt_limit ?? null);
+  const days = row.reminder_days !== undefined ? validDays(row.reminder_days) : (existing?.reminder_days ?? null);
+  const consent = row.reminder_consent !== undefined ? row.reminder_consent : (existing?.reminder_consent ?? false);
   if (!existing) {
     await db.run(
-      `INSERT INTO customers (id, name, phone, note, role, created_at, updated_at, deleted_at, synced)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      `INSERT INTO customers (id, name, phone, note, role, created_at, updated_at, deleted_at,
+                              debt_limit, reminder_days, reminder_consent, synced)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       [row.id, row.name, row.phone, row.note ?? null, role,
-       row.created_at, row.updated_at, row.deleted_at ?? null]
+       row.created_at, row.updated_at, row.deleted_at ?? null, limit, days, consent ? 1 : 0]
     );
   } else if (new Date(row.updated_at).getTime() > new Date(existing.updated_at).getTime()) {
     await db.run(
-      `UPDATE customers SET name = ?, phone = ?, note = ?, role = ?, updated_at = ?, deleted_at = ?, synced = 1
+      `UPDATE customers SET name = ?, phone = ?, note = ?, role = ?, updated_at = ?, deleted_at = ?,
+                            debt_limit = ?, reminder_days = ?, reminder_consent = ?, synced = 1
         WHERE id = ?`,
-      [row.name, row.phone, row.note ?? null, role, row.updated_at, row.deleted_at ?? null, row.id]
+      [row.name, row.phone, row.note ?? null, role, row.updated_at, row.deleted_at ?? null,
+       limit, days, consent ? 1 : 0, row.id]
     );
   }
 }
