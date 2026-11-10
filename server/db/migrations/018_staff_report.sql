@@ -9,7 +9,12 @@
 --   (NULL = the owner, or a sale older than this migration).
 -- pos_staff_sessions: one row per staff sign-in; logout_at stays NULL until
 --   the member signs out from the app.
+-- users.pos_report_enabled: the developer lets this shop's OWNER see the
+--   report (Watcher «تقرير الموظفين»). The developer always sees it.
 -- ============================================================
+ALTER TABLE users
+  ADD COLUMN pos_report_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER pos_notes_enabled;
+
 ALTER TABLE pos_sales
   ADD COLUMN staff_id CHAR(36) NULL AFTER user_id,
   ADD KEY idx_pos_sales_staff (user_id, staff_id, day);

@@ -5,6 +5,14 @@ import request from 'supertest';
 import app from '../app';
 import { pool } from '../db';
 import { cleanDb, seedUser, tokenFor } from './helpers';
+import bcrypt from 'bcryptjs';
+import { base32Decode, base32Encode, currentStep, totpAt } from '../admin/totp';
+import { resetAdminLoginState } from '../routes/admin';
+
+const ADMIN_PHONE = '777000333';
+const ADMIN_PASSWORD = 'report test password';
+const TOTP_SECRET = base32Encode(Buffer.from('report0123456789abcd'));
+const codeAt = (offset = 0) => totpAt(base32Decode(TOTP_SECRET), currentStep() + offset);
 
 // The owner's report per cashier: sign-in / sign-out times and sales per day.
 // The seller is stamped by the server from the token; only the owner reads it.
@@ -16,11 +24,24 @@ describe('staff report', () => {
   let owner: string; let ownerToken: string; let seq = 0;
   const phone = () => `56${String(seq++).padStart(7, '0')}`;
 
-  before(() => { assert.equal(process.env.DB_NAME, 'daftar_test'); });
+  before(async () => {
+    assert.equal(process.env.DB_NAME, 'daftar_test');
+    process.env.ADMIN_PHONE = ADMIN_PHONE;
+    process.env.ADMIN_PASSWORD_HASH = await bcrypt.hash(ADMIN_PASSWORD, 4);
+    process.env.ADMIN_TOTP_SECRET = TOTP_SECRET;
+    process.env.ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || 'x'.repeat(40);
+  });
+  async function adminToken(): Promise<string> {
+    resetAdminLoginState();
+    const login = await request(app).post('/admin/login')
+      .send({ phone: ADMIN_PHONE, password: ADMIN_PASSWORD, code: codeAt() });
+    assert.equal(login.status, 200, JSON.stringify(login.body));
+    return login.body.token;
+  }
   beforeEach(async () => {
     await cleanDb();
     owner = await seedUser();
-    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1 WHERE id = ?', [owner]);
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1, pos_report_enabled = 1 WHERE id = ?', [owner]);
     ownerToken = tokenFor(owner);
   });
   after(async () => { await pool.end(); });
@@ -74,10 +95,31 @@ describe('staff report', () => {
     assert.equal((await report(cashier.token, cashier.id)).status, 403);
   });
 
+  test('the owner sees it only once the developer allows it; the developer always does', async () => {
+    const cashier = await hire('cashier');
+    await pool.query('UPDATE users SET pos_report_enabled = 0 WHERE id = ?', [owner]);
+    const refused = await report(ownerToken, cashier.id);
+    assert.equal(refused.status, 403);
+    assert.equal((await request(app).get('/pos-staff').set(AUTH(ownerToken))).body.report_enabled, false);
+
+    const admin = await adminToken();
+    const staff = await request(app).get(`/admin/users/${owner}/staff`).set(AUTH(admin));
+    assert.equal(staff.body.staff[0].id, cashier.id);
+    const r = await request(app).get(`/admin/users/${owner}/staff/${cashier.id}/report?from=2026-11-08&to=2026-11-09`)
+      .set(AUTH(admin));
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    // the developer's switch, with a fresh code
+    const on = await request(app).post(`/admin/users/${owner}/pos-report`).set(AUTH(admin))
+      .send({ enabled: true, code: codeAt(1) });
+    assert.equal(on.status, 200, JSON.stringify(on.body));
+    assert.equal((await report(ownerToken, cashier.id)).status, 200);
+    assert.equal((await request(app).get('/pos-staff').set(AUTH(ownerToken))).body.report_enabled, true);
+  });
+
   test("another owner's member is not found; bad dates refused", async () => {
     const cashier = await hire('cashier');
     const other = await seedUser();
-    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1 WHERE id = ?', [other]);
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1, pos_report_enabled = 1 WHERE id = ?', [other]);
     assert.equal((await report(tokenFor(other), cashier.id)).status, 404);
     assert.equal((await report(ownerToken, cashier.id, '2026-11-09', '2026-11-08')).status, 400);
     assert.equal((await report(ownerToken, cashier.id, 'x', '2026-11-08')).status, 400);

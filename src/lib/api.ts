@@ -149,7 +149,7 @@ export function staffReport(id: string, from: string, to: string): Promise<Staff
   return request(`/pos-staff/${encodeURIComponent(id)}/report?from=${from}&to=${to}`);
 }
 
-export function listStaff(): Promise<{ staff: StaffMember[] }> {
+export function listStaff(): Promise<{ staff: StaffMember[]; report_enabled?: boolean }> {
   return request('/pos-staff');
 }
 

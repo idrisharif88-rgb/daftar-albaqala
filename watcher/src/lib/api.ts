@@ -84,6 +84,8 @@ export interface Account {
   pos_staff_enabled?: boolean;
   /** POS notes — switched on per account by the owner. */
   pos_notes_enabled?: boolean;
+  /** The shop owner may see the report per staff member (the developer always can). */
+  pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
    *  ASKS ('pending'); the server syncs nothing until he approves. */
   sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
@@ -151,6 +153,29 @@ export function setPosNotesAccess(id: string, enabled: boolean, code: string): P
     method: 'POST',
     body: JSON.stringify({ enabled, code }),
   });
+}
+
+/** Let one shop's owner see the report per staff member (on/off). */
+export function setPosReportAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/pos-report`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled, code }),
+  });
+}
+
+export interface ShopStaff { id: string; name: string; phone: string; role: string; disabled: boolean }
+export function listShopStaff(id: string): Promise<{ staff: ShopStaff[] }> {
+  return request(`/admin/users/${encodeURIComponent(id)}/staff`);
+}
+
+export interface StaffReport {
+  staff: { id: string; name: string };
+  sessions: { login_at: string; logout_at: string | null }[];
+  days: { day: string; qty: number; amount: number }[];
+  totals: { qty: number; amount: number };
+}
+export function shopStaffReport(id: string, staffId: string, from: string, to: string): Promise<StaffReport> {
+  return request(`/admin/users/${encodeURIComponent(id)}/staff/${encodeURIComponent(staffId)}/report?from=${from}&to=${to}`);
 }
 
 /** Erase a whole account. The server checks `confirmPhone` against the account. */

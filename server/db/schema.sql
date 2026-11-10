@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   sync_consent             ENUM('none','pending','approved','rejected') NOT NULL DEFAULT 'none', -- موافقة صاحب الدفتر على المزامنة (016)
   sync_consent_at          DATETIME(3)     NULL,
   pos_notes_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- ملاحظات نقطة البيع: يفعّلها المطوّر (016)
+  pos_report_enabled       TINYINT(1)      NOT NULL DEFAULT 0,       -- تقرير الموظفين لصاحب المتجر: يفعّله المطوّر (018)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,

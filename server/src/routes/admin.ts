@@ -11,6 +11,7 @@ import {
 } from '../admin/totpGate';
 import { VALID_ROLES } from '../domain';
 import { eraseAccount } from '../account/erase';
+import { buildStaffReport, validRange } from '../pos/staffReport';
 
 // The Watcher app's API: the owner's view over EVERY account.
 //
@@ -89,7 +90,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -109,6 +110,7 @@ router.get(
       pos_enabled: Number(r.pos_enabled) === 1,
       pos_staff_enabled: Number(r.pos_staff_enabled) === 1,
       pos_notes_enabled: Number(r.pos_notes_enabled) === 1,
+      pos_report_enabled: Number(r.pos_report_enabled) === 1,
     }));
     return res.json({ users });
   })
@@ -177,6 +179,57 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, pos_notes_enabled: enabled });
+  })
+);
+
+// POST /admin/users/:id/pos-report  { enabled: boolean }
+// Lets this shop's OWNER see the report per staff member. The developer sees
+// it regardless (the two routes below).
+router.post(
+  '/users/:id/pos-report',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be true or false' });
+    }
+    const [result] = await pool.query(
+      'UPDATE users SET pos_report_enabled = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [enabled ? 1 : 0, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ id: req.params.id, pos_report_enabled: enabled });
+  })
+);
+
+// GET /admin/users/:id/staff — a shop's staff, for the developer's report.
+router.get(
+  '/users/:id/staff',
+  asyncHandler(async (req, res) => {
+    const [rows] = await pool.query(
+      `SELECT id, name, phone, role, disabled_at FROM pos_staff WHERE owner_id = ? ORDER BY created_at`,
+      [req.params.id]
+    );
+    return res.json({
+      staff: (rows as Array<Record<string, unknown>>).map((r) => ({
+        id: r.id, name: r.name, phone: r.phone, role: r.role, disabled: r.disabled_at !== null,
+      })),
+    });
+  })
+);
+
+// GET /admin/users/:id/staff/:staffId/report?from&to — the same report the
+// owner reads (pos/staffReport.ts), for the developer, always.
+router.get(
+  '/users/:id/staff/:staffId/report',
+  asyncHandler(async (req, res) => {
+    const r = validRange(req.query.from, req.query.to);
+    if (!r) return res.status(400).json({ error: 'from and to must be YYYY-MM-DD, from <= to' });
+    const report = await buildStaffReport(req.params.id, req.params.staffId, r.from, r.to);
+    if (!report) return res.status(404).json({ error: 'staff member not found' });
+    return res.json(report);
   })
 );
 

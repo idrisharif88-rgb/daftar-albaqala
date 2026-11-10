@@ -1447,8 +1447,14 @@ Branch `staff-report` (on top of `debt-limit-reminders`). Server migration **018
 - `pos_staff_sessions` — a row per staff sign-in (`/auth/staff/login`); `POST /auth/staff/logout`
   closes the latest open one. The app calls it from «حسابي» → خروج (best effort; the logout guard
   already requires being online). No sign-out = «لم يخرج».
-- `GET /pos-staff/:id/report?from&to` — **owner only** (any staff token → 403, even admin/manager).
-  Sessions with ±1 day margin (the app sorts them into LOCAL days); sales grouped by `day`.
-- App: «الموظفون» → chart icon per member (owner only) → `/pos/staff/:id/report`
+- `GET /pos-staff/:id/report?from&to` — **shop owner only, and only when the developer switched
+  `users.pos_report_enabled` on** (Watcher «تقرير الموظفين (لصاحب المتجر)», under «حسابات الموظفين»);
+  any staff token → 403, even admin/manager. `GET /pos-staff` returns `report_enabled` for the icon.
+  One builder, `server/src/pos/staffReport.ts`. Sessions with ±1 day margin (the app sorts them into
+  LOCAL days); sales grouped by `day`.
+- **The developer always sees it:** `GET /admin/users/:id/staff` + `/admin/users/:id/staff/:sid/report`;
+  Watcher «المزيد» → «عرض تقارير الموظفين» → `watcher/src/pages/StaffReports.tsx`.
+  Switch: `POST /admin/users/:id/pos-report {enabled, code}`.
+- App: «الموظفون» → chart icon per member (owner, switch on) → `/pos/staff/:id/report`
   (`StaffReportPage`): اليوم / أمس / 7 أيام / هذا الشهر; per day: دخول/خروج times, pieces sold, amount.
 - ⚠️ **MIGRATION 018 REQUIRED** after 017 (root): local `daftar_test` + `daftar_db`, then droplet.

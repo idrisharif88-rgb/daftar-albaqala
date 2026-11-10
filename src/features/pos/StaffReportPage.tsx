@@ -83,6 +83,7 @@ const StaffReportPage: React.FC = () => {
       setReport(null);
       setError(err instanceof ApiError && err.status === 0 ? 'لا يوجد اتصال بالإنترنت.'
         : err instanceof ApiError && err.status === 404 ? 'الموظف غير موجود.'
+          : err instanceof ApiError && err.status === 403 ? 'التقرير غير مفعّل لهذا المتجر.'
           : 'تعذّر تحميل التقرير.');
     } finally {
       setLoading(false);

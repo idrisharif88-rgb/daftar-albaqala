@@ -48,6 +48,8 @@ const StaffPage: React.FC = () => {
   const can = usePosPermissions();
   const [list, setList] = useState<StaffMember[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // The developer lets this owner see the report per member (Watcher switch).
+  const [reportOn, setReportOn] = useState(false);
   const modal = useRef<HTMLIonModalElement>(null);
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [name, setName] = useState('');
@@ -64,7 +66,9 @@ const StaffPage: React.FC = () => {
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      setList((await listStaff()).staff);
+      const res = await listStaff();
+      setList(res.staff);
+      setReportOn(res.report_enabled === true);
     } catch (err) {
       setLoadError(arabicError(err));
     }
@@ -154,7 +158,7 @@ const StaffPage: React.FC = () => {
                 </IonLabel>
                 {m.disabled && <IonBadge slot="end" color="medium">موقوف</IonBadge>}
                 {/* The owner's report on this member — owner only. */}
-                {!me && (
+                {!me && reportOn && (
                   <IonButton
                     slot="end" fill="clear" aria-label={ICON_LABELS.report}
                     onClick={(e) => { e.stopPropagation(); router.push(`/pos/staff/${m.id}/report`); }}
