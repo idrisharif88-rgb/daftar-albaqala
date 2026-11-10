@@ -11,6 +11,9 @@ import attachmentsRouter, { attachmentsBodyParser } from './routes/attachments';
 import accountRouter from './routes/account';
 import adminRouter from './routes/admin';
 import { requireAuth, AuthedRequest } from './middleware/auth';
+import { requirePosActor } from './middleware/posActor';
+import staffAuthRouter from './routes/staffAuth';
+import posStaffRouter from './routes/posStaff';
 import { requireSubscription, requireNotSuspended, appOf } from './middleware/requireSubscription';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
@@ -62,7 +65,8 @@ app.get('/health', (_req, res) => {
   });
 });
 
-// Auth: POST /auth/register, POST /auth/login.
+// Auth: POST /auth/register, POST /auth/login. Staff: POST /auth/staff/login.
+app.use('/auth/staff', staffAuthRouter);
 app.use('/auth', authRouter);
 
 // Customers CRUD — all behind requireAuth, every query filtered by req.userId.
@@ -84,8 +88,14 @@ app.use('/account', requireAuth, accountRouter);
 app.use('/sync', requireAuth, requireSubscription, syncRouter);
 
 // Point of sale: its own sync, same gates plus «the section was switched on
-// for this account» (users.pos_enabled).
-app.use('/pos-sync', requireAuth, requireSubscription, requirePos, posSyncRouter);
+// for this account» (users.pos_enabled). The ONE place a staff token is
+// accepted: requirePosActor sets req.userId to the OWNER for staff too, so the
+// gates below check the owner's subscription and POS switch.
+app.use('/pos-sync', requirePosActor, requireSubscription, requirePos, posSyncRouter);
+
+// The owner's POS staff (cashier / adder / admin). Owner only — requireAuth
+// refuses staff tokens, so no staff member can add or change staff.
+app.use('/pos-staff', requireAuth, requireNotSuspended, requirePos, posStaffRouter);
 
 // Attachments — a file pinned to an entry. Behind the same gates as sync (it is
 // part of the paid cloud backup) and tenant-filtered by req.userId. The global

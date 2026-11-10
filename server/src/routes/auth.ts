@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
+import { normalizePhone } from '../auth/phone';
 
 const router = Router();
 
@@ -12,14 +13,6 @@ function signToken(userId: string): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET is not set');
   return jwt.sign({ sub: userId }, secret, { expiresIn: '30d' });
-}
-
-// Phone is the login identity (Yemen is phone-first; many users have no email).
-// Normalize to digits only — strips spaces, dashes and a leading +, so the same
-// number typed different ways maps to one account. App-layer uniqueness, mirroring
-// how customer phones are handled (see CLAUDE.md).
-function normalizePhone(raw: unknown): string {
-  return String(raw ?? '').replace(/[\s-]/g, '').replace(/^\+/, '');
 }
 
 // POST /auth/register — create an account, return a token.
@@ -38,7 +31,12 @@ router.post(
       return res.status(400).json({ error: 'password must be at least 6 characters' });
     }
 
-    const [existing] = await pool.query('SELECT id FROM users WHERE phone = ?', [normPhone]);
+    // A staff member's login number is taken too: one number, one person at
+    // the login screen.
+    const [existing] = await pool.query(
+      'SELECT 1 FROM users WHERE phone = ? UNION ALL SELECT 1 FROM pos_staff WHERE phone = ? LIMIT 1',
+      [normPhone, normPhone]
+    );
     if ((existing as unknown[]).length > 0) {
       return res.status(409).json({ error: 'phone already registered' });
     }

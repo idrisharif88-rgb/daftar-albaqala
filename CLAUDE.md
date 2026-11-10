@@ -1359,6 +1359,18 @@ applied on the droplet; owner verified rows reach the server.
   all days. Toggle «يُخبز كل يوم» on the product form; the flag syncs (LWW) and rides the export/import.
   ⚠️ **MIGRATION 013 REQUIRED** (root): local `daftar_test` + `daftar_db`, then the droplet, BEFORE the app.
   Not device-tested. Still open from the updates notebook: cashier/admin/adder roles + notes; sync consent.
+- **POS staff — slice 1, SERVER only (2026-11-10, branch `pos-staff`, migration 014):** `pos_staff`
+  (owner_id, name, phone, role admin|cashier|adder, bcrypt hash, token_version, disabled_at). Owner-only
+  `/pos-staff` (GET/POST/PATCH; no DELETE — disable instead). Staff login `POST /auth/staff/login` → token
+  `{typ:'staff', sub:staffId, tv}`; **`requireAuth` refuses any token with a `typ`**, so a staff token opens
+  ONLY `/pos-sync` (via `requirePosActor`, which sets `req.userId` = the OWNER and re-checks the staff row,
+  `token_version`, disabled and owner-suspended on every request). Write rights per table in ONE place,
+  `server/src/pos/staffRoles.ts` (cashier = sales; adder = baked; admin = all); refused rows come back
+  `forbidden`. Pull is open to every role (the app hides what a role should not see). Role/password/disable
+  change bumps `token_version` → signed out at once. Phone is unique across owners AND staff. Staff login
+  throttled per phone (10 fails / 15 min, `auth/loginThrottle.ts`). **Fixed in passing:** `eraseAccount`
+  never deleted the POS tables (FK would have failed the delete). Next: slice 2 (app: staff login + screens
+  by role + owner's staff screen), slice 3 (notes).
 - **Watcher:** per-account «مفعّل / موقوف» button (allow/block use of the app); everything else
   (مزامنة الخادم, نقطة البيع, Drive, المقاول, name, password, delete) in the «المزيد» sheet; all
   Watcher text bold. Server tests 133/133, app tests 110/110.

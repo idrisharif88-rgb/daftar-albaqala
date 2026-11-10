@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
+import { PosRequest } from '../middleware/posActor';
+import { canWrite, type PosTable } from '../pos/staffRoles';
 
 // Sync of the point-of-sale section — its OWN endpoint, on purpose. The ledger's
 // /sync is the most important code in the app and carries four tables and a
@@ -18,11 +20,15 @@ import { AuthedRequest } from '../middleware/auth';
 //     receiver named), a foreign owner's id is refused, and the pull cursor is a
 //     keyset on the SERVER's clock, never the phone's.
 //
-// Mounted behind requireAuth + requireSubscription (cloud sync is the paid
+// The pusher may be the owner or one of his staff (requirePosActor): either way
+// req.userId is the OWNER. A staff member's rows of a table their role may not
+// change are refused as `forbidden` (pos/staffRoles.ts), before anything is read.
+//
+// Mounted behind requirePosActor + requireSubscription (cloud sync is the paid
 // feature) + requirePos (the section was switched on for this account).
 
 type Row = Record<string, unknown>;
-type RejectReason = 'invalid' | 'missing_product' | 'foreign_owner' | 'conflict';
+type RejectReason = 'invalid' | 'missing_product' | 'foreign_owner' | 'conflict' | 'forbidden';
 interface TableResult { accepted: string[]; rejected: { id: string; reason: RejectReason }[] }
 
 const router = Router();
@@ -50,13 +56,24 @@ const empty = (): TableResult => ({ accepted: [], rejected: [] });
 // POST /pos-sync/push — { products, baked, sales, day_locks }
 router.post(
   '/push',
-  asyncHandler(async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: PosRequest, res) => {
     const userId = req.userId as string;
-    const products = asArray(req.body?.products);
-    const baked = asArray(req.body?.baked);
-    const sales = asArray(req.body?.sales);
-    const dayLocks = asArray(req.body?.day_locks);
     const result = { products: empty(), baked: empty(), sales: empty(), day_locks: empty() };
+    // Rows of a table this actor may not change are refused, by name, and
+    // never reach the database.
+    const allowed = (table: PosTable, idKey: 'id' | 'day'): Row[] => {
+      const rows = asArray(req.body?.[table]);
+      if (canWrite(req.staff?.role, table)) return rows;
+      for (const r of rows) {
+        const id = str(r[idKey]);
+        if (id) result[table].rejected.push({ id, reason: 'forbidden' });
+      }
+      return [];
+    };
+    const products = allowed('products', 'id');
+    const baked = allowed('baked', 'id');
+    const sales = allowed('sales', 'id');
+    const dayLocks = allowed('day_locks', 'day');
 
     const conn = await pool.getConnection();
     try {
