@@ -5,6 +5,8 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { normalizePhone } from '../auth/phone';
 import { createLoginThrottle } from '../auth/loginThrottle';
+import { requirePosActor, PosRequest } from '../middleware/posActor';
+import { parsePermissions } from '../pos/permissions';
 
 // POST /auth/staff/login — a POS staff member (cashier / adder / admin) signs in
 // with their own phone + password and gets a STAFF token. That token opens
@@ -42,8 +44,8 @@ router.post(
     }
 
     const [rows] = await pool.query(
-      `SELECT s.id, s.name, s.role, s.password_hash, s.token_version, s.disabled_at,
-              u.subscription_status, u.store_name
+      `SELECT s.id, s.name, s.role, s.permissions, s.password_hash, s.token_version, s.disabled_at,
+              u.subscription_status, u.pos_staff_enabled, u.store_name
          FROM pos_staff s JOIN users u ON u.id = s.owner_id
         WHERE s.phone = ?`,
       [phone],
@@ -60,11 +62,39 @@ router.post(
     // the number exists.
     if (staff.disabled_at !== null) return res.status(403).json({ error: 'staff account disabled' });
     if (staff.subscription_status === 'suspended') return res.status(403).json({ error: 'account suspended' });
+    if (Number(staff.pos_staff_enabled) !== 1) return res.status(403).json({ error: 'staff accounts are not enabled' });
 
     return res.json({
       token: signStaffToken(String(staff.id), Number(staff.token_version)),
-      staff: { id: staff.id, name: staff.name, role: staff.role },
+      staff: {
+        id: staff.id, name: staff.name, role: staff.role,
+        permissions: [...parsePermissions(staff.permissions)],
+      },
       store_name: staff.store_name ?? null,
+    });
+  }),
+);
+
+// GET /auth/staff/me — who this staff token belongs to, and what they may do
+// NOW. The app calls it on open and after a sync, so a permission the owner
+// switched off disappears from the screen too (the server already refuses it).
+// Not behind requireSubscription: a member must still learn they are signed in
+// when the shop's server sync is off.
+router.get(
+  '/me',
+  requirePosActor,
+  asyncHandler(async (req: PosRequest, res) => {
+    if (!req.staff) return res.status(400).json({ error: 'not a staff token' });
+    const [rows] = await pool.query(
+      `SELECT s.name, u.store_name FROM pos_staff s JOIN users u ON u.id = s.owner_id
+        WHERE s.id = ? AND s.owner_id = ?`,
+      [req.staff.id, req.userId],
+    );
+    const row = (rows as Row[])[0];
+    if (!row) return res.status(401).json({ error: 'invalid or expired token' });
+    return res.json({
+      staff: { id: req.staff.id, name: row.name, role: req.staff.role, permissions: [...req.staff.permissions] },
+      store_name: row.store_name ?? null,
     });
   }),
 );

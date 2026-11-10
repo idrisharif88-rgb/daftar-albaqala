@@ -80,6 +80,8 @@ export interface Account {
   drive_backup: boolean;
   /** The point-of-sale section — switched on per account by the owner. */
   pos_enabled: boolean;
+  /** POS staff accounts (cashier / adder / admin) — switched on per account by the owner. */
+  pos_staff_enabled?: boolean;
   /** «دفتر المقاول»'s own activation ('active' | 'none'); subscription_status
    *  is the grocery app's, and 'suspended' there blocks both apps. */
   contractor_status: string;
@@ -124,6 +126,15 @@ export function setDriveBackup(id: string, enabled: boolean, code: string): Prom
 
 export function setPosAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/pos`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled, code }),
+  });
+}
+
+/** Switch POS staff accounts on/off for one shop. Off: the shop sees no
+ *  «الموظفون», and its staff cannot sign in. The staff are kept. */
+export function setPosStaffAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/pos-staff`, {
     method: 'POST',
     body: JSON.stringify({ enabled, code }),
   });

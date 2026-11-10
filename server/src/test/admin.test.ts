@@ -252,6 +252,28 @@ describe('/admin', () => {
     assert.equal(res.body.users[0].drive_backup, true);
   });
 
+  test('POS staff accounts: off by default, switched on by the developer, read back on /me', async () => {
+    const user = await seedUser({ status: 'active' });
+    let res = await request(app).get('/me').set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(res.body.user.pos_staff_enabled, false);
+    const token = await adminToken();
+    res = await request(app)
+      .post(`/admin/users/${user}/pos-staff`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ enabled: true, code: codeNow(1) });
+    assert.equal(res.status, 200);
+    res = await request(app).get('/me').set('Authorization', `Bearer ${tokenFor(user)}`);
+    assert.equal(res.body.user.pos_staff_enabled, true);
+    res = await request(app).get('/admin/users').set('Authorization', `Bearer ${token}`);
+    assert.equal(res.body.users[0].pos_staff_enabled, true);
+    // a shopkeeper cannot switch it on for himself
+    res = await request(app)
+      .post(`/admin/users/${user}/pos-staff`)
+      .set('Authorization', `Bearer ${tokenFor(user)}`)
+      .send({ enabled: true, code: codeNow(1) });
+    assert.equal(res.status, 401);
+  });
+
   test('Drive backup: needs a real boolean, a fresh code and a known account', async () => {
     const user = await seedUser();
     const token = await adminToken();

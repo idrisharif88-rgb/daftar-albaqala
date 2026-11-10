@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   subscription_expires_at  DATETIME        NULL,
   drive_backup             TINYINT(1)      NOT NULL DEFAULT 0,       -- نسخ Google Drive: يمنحه المالك (008)
   pos_enabled              TINYINT(1)      NOT NULL DEFAULT 0,       -- قسم نقطة البيع: يمنحه المالك (011)
+  pos_staff_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- حسابات الموظفين: يفعّلها المطوّر (015)
   contractor_status        VARCHAR(16)     NOT NULL DEFAULT 'none',  -- تفعيل «دفتر المقاول» (010)
 
   created_at               DATETIME        NOT NULL,
@@ -261,6 +262,7 @@ CREATE TABLE IF NOT EXISTS pos_staff (
   name           VARCHAR(100) NOT NULL,
   phone          VARCHAR(32)  NOT NULL,
   role           ENUM('admin','cashier','adder') NOT NULL,
+  permissions    VARCHAR(500) NOT NULL DEFAULT '[]',      -- JSON array, see pos/permissions.ts (015)
   password_hash  VARCHAR(255) NOT NULL,
   token_version  INT          NOT NULL DEFAULT 0,
   disabled_at    DATETIME(3)  NULL,

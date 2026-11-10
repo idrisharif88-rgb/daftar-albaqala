@@ -1371,6 +1371,19 @@ applied on the droplet; owner verified rows reach the server.
   throttled per phone (10 fails / 15 min, `auth/loginThrottle.ts`). **Fixed in passing:** `eraseAccount`
   never deleted the POS tables (FK would have failed the delete). Next: slice 2 (app: staff login + screens
   by role + owner's staff screen), slice 3 (notes).
+- **POS staff — slice 2: developer switch + permissions + app (2026-11-10, branch `pos-staff-permissions`,
+  migration 015):** `users.pos_staff_enabled` (Watcher «حسابات الموظفين», under «نقطة البيع» in «المزيد»;
+  default OFF → `/pos-staff`, staff login and every staff token of that shop answer 403; staff are kept).
+  `pos_staff.permissions` = JSON list from ONE registry, `server/src/pos/permissions.ts` (mirrored for the UI
+  in `src/features/pos/permissions.ts`): sell, add_stock, see_stock, see_reports, manage_products,
+  submit_day, manage_staff. Role = preset only. Server enforces the four write permissions + manage_staff;
+  **see_stock / see_reports are UI-only** (pull returns all POS data to every member). Permissions are read
+  per request (change applies at once, no sign-out); password/disable bump `token_version`. A member with
+  manage_staff can grant only what they hold, can't edit themselves or anyone holding more.
+  `GET /auth/staff/me` refreshes permissions on launch (401/403 → signed out). App: «دخول موظف» on Login
+  (POS builds only); a staff session has no ledger (every ledger route → their first POS tab, AutoSync
+  off), tabs from `posTabsFor()` (router uses the same list), «حسابي» page (`/pos/account`) with logout;
+  owner/manager «الموظفون» page (`/pos/staff`, online only). Local store for staff keyed `staff:<id>`.
 - **Watcher:** per-account «مفعّل / موقوف» button (allow/block use of the app); everything else
   (مزامنة الخادم, نقطة البيع, Drive, المقاول, name, password, delete) in the «المزيد» sheet; all
   Watcher text bold. Server tests 133/133, app tests 110/110.

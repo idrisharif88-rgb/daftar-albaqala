@@ -12,6 +12,9 @@ import ProductsPage from './features/pos/ProductsPage';
 import TodayPage from './features/pos/TodayPage';
 import SellPage from './features/pos/SellPage';
 import HistoryPage from './features/pos/HistoryPage';
+import StaffPage from './features/pos/StaffPage';
+import StaffAccountPage from './features/pos/StaffAccountPage';
+import { firstPosTab, usePosTabs } from './features/pos/PosFooter';
 import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
@@ -58,9 +61,11 @@ setupIonicReact();
 // network returns. Best-effort and silent — failures (offline, 402) are swallowed
 // here; the manual button on Settings surfaces a status. Renders nothing.
 const AutoSync: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, staff } = useAuth();
+  // A staff member has no ledger: their token opens /pos-sync only.
+  const ledger = isAuthenticated && !staff;
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!ledger) return;
     void runSync({ force: true }); // app open: also where an activation is noticed
     const onOnline = () => void runSync();
     window.addEventListener('online', onOnline);
@@ -76,7 +81,7 @@ const AutoSync: React.FC = () => {
       });
     }, 15000);
     return () => { clearInterval(heartbeat); window.removeEventListener('online', onOnline); };
-  }, [isAuthenticated]);
+  }, [ledger]);
   return null;
 };
 
@@ -182,8 +187,19 @@ const HardwareBack: React.FC = () => {
 // sent to /welcome — including on logout, so leaving the app lands on the same
 // first screen as opening it. Kept inside AuthProvider so useAuth() is available.
 const Routes: React.FC = () => {
-  const { isAuthenticated, isOwner, posAllowed } = useAuth();
+  const { isAuthenticated, isOwner, posAllowed, staff } = useAuth();
   const posAccess = isAuthenticated && POS_ENABLED && (isOwner || posAllowed);
+  // A STAFF member sees only the POS tabs their permissions allow, and never
+  // the ledger: every other path sends them to their first tab (or to their
+  // account page, when they hold no tab at all).
+  const tabs = usePosTabs();
+  const staffHome = firstPosTab(tabs) ?? '/pos/account';
+  const home = staff ? staffHome : '/home';
+  const ledger = (page: React.ReactNode) =>
+    !isAuthenticated ? <Redirect to="/welcome" /> : staff ? <Redirect to={staffHome} /> : page;
+  const pos = (path: string, page: React.ReactNode) =>
+    !posAccess ? <Redirect to={isAuthenticated ? '/home' : '/welcome'} />
+      : !tabs.some((t) => t.path === path) ? <Redirect to={staff ? staffHome : '/pos/today'} /> : page;
   return (
     // Remount the whole router when signing in or out. IonRouterOutlet keeps a
     // STACK of the pages it has shown; flipping these routes between a page and
@@ -195,49 +211,55 @@ const Routes: React.FC = () => {
       <HardwareBack />
       <IonRouterOutlet>
         <Route exact path="/welcome">
-          {isAuthenticated ? <Redirect to="/home" /> : <Welcome />}
+          {isAuthenticated ? <Redirect to={home} /> : <Welcome />}
         </Route>
         <Route exact path="/login">
-          {isAuthenticated ? <Redirect to="/home" /> : <Login />}
+          {isAuthenticated ? <Redirect to={home} /> : <Login />}
         </Route>
         <Route exact path="/home">
-          {isAuthenticated ? <Home /> : <Redirect to="/welcome" />}
+          {ledger(<Home />)}
         </Route>
         <Route exact path="/customers/:id">
-          {isAuthenticated ? <CustomerDetail /> : <Redirect to="/welcome" />}
+          {ledger(<CustomerDetail />)}
         </Route>
         {/* More specific paths come first — a bare /customers/:id would
             otherwise swallow both of these. */}
         <Route exact path="/customers/:id/items">
-          {isAuthenticated ? <Items /> : <Redirect to="/welcome" />}
+          {ledger(<Items />)}
         </Route>
         <Route exact path="/customers/:id/invoice">
-          {isAuthenticated ? <Invoice /> : <Redirect to="/welcome" />}
+          {ledger(<Invoice />)}
         </Route>
         <Route exact path="/pos/today">
-          {posAccess ? <TodayPage /> : <Redirect to="/home" />}
+          {pos('/pos/today', <TodayPage />)}
         </Route>
         <Route exact path="/pos/sell">
-          {posAccess ? <SellPage /> : <Redirect to="/home" />}
+          {pos('/pos/sell', <SellPage />)}
         </Route>
         <Route exact path="/pos/history">
-          {posAccess ? <HistoryPage /> : <Redirect to="/home" />}
+          {pos('/pos/history', <HistoryPage />)}
         </Route>
         <Route exact path="/pos/products">
-          {posAccess ? <ProductsPage /> : <Redirect to="/home" />}
+          {pos('/pos/products', <ProductsPage />)}
+        </Route>
+        <Route exact path="/pos/staff">
+          {pos('/pos/staff', <StaffPage />)}
+        </Route>
+        <Route exact path="/pos/account">
+          {staff ? <StaffAccountPage /> : <Redirect to={isAuthenticated ? '/home' : '/welcome'} />}
         </Route>
         <Route exact path="/pos">
-          <Redirect to="/pos/today" />
+          <Redirect to={staff ? staffHome : '/pos/today'} />
         </Route>
         <Route exact path="/settings">
-          {isAuthenticated ? <Settings /> : <Redirect to="/welcome" />}
+          {ledger(<Settings />)}
         </Route>
         {/* The owner's own notebook — no other account can reach it. */}
         <Route exact path="/notebook">
           {isOwner ? <UpdatesNotebook /> : <Redirect to="/home" />}
         </Route>
         <Route exact path="/">
-          <Redirect to={isAuthenticated ? '/home' : '/welcome'} />
+          <Redirect to={isAuthenticated ? home : '/welcome'} />
         </Route>
       </IonRouterOutlet>
     </IonReactRouter>

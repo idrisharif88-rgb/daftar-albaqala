@@ -11,6 +11,8 @@ export function usePosAccess(): boolean {
   return POS_ENABLED && (isOwner || posAllowed);
 }
 
+// (A staff member has no ledger, so this bar is never shown to one — see PosFooter.)
+
 /**
  * The switch between the app's sections — «الديون» and «نقطة البيع». Shown at
  * the bottom of each section's main screen, and ONLY to an account allowed
@@ -18,8 +20,9 @@ export function usePosAccess(): boolean {
  */
 const SectionBar: React.FC = () => {
   const allowed = usePosAccess();
+  const { staff } = useAuth();
   const { pathname } = useLocation();
-  if (!allowed) return null;
+  if (!allowed || staff) return null;
   const inPos = pathname.startsWith('/pos');
   return (
     <IonToolbar>

@@ -6,7 +6,7 @@ import {
 } from '@ionic/react';
 import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
-  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess,
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -239,6 +239,35 @@ const Accounts: React.FC = () => {
                 if (code) {
                   void run(a, () => setPosAccess(a.id, enabling, code),
                     enabling ? 'تم تفعيل نقطة البيع' : 'تم إيقاف نقطة البيع');
+                }
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
+  // Staff accounts for the shop's POS (cashier / adder / admin): same gate.
+  const changePosStaff = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const enabling = !a.pos_staff_enabled;
+    presentAlert({
+      header: 'حسابات الموظفين',
+      message: enabling
+        ? `تفعيل حسابات الموظفين لـ«${who}»؟ يستطيع إضافة كاشير ومُدخل كميات ومدير لنقطة البيع.`
+        : `إيقاف حسابات الموظفين لـ«${who}»؟ لن يستطيع موظفوه الدخول. لا يُحذف أحد، ويعودون كما كانوا عند التفعيل.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: enabling ? 'تفعيل' : 'إيقاف',
+          role: enabling ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('حسابات الموظفين').then((code) => {
+                if (code) {
+                  void run(a, () => setPosStaffAccess(a.id, enabling, code),
+                    enabling ? 'تم تفعيل حسابات الموظفين' : 'تم إيقاف حسابات الموظفين');
                 }
               });
             }, 350);
@@ -496,6 +525,12 @@ const Accounts: React.FC = () => {
               <IonLabel>نقطة البيع</IonLabel>
               <IonNote slot="end">{managed.pos_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
             </IonItem>
+            {managed.pos_enabled && (
+              <IonItem button detail onClick={() => pick(changePosStaff)}>
+                <IonLabel>حسابات الموظفين</IonLabel>
+                <IonNote slot="end">{managed.pos_staff_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
+              </IonItem>
+            )}
 
             <IonListHeader><IonLabel>الحساب</IonLabel></IonListHeader>
             <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
@@ -573,6 +608,7 @@ const Accounts: React.FC = () => {
                     <span className="badge badge--contractor">المقاول</span>
                   )}
                   {a.pos_enabled && <span className="badge badge--contractor">نقطة البيع</span>}
+                  {a.pos_staff_enabled && <span className="badge badge--contractor">موظفون</span>}
                   {a.drive_backup && <span className="badge badge--contractor">Drive</span>}
                 </div>
               </div>

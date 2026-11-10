@@ -3,7 +3,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import { PosRequest } from '../middleware/posActor';
-import { canWrite, type PosTable } from '../pos/staffRoles';
+import { canWrite, type PosTable } from '../pos/permissions';
 
 // Sync of the point-of-sale section — its OWN endpoint, on purpose. The ledger's
 // /sync is the most important code in the app and carries four tables and a
@@ -22,7 +22,7 @@ import { canWrite, type PosTable } from '../pos/staffRoles';
 //
 // The pusher may be the owner or one of his staff (requirePosActor): either way
 // req.userId is the OWNER. A staff member's rows of a table their role may not
-// change are refused as `forbidden` (pos/staffRoles.ts), before anything is read.
+// change are refused as `forbidden` (pos/permissions.ts), before anything is read.
 //
 // Mounted behind requirePosActor + requireSubscription (cloud sync is the paid
 // feature) + requirePos (the section was switched on for this account).
@@ -63,7 +63,7 @@ router.post(
     // never reach the database.
     const allowed = (table: PosTable, idKey: 'id' | 'day'): Row[] => {
       const rows = asArray(req.body?.[table]);
-      if (canWrite(req.staff?.role, table)) return rows;
+      if (canWrite(req.staff, table)) return rows;
       for (const r of rows) {
         const id = str(r[idKey]);
         if (id) result[table].rejected.push({ id, reason: 'forbidden' });

@@ -11,7 +11,7 @@ import attachmentsRouter, { attachmentsBodyParser } from './routes/attachments';
 import accountRouter from './routes/account';
 import adminRouter from './routes/admin';
 import { requireAuth, AuthedRequest } from './middleware/auth';
-import { requirePosActor } from './middleware/posActor';
+import { requirePosActor, requireStaffFeature, requireStaffManager } from './middleware/posActor';
 import staffAuthRouter from './routes/staffAuth';
 import posStaffRouter from './routes/posStaff';
 import { requireSubscription, requireNotSuspended, appOf } from './middleware/requireSubscription';
@@ -93,9 +93,15 @@ app.use('/sync', requireAuth, requireSubscription, syncRouter);
 // gates below check the owner's subscription and POS switch.
 app.use('/pos-sync', requirePosActor, requireSubscription, requirePos, posSyncRouter);
 
-// The owner's POS staff (cashier / adder / admin). Owner only — requireAuth
-// refuses staff tokens, so no staff member can add or change staff.
-app.use('/pos-staff', requireAuth, requireNotSuspended, requirePos, posStaffRouter);
+// The shop's POS staff. Only where the DEVELOPER switched staff accounts on
+// (requireStaffFeature), and only for the owner or a member holding
+// `manage_staff` (requireStaffManager). routes/posStaff.ts adds the rules that
+// keep a staff manager from handing out more than they hold.
+app.use(
+  '/pos-staff',
+  requirePosActor, requireNotSuspended, requirePos, requireStaffFeature, requireStaffManager,
+  posStaffRouter,
+);
 
 // Attachments — a file pinned to an entry. Behind the same gates as sync (it is
 // part of the paid cloud backup) and tenant-filtered by req.userId. The global
@@ -119,7 +125,7 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled FROM users WHERE id = ?',
       [req.userId]
     );
     const row = (rows as Array<Record<string, unknown>>)[0];
@@ -133,7 +139,10 @@ app.get(
       : user.subscription_status === 'active';
     const driveBackup = Number(user.drive_backup) === 1 || !syncOn;
     return res.json({
-      user: { ...user, drive_backup: driveBackup, pos_enabled: Number(user.pos_enabled) === 1 },
+      user: {
+        ...user, drive_backup: driveBackup, pos_enabled: Number(user.pos_enabled) === 1,
+        pos_staff_enabled: Number(user.pos_staff_enabled) === 1,
+      },
     });
   })
 );

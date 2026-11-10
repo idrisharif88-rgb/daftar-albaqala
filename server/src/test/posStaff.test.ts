@@ -39,16 +39,15 @@ describe('POS staff', () => {
   beforeEach(async () => {
     await cleanDb();
     ownerA = await seedUser(); ownerB = await seedUser();
-    await pool.query('UPDATE users SET pos_enabled = 1 WHERE id IN (?, ?)', [ownerA, ownerB]);
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1 WHERE id IN (?, ?)', [ownerA, ownerB]);
     tokenA = tokenFor(ownerA); tokenB = tokenFor(ownerB);
   });
-  after(async () => { await pool.end(); });
 
   /** Owner adds a staff member, who logs in. Returns the staff id + token. */
-  async function hire(ownerToken: string, role: string) {
+  async function hire(ownerToken: string, role: string, permissions?: string[]) {
     const phone = nextPhone();
     const add = await request(app).post('/pos-staff').set(AUTH(ownerToken))
-      .send({ name: `موظف ${role}`, phone, role, password: PASSWORD });
+      .send({ name: `موظف ${role}`, phone, role, password: PASSWORD, ...(permissions ? { permissions } : {}) });
     assert.equal(add.status, 201, JSON.stringify(add.body));
     const login = await request(app).post('/auth/staff/login').send({ phone, password: PASSWORD });
     assert.equal(login.status, 200, JSON.stringify(login.body));
@@ -95,12 +94,12 @@ describe('POS staff', () => {
     assert.equal(row.role, 'cashier');
   });
 
-  test('staff cannot manage staff', async () => {
-    const admin = await hire(tokenA, 'admin');
-    assert.equal((await request(app).get('/pos-staff').set(AUTH(admin.token))).status, 401);
-    const add = await request(app).post('/pos-staff').set(AUTH(admin.token))
-      .send({ name: 'x', phone: nextPhone(), role: 'admin', password: PASSWORD });
-    assert.equal(add.status, 401);
+  test('staff without manage_staff cannot manage staff', async () => {
+    const cashier = await hire(tokenA, 'cashier');
+    assert.equal((await request(app).get('/pos-staff').set(AUTH(cashier.token))).status, 403);
+    const add = await request(app).post('/pos-staff').set(AUTH(cashier.token))
+      .send({ name: 'x', phone: nextPhone(), role: 'cashier', password: PASSWORD });
+    assert.equal(add.status, 403);
   });
 
   // ---------------------------------------------------------------- login + token scope
@@ -117,7 +116,7 @@ describe('POS staff', () => {
   test('a staff token opens /pos-sync and nothing else', async () => {
     const s = await hire(tokenA, 'admin');
     for (const [method, path] of [
-      ['get', '/me'], ['get', '/customers'], ['get', '/sync/pull'], ['delete', '/account'], ['get', '/pos-staff'],
+      ['get', '/me'], ['get', '/customers'], ['get', '/sync/pull'], ['delete', '/account'],
     ] as const) {
       const res = await request(app)[method](path).set(AUTH(s.token));
       assert.equal(res.status, 401, `${method} ${path} should refuse a staff token`);
@@ -203,8 +202,8 @@ describe('POS staff', () => {
 
   // ---------------------------------------------------------------- revocation
 
-  test('disabling, a new password or a new role signs the member out at once', async () => {
-    for (const change of [{ disabled: true }, { password: 'another-one' }, { role: 'adder' }]) {
+  test('disabling or a new password signs the member out at once', async () => {
+    for (const change of [{ disabled: true }, { password: 'another-one' }]) {
       const s = await hire(tokenA, 'cashier');
       assert.equal((await request(app).get('/pos-sync/pull').set(AUTH(s.token))).status, 200);
       const patch = await request(app).patch(`/pos-staff/${s.id}`).set(AUTH(tokenA)).send(change);
@@ -241,6 +240,108 @@ describe('POS staff', () => {
   });
 });
 
+describe('POS staff: developer switch and permissions', () => {
+  let owner: string; let token: string;
+  let seq = 0;
+  const phone = () => `56${String(seq++).padStart(7, '0')}`;
+
+  before(() => {
+    assert.equal(process.env.DB_NAME, 'daftar_test');
+  });
+  beforeEach(async () => {
+    await cleanDb();
+    owner = await seedUser();
+    await pool.query('UPDATE users SET pos_enabled = 1, pos_staff_enabled = 1 WHERE id = ?', [owner]);
+    token = tokenFor(owner);
+  });
+
+  async function hire(permissions: string[] | undefined, role = 'cashier', by = token) {
+    const p = phone();
+    const add = await request(app).post('/pos-staff').set(AUTH(by))
+      .send({ name: 'م', phone: p, role, password: PASSWORD, ...(permissions ? { permissions } : {}) });
+    if (add.status !== 201) return { status: add.status, id: '', token: '' };
+    const login = await request(app).post('/auth/staff/login').send({ phone: p, password: PASSWORD });
+    return { status: 201, id: add.body.staff.id as string, token: login.body.token as string };
+  }
+
+  test('switched off by the developer: no staff screen, no login, no token', async () => {
+    const s = await hire(undefined);
+    await pool.query('UPDATE users SET pos_staff_enabled = 0 WHERE id = ?', [owner]);
+    assert.equal((await request(app).get('/pos-staff').set(AUTH(token))).status, 403);
+    assert.equal((await request(app).get('/pos-sync/pull').set(AUTH(s.token))).status, 403);
+    const [[row]] = await pool.query('SELECT phone FROM pos_staff WHERE id = ?', [s.id]) as unknown as [[{ phone: string }]];
+    const login = await request(app).post('/auth/staff/login').send({ phone: row.phone, password: PASSWORD });
+    assert.equal(login.status, 403);
+    // the owner's own POS keeps working
+    assert.equal((await request(app).get('/pos-sync/pull').set(AUTH(token))).status, 200);
+    // and switching it back on restores the member as they were
+    await pool.query('UPDATE users SET pos_staff_enabled = 1 WHERE id = ?', [owner]);
+    assert.equal((await request(app).get('/pos-sync/pull').set(AUTH(s.token))).status, 200);
+  });
+
+  test('/me tells the owner whether the switch is on', async () => {
+    const me = await request(app).get('/me').set(AUTH(token));
+    assert.equal(me.body.user.pos_staff_enabled, true);
+  });
+
+  test('a role is a preset; an explicit list replaces it; unknown codes are refused', async () => {
+    const res = await request(app).post('/pos-staff').set(AUTH(token))
+      .send({ name: 'x', phone: phone(), role: 'cashier', password: PASSWORD });
+    assert.deepEqual(res.body.staff.permissions, ['sell']);
+    const custom = await request(app).post('/pos-staff').set(AUTH(token))
+      .send({ name: 'y', phone: phone(), role: 'cashier', password: PASSWORD, permissions: ['sell', 'see_stock'] });
+    assert.deepEqual(custom.body.staff.permissions, ['sell', 'see_stock']);
+    const bad = await request(app).post('/pos-staff').set(AUTH(token))
+      .send({ name: 'z', phone: phone(), role: 'cashier', password: PASSWORD, permissions: ['sell', 'root'] });
+    assert.equal(bad.status, 400);
+  });
+
+  test('a permission switched off applies to the very next request', async () => {
+    const s = await hire(['sell', 'manage_products']);
+    const p = { id: randomUUID(), name: 'خبز', code: EAN(1), price: 100,
+      created_at: '2026-11-08T05:00:00Z', updated_at: '2026-11-08T05:00:00Z', deleted_at: null };
+    const ok = await request(app).post('/pos-sync/push').set(AUTH(s.token)).send({ products: [p] });
+    assert.deepEqual(ok.body.products.accepted, [p.id]);
+    await request(app).patch(`/pos-staff/${s.id}`).set(AUTH(token)).send({ permissions: ['sell'] });
+    const p2 = { ...p, id: randomUUID(), code: EAN(2), name: 'آخر' };
+    const no = await request(app).post('/pos-sync/push').set(AUTH(s.token)).send({ products: [p2] });
+    assert.equal(no.status, 200);                               // same token, still signed in…
+    assert.equal(no.body.products.rejected[0].reason, 'forbidden'); // …but no longer allowed
+  });
+
+  test('/auth/staff/me returns the current permissions', async () => {
+    const s = await hire(['sell']);
+    await request(app).patch(`/pos-staff/${s.id}`).set(AUTH(token)).send({ permissions: ['sell', 'see_reports'] });
+    const me = await request(app).get('/auth/staff/me').set(AUTH(s.token));
+    assert.equal(me.status, 200);
+    assert.deepEqual(me.body.staff.permissions, ['sell', 'see_reports']);
+    assert.equal((await request(app).get('/auth/staff/me').set(AUTH(token))).status, 400); // an owner token
+  });
+
+  test('a staff manager can grant only what they hold, cannot touch a stronger member or themselves', async () => {
+    const manager = await hire(['manage_staff', 'sell', 'see_stock']);
+    // grants within their own set: fine
+    const ok = await hire(['sell'], 'cashier', manager.token);
+    assert.equal(ok.status, 201);
+    // grants beyond it: refused
+    assert.equal((await hire(['manage_products'], 'cashier', manager.token)).status, 403);
+    assert.equal((await hire(undefined, 'admin', manager.token)).status, 403); // the admin preset holds more
+    // cannot raise someone beyond their own set
+    const up = await request(app).patch(`/pos-staff/${ok.id}`).set(AUTH(manager.token)).send({ permissions: ['sell', 'submit_day'] });
+    assert.equal(up.status, 403);
+    // can lower within it
+    const down = await request(app).patch(`/pos-staff/${ok.id}`).set(AUTH(manager.token)).send({ disabled: true });
+    assert.equal(down.status, 200);
+    // cannot touch a member holding more than they do
+    const admin = await hire(undefined, 'admin');
+    const touch = await request(app).patch(`/pos-staff/${admin.id}`).set(AUTH(manager.token)).send({ disabled: true });
+    assert.equal(touch.status, 403);
+    // cannot change themselves
+    const self = await request(app).patch(`/pos-staff/${manager.id}`).set(AUTH(manager.token)).send({ permissions: ['manage_staff', 'sell', 'see_stock'] });
+    assert.equal(self.status, 403);
+  });
+});
+
 describe('login throttle', () => {
   test('locks a phone after 10 failures, frees it after the window, and a success clears it', () => {
     let now = 0;
@@ -256,3 +357,6 @@ describe('login throttle', () => {
     assert.equal(t.blocked('999'), false);
   });
 });
+
+// One pool for the whole file: ending it in the first suite would break the next.
+after(async () => { await pool.end(); });
