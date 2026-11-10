@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../../lib/auth';
 import { ApiError, addStaff, listStaff, setManagerPin, updateStaff, type StaffMember } from '../../lib/api';
 import { toLatinDigits } from '../../lib/digits';
+import { PIN_LENGTH } from './managerPin';
 import { phoneInput } from '../../lib/digits';
 
 // «الموظفون» — the shop's staff. Shown to the owner once the developer has
@@ -42,6 +43,8 @@ function arabicError(err: unknown): string {
   if (m.includes('cannot grant')) return 'لا يمكنك منح صلاحية لا تملكها.';
   if (m.includes('cannot change your own')) return 'لا يمكنك تعديل حسابك بنفسك.';
   if (m.includes('cannot change a member')) return 'هذا الموظف يملك صلاحيات لا تملكها.';
+  if (m.includes('too easy')) return 'الرمز سهل التخمين. اختر 6 أرقام غير متكررة وغير متسلسلة، وليست من رقم هاتفك.';
+  if (m.includes('pin must be')) return 'الرمز 6 أرقام.';
   if (m.includes('not enabled')) return 'حسابات الموظفين غير مفعّلة لهذا المتجر.';
   if (err.status === 402) return 'المزامنة مع الخادم متوقفة لهذا الحساب.';
   return m;
@@ -71,16 +74,16 @@ const StaffPage: React.FC = () => {
   const changePin = () => {
     void presentAlert({
       header: 'رمز المدير',
-      message: '4 أرقام. يطلبه التطبيق من الموظف عند التراجع عن عملية بيع.',
-      inputs: [{ name: 'pin', type: 'password', placeholder: '••••', attributes: { inputmode: 'numeric', maxlength: 4 } }],
+      message: '6 أرقام، ليست متكررة ولا متسلسلة. يطلبه التطبيق من الموظف عند التراجع عن عملية بيع.',
+      inputs: [{ name: 'pin', type: 'password', placeholder: '••••••', attributes: { inputmode: 'numeric', maxlength: PIN_LENGTH } }],
       buttons: [
         { text: 'إلغاء', role: 'cancel' },
         {
           text: 'حفظ',
           handler: (v: { pin?: string }) => {
             const pin = toLatinDigits(v.pin ?? '');
-            if (!/^\d{4}$/.test(pin)) {
-              void presentToast({ message: 'الرمز 4 أرقام.', duration: 2000, color: 'danger' });
+            if (!/^\d{6}$/.test(pin)) {
+              void presentToast({ message: 'الرمز 6 أرقام.', duration: 2000, color: 'danger' });
               return false;
             }
             void setManagerPin(pin)

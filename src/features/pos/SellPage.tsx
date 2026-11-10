@@ -13,7 +13,7 @@ import { parseScannedCode } from '../../lib/productCodes';
 import { toLatinDigits } from '../../lib/digits';
 import { usePosPermissions } from './permissions';
 import { useAuth } from '../../lib/auth';
-import { pinMatches } from './managerPin';
+import { PIN_LENGTH, notePinAttempt, pinLockedMinutes, pinMatches } from './managerPin';
 import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 
 // «بيع» — sell by scanning the product's barcode, or by tapping its name.
@@ -135,10 +135,19 @@ const SellPage: React.FC = () => {
       });
       return;
     }
+    const locked = pinLockedMinutes();
+    if (locked > 0) {
+      void presentPin({
+        header: 'رمز المدير',
+        message: `تم إيقاف التراجع مؤقتاً بسبب رموز خاطئة متكررة. حاول بعد ${locked} دقيقة.`,
+        buttons: [{ text: 'حسناً', handler: () => resolve(false) }],
+      });
+      return;
+    }
     void presentPin({
       header: 'رمز المدير',
       message: 'التراجع عن البيع يحتاج رمز المدير.',
-      inputs: [{ name: 'pin', type: 'password', placeholder: '••••', attributes: { inputmode: 'numeric', maxlength: 4 } }],
+      inputs: [{ name: 'pin', type: 'password', placeholder: '••••••', attributes: { inputmode: 'numeric', maxlength: PIN_LENGTH } }],
       backdropDismiss: false,
       buttons: [
         { text: 'إلغاء', role: 'cancel', handler: () => resolve(false) },
@@ -146,7 +155,12 @@ const SellPage: React.FC = () => {
           text: 'تأكيد',
           handler: (v: { pin?: string }) => {
             void pinMatches(toLatinDigits(v.pin ?? ''), staff.manager_pin).then((ok) => {
-              if (!ok) setMessage('رمز المدير غير صحيح.');
+              const nowLocked = notePinAttempt(ok);
+              if (!ok) {
+                setMessage(nowLocked
+                  ? 'رمز المدير غير صحيح. تم إيقاف التراجع 5 دقائق.'
+                  : 'رمز المدير غير صحيح.');
+              }
               resolve(ok);
             });
           },
