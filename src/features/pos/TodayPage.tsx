@@ -12,6 +12,7 @@ import { runPosSync, getPosLastSync } from './posSync';
 import { useDriveBackup } from '../../lib/useDriveBackup';
 import { GOOGLE_ENABLED } from '../../lib/googleDrive';
 import { useAuth } from '../../lib/auth';
+import { usePosPermissions } from './permissions';
 import PosFooter from './PosFooter';
 import {
   addBaked, getDayRows, localDay, totalsOf, retentionDue, keepForAnotherYear,
@@ -33,7 +34,15 @@ const TodayPage: React.FC = () => {
   const addModal = useRef<HTMLIonModalElement>(null);
   const [pickSearch, setPickSearch] = useState('');
   const [syncing, setSyncing] = useState(false);
-  const { driveBackupAllowed } = useAuth();
+  const { driveBackupAllowed, staff } = useAuth();
+  // What this person may do here (the owner may do everything). The server
+  // refuses the rest anyway; these only keep refused buttons off the screen.
+  const can = usePosPermissions();
+  const canAdd = can('add_stock');
+  // Clearing writes opposite rows of BOTH baked and sales.
+  const canErase = canAdd && can('sell');
+  const canSubmit = can('submit_day');
+  const seeReports = can('see_reports');
   const driveOn = driveBackupAllowed && GOOGLE_ENABLED;
   const drive = useDriveBackup();
   const [presentToast] = useIonToast();
@@ -81,7 +90,8 @@ const TodayPage: React.FC = () => {
     });
   }, [presentAlert, presentConfirm]);
 
-  useIonViewWillEnter(() => { void load().then(askRetention); });
+  // The one-year question is the owner's: a staff member's phone keeps a copy only.
+  useIonViewWillEnter(() => { void load().then(() => (staff ? undefined : askRetention())); });
 
   // + / − change the baked count by one, instantly: the screen updates first
   // and the write follows (a failed write reloads the truth).
@@ -225,6 +235,8 @@ const TodayPage: React.FC = () => {
   };
 
   const t = totalsOf(rows);
+  // Quantities can be changed: the day is open AND this person may add.
+  const editable = !lock.locked && canAdd;
   // Only what is part of today: baked or sold. A product with nothing today is
   // not shown — thirty rows of zeros bury the five that matter.
   // Carry-over products (vinegar, honey, ghee) are a list of their own: they
@@ -245,12 +257,12 @@ const TodayPage: React.FC = () => {
                 ? <IonSpinner name="crescent" />
                 : <IonIcon slot="icon-only" icon={ICONS.sync} />}
             </IonButton>
-            {active.length > 0 && (
+            {canErase && active.length > 0 && (
               <IonButton aria-label="مسح قائمة اليوم" color="danger" onClick={eraseToday}>
                 <IonIcon slot="icon-only" icon={ICONS.trash} />
               </IonButton>
             )}
-            {rows.length > 0 && (
+            {seeReports && rows.length > 0 && (
               <IonButton aria-label="مشاركة تقرير اليوم" onClick={() => {
                 shareDayReport(localDay()).catch((err: unknown) => {
                   presentNote({ header: 'تعذّرت المشاركة', message: err instanceof Error ? err.message : 'حدث خطأ غير متوقع', buttons: ['حسناً'] });
@@ -267,7 +279,7 @@ const TodayPage: React.FC = () => {
               <span>مخبوز <b>{t.baked}</b></span>
               <span>مباع <b>{t.sold}</b></span>
               <span>متبقي <b>{t.left}</b></span>
-              <span>الإيراد <b>{formatMinor(t.revenue)}</b></span>
+              {seeReports && <span>الإيراد <b>{formatMinor(t.revenue)}</b></span>}
             </div>
           </IonToolbar>
         )}
@@ -277,17 +289,19 @@ const TodayPage: React.FC = () => {
               {lock.locked ? (
                 <>
                   <span><IonIcon icon={lockClosedOutline} /> الكميات معتمدة</span>
-                  <IonButton fill="outline" size="small" onClick={reopen}>تعديل</IonButton>
+                  {canSubmit && <IonButton fill="outline" size="small" onClick={reopen}>تعديل</IonButton>}
                 </>
               ) : (
                 <>
                   <span>{lock.reopened > 0 ? 'الكميات مفتوحة للتعديل' : 'المخزون اليومي'}</span>
-                  <IonButton
-                    disabled={t.baked <= 0} onClick={submit}
-                    aria-label={ICON_LABELS.confirm} title={ICON_LABELS.confirm}
-                  >
-                    <IonIcon slot="icon-only" icon={ICONS.confirm} style={{ fontSize: 36 }} />
-                  </IonButton>
+                  {canSubmit && (
+                    <IonButton
+                      disabled={t.baked <= 0} onClick={submit}
+                      aria-label={ICON_LABELS.confirm} title={ICON_LABELS.confirm}
+                    >
+                      <IonIcon slot="icon-only" icon={ICONS.confirm} style={{ fontSize: 36 }} />
+                    </IonButton>
+                  )}
                 </>
               )}
             </div>
@@ -320,7 +334,7 @@ const TodayPage: React.FC = () => {
           <IonList>
             {active.map((r) => (
               <IonItem key={r.product.id}>
-                {!lock.locked && (
+                {!lock.locked && canErase && (
                   <IonButton
                     slot="start" fill="clear" color="danger"
                     aria-label="حذف من قائمة اليوم" title="حذف من قائمة اليوم"
@@ -339,7 +353,7 @@ const TodayPage: React.FC = () => {
                   </p>
                 </IonLabel>
                 <div slot="end" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {!lock.locked && (
+                  {editable && (
                     <IonButton
                       fill="outline" shape="round" aria-label="إنقاص"
                       disabled={r.baked <= r.sold} onClick={() => nudge(r, -1)}
@@ -348,7 +362,7 @@ const TodayPage: React.FC = () => {
                     </IonButton>
                   )}
                   <button
-                    type="button" disabled={lock.locked}
+                    type="button" disabled={!editable}
                     onClick={() => askBaked(r)} aria-label="إدخال كمية"
                     style={{
                       minWidth: 44, padding: '8px 4px', font: 'inherit', fontWeight: 700,
@@ -358,7 +372,7 @@ const TodayPage: React.FC = () => {
                   >
                     {r.baked}
                   </button>
-                  {!lock.locked && (
+                  {editable && (
                     <IonButton shape="round" aria-label="زيادة" onClick={() => nudge(r, 1)}>
                       <IonIcon slot="icon-only" icon={ICONS.add} />
                     </IonButton>
@@ -382,14 +396,16 @@ const TodayPage: React.FC = () => {
                   </p>
                 </IonLabel>
                 <div slot="end" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <IonButton
-                    fill="outline" shape="round" aria-label="إنقاص"
-                    disabled={r.left <= 0} onClick={() => nudge(r, -1)}
-                  >
-                    <IonIcon slot="icon-only" icon={remove} />
-                  </IonButton>
+                  {canAdd && (
+                    <IonButton
+                      fill="outline" shape="round" aria-label="إنقاص"
+                      disabled={r.left <= 0} onClick={() => nudge(r, -1)}
+                    >
+                      <IonIcon slot="icon-only" icon={remove} />
+                    </IonButton>
+                  )}
                   <button
-                    type="button" onClick={() => askBaked(r)} aria-label="إضافة مخزون"
+                    type="button" disabled={!canAdd} onClick={() => askBaked(r)} aria-label="إضافة مخزون"
                     style={{
                       minWidth: 44, padding: '8px 4px', font: 'inherit', fontWeight: 700,
                       fontSize: '1.25rem', background: 'transparent', border: 0,
@@ -398,16 +414,18 @@ const TodayPage: React.FC = () => {
                   >
                     {r.left}
                   </button>
-                  <IonButton shape="round" aria-label="زيادة" onClick={() => nudge(r, 1)}>
-                    <IonIcon slot="icon-only" icon={ICONS.add} />
-                  </IonButton>
+                  {canAdd && (
+                    <IonButton shape="round" aria-label="زيادة" onClick={() => nudge(r, 1)}>
+                      <IonIcon slot="icon-only" icon={ICONS.add} />
+                    </IonButton>
+                  )}
                 </div>
               </IonItem>
             ))}
           </IonList>
         )}
 
-        {!lock.locked && idle.length > 0 && (
+        {editable && idle.length > 0 && (
           <IonFab slot="fixed" vertical="bottom" horizontal="start">
             <IonFabButton aria-label="إضافة منتج لليوم" onClick={() => { setPickSearch(''); void addModal.current?.present(); }}>
               <IonIcon icon={ICONS.add} />

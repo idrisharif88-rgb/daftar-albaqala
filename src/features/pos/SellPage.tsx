@@ -11,6 +11,7 @@ import { cameraScanAvailable, scanOne } from './scanner';
 import { beepBad, beepOk, setSoundEnabled, soundEnabled, unlockAudio } from './beep';
 import { parseScannedCode } from '../../lib/productCodes';
 import { toLatinDigits } from '../../lib/digits';
+import { usePosPermissions } from './permissions';
 
 // «بيع» — sell by scanning the product's barcode, or by tapping its name.
 //
@@ -37,6 +38,11 @@ const SellPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [continuous, setContinuous] = useState<boolean>(readContinuous);
   const [sound, setSound] = useState<boolean>(soundEnabled);
+  // A cashier sells without being shown the stock or the day's totals (the
+  // list still holds only what is in stock — that is what makes it sellable).
+  const can = usePosPermissions();
+  const seeStock = can('see_stock');
+  const seeReports = can('see_reports');
 
   const refresh = useCallback(async (): Promise<DayRow[]> => {
     const r = await getDayRows();
@@ -174,10 +180,15 @@ const SellPage: React.FC = () => {
         {last && (
           <div className="ion-text-center ion-margin-top">
             <h1 style={{ margin: 0 }}>{last.product.name}</h1>
-            <p style={{ fontSize: '1.1rem' }}>
-              مباع اليوم <b>{last.sold}</b> · متبقي{' '}
-              <b style={{ color: last.left <= 0 ? 'var(--ion-color-danger)' : undefined }}>{last.left}</b>
-            </p>
+            {(seeReports || seeStock) && (
+              <p style={{ fontSize: '1.1rem' }}>
+                {seeReports && <>مباع اليوم <b>{last.sold}</b></>}
+                {seeReports && seeStock && ' · '}
+                {seeStock && (
+                  <>متبقي <b style={{ color: last.left <= 0 ? 'var(--ion-color-danger)' : undefined }}>{last.left}</b></>
+                )}
+              </p>
+            )}
             {last.product.daily && last.baked === 0 ? (
               <IonText color="warning"><p>لم تُسجَّل كمية مخبوزة لهذا المنتج اليوم.</p></IonText>
             ) : last.left < 0 && (
@@ -189,7 +200,7 @@ const SellPage: React.FC = () => {
             </IonButton>
           </div>
         )}
-        <p className="ion-text-center" style={{ opacity: .7 }}>إجمالي المباع اليوم: {soldToday}</p>
+        {seeReports && <p className="ion-text-center" style={{ opacity: .7 }}>إجمالي المباع اليوم: {soldToday}</p>}
 
         {/* Tap-to-sell: the same sale, no camera. */}
         <IonText color="medium"><p style={{ margin: '16px 4px 0' }}>أو اضغط على المنتج لبيع واحد:</p></IonText>
@@ -202,7 +213,7 @@ const SellPage: React.FC = () => {
             <IonItem key={r.product.id} button onClick={() => { void tapSell(r); }}>
               <IonLabel className="ion-text-wrap">
                 <h3>{r.product.name}</h3>
-                <p>متبقي {r.left}</p>
+                {seeStock && <p>متبقي {r.left}</p>}
               </IonLabel>
                           </IonItem>
           ))}

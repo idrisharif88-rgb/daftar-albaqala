@@ -20,6 +20,8 @@ export function clearToken(): void {
   localStorage.removeItem(PHONE_KEY);
   localStorage.removeItem(DRIVE_KEY);
   localStorage.removeItem(POS_KEY);
+  localStorage.removeItem(POS_STAFF_KEY);
+  localStorage.removeItem(STAFF_KEY);
 }
 
 // Whether the owner granted this account Google Drive backup — remembered so the
@@ -56,4 +58,40 @@ export function getPhone(): string | null {
 
 export function setPhone(phone: string): void {
   localStorage.setItem(PHONE_KEY, phone);
+}
+
+// Whether the developer switched POS staff accounts on for this (owner's)
+// account. Refreshed from GET /me on every launch.
+const POS_STAFF_KEY = 'daftar.pos-staff-allowed';
+
+export function getPosStaffAllowed(): boolean {
+  return localStorage.getItem(POS_STAFF_KEY) === '1';
+}
+
+export function setPosStaffAllowed(on: boolean): void {
+  if (on) localStorage.setItem(POS_STAFF_KEY, '1'); else localStorage.removeItem(POS_STAFF_KEY);
+}
+
+// A STAFF session (cashier / adder / admin of someone's shop): who they are and
+// what they may do. Present only when the token is a staff token. Refreshed
+// from GET /auth/staff/me on every launch; the server enforces it regardless.
+const STAFF_KEY = 'daftar.staff';
+
+export interface StoredStaff {
+  id: string; name: string; role: string; permissions: string[]; store_name: string | null;
+}
+
+export function getStaff(): StoredStaff | null {
+  try {
+    const raw = localStorage.getItem(STAFF_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as StoredStaff;
+    return v && typeof v.id === 'string' && Array.isArray(v.permissions) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStaff(staff: StoredStaff): void {
+  localStorage.setItem(STAFF_KEY, JSON.stringify(staff));
 }

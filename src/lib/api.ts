@@ -94,10 +94,49 @@ export interface Me {
   drive_backup: boolean;
   /** The point-of-sale section, switched on per account by the owner. */
   pos_enabled: boolean;
+  /** POS staff accounts, switched on per account by the developer (Watcher). */
+  pos_staff_enabled?: boolean;
 }
 
 export function me(): Promise<{ user: Me }> {
   return request<{ user: Me }>('/me');
+}
+
+// ---- POS staff ----
+// A staff member signs in with their own phone + password and works on the
+// owner's point-of-sale data. Codes in features/pos/permissions.ts.
+
+export interface StaffInfo { id: string; name: string; role: string; permissions: string[] }
+export interface StaffSessionResult { token: string; staff: StaffInfo; store_name: string | null }
+
+export function staffLogin(phone: string, password: string): Promise<StaffSessionResult> {
+  return request<StaffSessionResult>('/auth/staff/login', {
+    method: 'POST',
+    body: JSON.stringify({ phone, password }),
+  });
+}
+
+/** Who this staff token is, and what they may do NOW. */
+export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null }> {
+  return request('/auth/staff/me');
+}
+
+export interface StaffMember extends StaffInfo { phone: string; disabled: boolean; created_at: string }
+
+export function listStaff(): Promise<{ staff: StaffMember[] }> {
+  return request('/pos-staff');
+}
+
+export function addStaff(body: {
+  name: string; phone: string; role: string; password: string; permissions: string[];
+}): Promise<{ staff: StaffMember }> {
+  return request('/pos-staff', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function updateStaff(id: string, body: {
+  name?: string; role?: string; permissions?: string[]; password?: string; disabled?: boolean;
+}): Promise<{ staff: StaffMember }> {
+  return request(`/pos-staff/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) });
 }
 
 // ---- Account ----

@@ -88,7 +88,7 @@ router.get(
               (SELECT NULLIF(s.value, '') FROM user_settings s
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
-              u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled,
+              u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
               u.contractor_status, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
@@ -107,6 +107,7 @@ router.get(
       transactions_count: Number(r.transactions_count),
       drive_backup: Number(r.drive_backup) === 1,
       pos_enabled: Number(r.pos_enabled) === 1,
+      pos_staff_enabled: Number(r.pos_staff_enabled) === 1,
     }));
     return res.json({ users });
   })
@@ -153,6 +154,30 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, pos_enabled: enabled });
+  })
+);
+
+// POST /admin/users/:id/pos-staff  { enabled: boolean }
+// Staff accounts (cashier / adder / admin) are switched on per account by the
+// developer. Off: the shop never sees «الموظفون», and every staff login and
+// staff token of that shop is refused (middleware/posActor.ts). Switching it
+// off does not delete the staff — switching it back on restores them as they were.
+router.post(
+  '/users/:id/pos-staff',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be true or false' });
+    }
+    const [result] = await pool.query(
+      'UPDATE users SET pos_staff_enabled = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [enabled ? 1 : 0, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ id: req.params.id, pos_staff_enabled: enabled });
   })
 );
 

@@ -9,7 +9,7 @@ import { useAuth } from '../lib/auth';
 import { ApiError } from '../lib/api';
 import { phoneInput } from '../lib/digits';
 import { openUrl } from '../lib/notify';
-import { PRIVACY_URL } from '../config';
+import { PRIVACY_URL, POS_ENABLED } from '../config';
 import { FLAVOR } from '../flavors';
 
 type Mode = 'login' | 'register';
@@ -17,7 +17,7 @@ type Mode = 'login' | 'register';
 // Login / register screen. One form, toggled by a segment. On success the
 // AuthProvider stores the JWT and the router (App.tsx) swaps to the home view.
 const Login: React.FC = () => {
-  const { login, register } = useAuth();
+  const { login, register, staffLogin } = useAuth();
   // The Welcome screen's "new account" button links here with ?register=1.
   const location = useLocation();
   const startRegister = new URLSearchParams(location.search).get('register') === '1';
@@ -28,6 +28,10 @@ const Login: React.FC = () => {
   // A new account must accept the privacy policy first — it says what the app
   // stores, where it goes, and who can see it. Login does not ask again.
   const [agreed, setAgreed] = useState(false);
+  // A shop's staff member (cashier / adder / admin) signs in with the phone and
+  // password the owner gave them. Only in a build that ships the POS section.
+  const [asStaff, setAsStaff] = useState(false);
+  const staffMode = POS_ENABLED && mode === 'login' && asStaff;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,14 +52,24 @@ const Login: React.FC = () => {
     }
     setBusy(true);
     try {
-      if (mode === 'login') {
+      if (staffMode) {
+        await staffLogin(phone.trim(), password);
+      } else if (mode === 'login') {
         await login(phone.trim(), password);
       } else {
         await register(phone.trim(), password, storeName.trim());
       }
       // Success: AuthProvider flips isAuthenticated; App.tsx routes onward.
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
+      if (err instanceof ApiError && err.status === 429) {
+        setError('محاولات كثيرة خاطئة. حاول بعد ربع ساعة.');
+      } else if (staffMode && err instanceof ApiError && err.status === 401) {
+        setError('رقم الهاتف أو كلمة المرور غير صحيحة.');
+      } else if (staffMode && err instanceof ApiError && err.status === 403) {
+        setError(err.message.includes('disabled')
+          ? 'تم إيقاف حسابك. تواصل مع صاحب المتجر.'
+          : 'حسابات الموظفين غير متاحة لهذا المتجر حالياً.');
+      } else if (err instanceof ApiError && err.status === 403) {
         // Suspended by the owner from the Watcher app.
         setError('هذا الحساب موقوف. تواصل مع المالك.');
       } else if (err instanceof ApiError) {
@@ -126,6 +140,19 @@ const Login: React.FC = () => {
               <IonInputPasswordToggle slot="end" />
             </IonInput>
           </IonItem>
+
+          {POS_ENABLED && mode === 'login' && (
+            <IonItem lines="none">
+              <IonCheckbox
+                checked={asStaff}
+                onIonChange={(e) => { setAsStaff(e.detail.checked); setError(null); }}
+                labelPlacement="end"
+                justify="start"
+              >
+                دخول موظف
+              </IonCheckbox>
+            </IonItem>
+          )}
 
           {mode === 'register' && (
             <IonItem lines="none">

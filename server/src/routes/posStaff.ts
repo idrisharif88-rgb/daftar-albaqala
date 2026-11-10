@@ -3,23 +3,33 @@ import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
-import { AuthedRequest } from '../middleware/auth';
+import { PosRequest } from '../middleware/posActor';
 import { normalizePhone, isValidPhone } from '../auth/phone';
-import { isStaffRole } from '../pos/staffRoles';
+import {
+  PERMISSIONS, ROLE_PRESETS, checkPermissionList, isStaffRole, parsePermissions,
+  serializePermissions, type Permission,
+} from '../pos/permissions';
 
-// The owner's staff list — OWNER ONLY. Mounted behind requireAuth (which
-// refuses staff tokens), requireNotSuspended and requirePos. Every query is
-// filtered by owner_id = req.userId: an id from another shop is a 404, never a
-// change.
+// The shop's staff list. Mounted behind requirePosActor + requireNotSuspended +
+// requirePos + requireStaffFeature + requireStaffManager: the OWNER, or a staff
+// member holding `manage_staff`, of a shop the developer switched staff on for.
+// Every query is filtered by owner_id = req.userId: an id from another shop is
+// a 404, never a change.
 //
 //   GET    /pos-staff        → the list (never the password hash)
-//   POST   /pos-staff        { name, phone, role, password }
-//   PATCH  /pos-staff/:id    { name?, role?, password?, disabled? }
+//   POST   /pos-staff        { name, phone, role, password, permissions? }
+//   PATCH  /pos-staff/:id    { name?, role?, permissions?, password?, disabled? }
 //
-// No DELETE: a staff member is DISABLED, which keeps who they were (a future
-// audit trail names them) and is reversible. Changing the role, the password or
-// the disabled flag bumps token_version, which signs that person out at once
-// (see middleware/posActor.ts).
+// A staff manager is held to three rules, so `manage_staff` cannot be turned
+// into more power than it was given:
+//   1. they can only grant permissions they hold themselves;
+//   2. they cannot change anyone who holds a permission they lack;
+//   3. they cannot change themselves.
+// The owner is bound by none of them.
+//
+// No DELETE: a member is DISABLED — reversible, and it keeps who they were.
+// A new password or disabling bumps token_version, which signs that person out
+// at once. Permissions need no sign-out: they are read on every request.
 
 const router = Router();
 type Row = Record<string, unknown>;
@@ -28,10 +38,13 @@ const NAME_MAX = 100;
 const PASSWORD_MIN = 6;
 const PASSWORD_MAX = 128; // bcrypt reads only the first 72 bytes; a cap also bounds the hashing work
 const BCRYPT_COST = 10;
+const COLS = 'id, name, phone, role, permissions, disabled_at, created_at';
 
 const toPublic = (r: Row) => ({
   id: r.id, name: r.name, phone: r.phone, role: r.role,
-  disabled: r.disabled_at !== null, created_at: r.created_at,
+  permissions: [...parsePermissions(r.permissions)],
+  disabled: r.disabled_at !== null && r.disabled_at !== undefined,
+  created_at: r.created_at,
 });
 
 function checkPassword(v: unknown): string | null {
@@ -41,6 +54,12 @@ function checkName(v: unknown): string | null {
   const name = typeof v === 'string' ? v.trim() : '';
   return name && name.length <= NAME_MAX ? name : null;
 }
+
+/** What the caller may hand out: everything for the owner, their own set for a member. */
+const grantable = (req: PosRequest): ReadonlySet<Permission> =>
+  req.staff ? req.staff.permissions : new Set(PERMISSIONS);
+const within = (set: Iterable<Permission>, limit: ReadonlySet<Permission>) =>
+  [...set].every((p) => limit.has(p));
 
 /** Is this number already someone's login — another staff member's, or an
  *  owner's? Refused either way: one number must mean one person at the login
@@ -55,19 +74,18 @@ async function phoneTaken(phone: string): Promise<boolean> {
 
 router.get(
   '/',
-  asyncHandler(async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: PosRequest, res) => {
     const [rows] = await pool.query(
-      `SELECT id, name, phone, role, disabled_at, created_at FROM pos_staff
-        WHERE owner_id = ? ORDER BY created_at`,
+      `SELECT ${COLS} FROM pos_staff WHERE owner_id = ? ORDER BY created_at`,
       [req.userId],
     );
-    return res.json({ staff: (rows as Row[]).map(toPublic) });
+    return res.json({ staff: (rows as Row[]).map(toPublic), permissions: PERMISSIONS, presets: ROLE_PRESETS });
   }),
 );
 
 router.post(
   '/',
-  asyncHandler(async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: PosRequest, res) => {
     const name = checkName(req.body?.name);
     const phone = normalizePhone(req.body?.phone);
     const role = req.body?.role;
@@ -76,16 +94,24 @@ router.post(
     if (!isValidPhone(phone)) return res.status(400).json({ error: 'phone must be 6–20 digits' });
     if (!isStaffRole(role)) return res.status(400).json({ error: 'role must be admin, cashier or adder' });
     if (!password) return res.status(400).json({ error: 'password must be 6–128 characters' });
+    const permissions = req.body?.permissions === undefined
+      ? [...ROLE_PRESETS[role]]
+      : checkPermissionList(req.body.permissions);
+    if (!permissions) return res.status(400).json({ error: 'unknown permission' });
+    if (!within(permissions, grantable(req))) {
+      return res.status(403).json({ error: 'cannot grant a permission you do not have' });
+    }
     if (await phoneTaken(phone)) return res.status(409).json({ error: 'phone already in use' });
 
     const id = randomUUID();
     const now = new Date();
+    const stored = serializePermissions(permissions);
     const hash = await bcrypt.hash(password, BCRYPT_COST);
     try {
       await pool.query(
-        `INSERT INTO pos_staff (id, owner_id, name, phone, role, password_hash, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, req.userId, name, phone, role, hash, now, now],
+        `INSERT INTO pos_staff (id, owner_id, name, phone, role, permissions, password_hash, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, req.userId, name, phone, role, stored, hash, now, now],
       );
     } catch (err) {
       // Two requests for the same number at once: the unique index decides.
@@ -95,14 +121,29 @@ router.post(
       throw err;
     }
     return res.status(201).json({
-      staff: toPublic({ id, name, phone, role, disabled_at: null, created_at: now }),
+      staff: toPublic({ id, name, phone, role, permissions: stored, disabled_at: null, created_at: now }),
     });
   }),
 );
 
 router.patch(
   '/:id',
-  asyncHandler(async (req: AuthedRequest, res) => {
+  asyncHandler(async (req: PosRequest, res) => {
+    const [found] = await pool.query(
+      `SELECT ${COLS} FROM pos_staff WHERE id = ? AND owner_id = ?`,
+      [req.params.id, req.userId],
+    );
+    const target = (found as Row[])[0];
+    if (!target) return res.status(404).json({ error: 'staff member not found' });
+
+    const limit = grantable(req);
+    if (req.staff) {
+      if (req.staff.id === target.id) return res.status(403).json({ error: 'cannot change your own account' });
+      if (!within(parsePermissions(target.permissions), limit)) {
+        return res.status(403).json({ error: 'cannot change a member with permissions you do not have' });
+      }
+    }
+
     const body = req.body ?? {};
     const sets: string[] = [];
     const args: unknown[] = [];
@@ -113,9 +154,22 @@ router.patch(
       if (!name) return res.status(400).json({ error: 'name is required (max 100 characters)' });
       sets.push('name = ?'); args.push(name);
     }
-    if (body.role !== undefined) {
-      if (!isStaffRole(body.role)) return res.status(400).json({ error: 'role must be admin, cashier or adder' });
-      sets.push('role = ?'); args.push(body.role); signOut = true;
+    let permissions: Permission[] | null = null;
+    const role: unknown = body.role;
+    if (role !== undefined) {
+      if (!isStaffRole(role)) return res.status(400).json({ error: 'role must be admin, cashier or adder' });
+      sets.push('role = ?'); args.push(role);
+      permissions = [...ROLE_PRESETS[role]]; // a new role starts from its preset…
+    }
+    if (body.permissions !== undefined) {
+      permissions = checkPermissionList(body.permissions); // …unless the list is given too
+      if (!permissions) return res.status(400).json({ error: 'unknown permission' });
+    }
+    if (permissions) {
+      if (!within(permissions, limit)) {
+        return res.status(403).json({ error: 'cannot grant a permission you do not have' });
+      }
+      sets.push('permissions = ?'); args.push(serializePermissions(permissions));
     }
     if (body.password !== undefined) {
       const password = checkPassword(body.password);
@@ -132,15 +186,13 @@ router.patch(
     if (signOut) sets.push('token_version = token_version + 1');
     sets.push('updated_at = ?'); args.push(new Date());
 
-    const [result] = await pool.query(
+    // `sets` holds only the fixed fragments above — no client text reaches the SQL.
+    await pool.query(
       `UPDATE pos_staff SET ${sets.join(', ')} WHERE id = ? AND owner_id = ?`,
       [...args, req.params.id, req.userId],
     );
-    if ((result as { affectedRows?: number }).affectedRows !== 1) {
-      return res.status(404).json({ error: 'staff member not found' });
-    }
     const [rows] = await pool.query(
-      'SELECT id, name, phone, role, disabled_at, created_at FROM pos_staff WHERE id = ? AND owner_id = ?',
+      `SELECT ${COLS} FROM pos_staff WHERE id = ? AND owner_id = ?`,
       [req.params.id, req.userId],
     );
     return res.json({ staff: toPublic((rows as Row[])[0]) });
