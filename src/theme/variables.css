@@ -870,13 +870,28 @@ ion-select::part(text), ion-select::part(placeholder) {
 .chat__body { white-space: pre-wrap; font-size: 1.05rem; }
 .chat__meta { font-size: .75rem; opacity: .8; margin-top: 2px; }
 
-/* «طلب مزامنة» — one question, ✕ (red) and ✓ (green) side by side. */
-ion-alert.consent-ask .alert-message { font-size: 1.1rem; font-weight: 700; text-align: center; }
-ion-alert.consent-ask .alert-button-group { flex-direction: row; justify-content: center; gap: 24px; padding: 8px 8px 16px; }
-ion-alert.consent-ask .alert-button {
-  width: 64px; height: 64px; min-width: 64px; border-radius: 50%; margin: 0;
-  font-size: 2rem; font-weight: 700; color: #fff;
+/* «طلب مزامنة» — a small top notification: the question, then ✕ (red) and
+   ✓ (green) as two round buttons on the same line. */
+ion-toast.consent-toast {
+  --background: #ffffff; --color: #1d2b1f; --border-radius: 14px;
+  --box-shadow: 0 4px 16px rgba(0, 0, 0, .18); --max-width: 420px;
+  --start: 12px; --end: 12px;
 }
-ion-alert.consent-ask .alert-button .alert-button-inner { justify-content: center; }
-ion-alert.consent-ask .alert-button.consent-yes { background: #1b8a2e; }
-ion-alert.consent-ask .alert-button.consent-no { background: #c62828; }
+ion-toast.consent-toast::part(message) { font-weight: 700; font-size: .95rem; }
+ion-toast.consent-toast::part(button) {
+  width: 38px; height: 38px; min-width: 38px; border-radius: 50%; margin-inline-start: 6px;
+  font-size: 1.2rem; font-weight: 700; color: #fff; padding: 0;
+}
+ion-toast.consent-toast::part(button) { background: #1b8a2e; }
+ion-toast.consent-toast::part(button cancel) { background: #c62828; }
+
+/* «تأكيد كل بيعة» — product and price, then ✕ (red) and ✓ (green) side by side. */
+ion-alert.mark-ask .alert-title { text-align: center; font-weight: 700; }
+ion-alert.mark-ask .alert-message { text-align: center; font-size: 1.15rem; font-weight: 700; }
+ion-alert.mark-ask .alert-button-group { flex-direction: row; justify-content: center; gap: 28px; padding: 6px 8px 16px; }
+ion-alert.mark-ask .alert-button {
+  width: 60px; height: 60px; min-width: 60px; border-radius: 50%; margin: 0;
+  font-size: 1.8rem; font-weight: 700; color: #fff; background: #c62828;
+}
+ion-alert.mark-ask .alert-button .alert-button-inner { justify-content: center; }
+ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }

@@ -15,6 +15,8 @@ import { requirePosActor, requireStaffFeature, requireStaffManager } from './mid
 import staffAuthRouter from './routes/staffAuth';
 import posStaffRouter from './routes/posStaff';
 import posChatRouter from './routes/posChat';
+import eventsRouter from './routes/events';
+import { issueTicket } from './live/hub';
 import { requireSubscription, requireNotSuspended, appOf } from './middleware/requireSubscription';
 import { asyncHandler } from './asyncHandler';
 import { pool } from './db';
@@ -103,6 +105,14 @@ app.use(
   requirePosActor, requireNotSuspended, requirePos, requireStaffFeature, requireStaffManager,
   posStaffRouter,
 );
+
+// Live events (routes/events.ts, live/hub.ts). The OWNER trades his token for
+// a one-time ticket, then opens GET /events?ticket=…; the Watcher does the same
+// at /admin/events/ticket.
+app.post('/events/ticket', requireAuth, (req: AuthedRequest, res) => {
+  res.json({ ticket: issueTicket(`user:${req.userId}`) });
+});
+app.use('/events', eventsRouter);
 
 // Private chat owner ↔ each staff member (routes/posChat.ts decides who sees
 // which conversation). Same shop switches as staff accounts.

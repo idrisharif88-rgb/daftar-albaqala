@@ -39,6 +39,9 @@ describe('manager pin', () => {
     assert.equal(createHash('sha256').update(salt + '583920').digest('hex'), digest);
     const me = await request(app).get('/auth/staff/me').set(AUTH(login.body.token));
     assert.equal(me.body.manager_pin, stored);
+    // the owner clears it
+    assert.equal((await request(app).delete('/pos-staff/manager-pin').set(AUTH(ownerToken))).status, 200);
+    assert.equal((await request(app).get('/pos-staff').set(AUTH(ownerToken))).body.manager_pin_set, false);
     // staff cannot set it
     assert.equal((await request(app).put('/pos-staff/manager-pin').set(AUTH(login.body.token)).send({ pin: '583921' })).status, 403);
   });

@@ -15,7 +15,9 @@ import {
   usePosPermissions, type Permission, type StaffRole,
 } from './permissions';
 import { useAuth } from '../../lib/auth';
-import { ApiError, addStaff, listStaff, setManagerPin, updateStaff, type StaffMember } from '../../lib/api';
+import { ApiError, addStaff, clearManagerPin, listStaff, setManagerPin, updateStaff, type StaffMember } from '../../lib/api';
+import { Share } from '@capacitor/share';
+import { createOutline, shareSocialOutline } from 'ionicons/icons';
 import { toLatinDigits } from '../../lib/digits';
 import { PIN_LENGTH } from './managerPin';
 import { phoneInput } from '../../lib/digits';
@@ -71,9 +73,11 @@ const StaffPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
-  const changePin = () => {
+  /** Set (or change) the code. `share` = hand it on right after saving — the
+   *  only moment it can be shared: the server keeps a hash, not the code. */
+  const changePin = (share = false) => {
     void presentAlert({
-      header: 'رمز المدير',
+      header: share ? 'مشاركة رمز المدير' : 'رمز المدير',
       message: '6 أرقام، ليست متكررة ولا متسلسلة. يطلبه التطبيق من الموظف عند التراجع عن عملية بيع.',
       inputs: [{ name: 'pin', type: 'password', placeholder: '••••••', attributes: { inputmode: 'numeric', maxlength: PIN_LENGTH } }],
       buttons: [
@@ -87,9 +91,33 @@ const StaffPage: React.FC = () => {
               return false;
             }
             void setManagerPin(pin)
-              .then(() => { setPinSet(true); void presentToast({ message: 'تم حفظ رمز المدير', duration: 1500, color: 'success' }); })
+              .then(async () => {
+                setPinSet(true);
+                void presentToast({ message: 'تم حفظ رمز المدير', duration: 1500, color: 'success' });
+                if (share) {
+                  try { await Share.share({ text: `رمز المدير: ${pin}`, dialogTitle: 'مشاركة رمز المدير' }); } catch { /* cancelled */ }
+                }
+              })
               .catch((err: unknown) => { void presentToast({ message: arabicError(err), duration: 2500, color: 'danger' }); });
             return true;
+          },
+        },
+      ],
+    });
+  };
+
+  const removePin = () => {
+    void presentAlert({
+      header: 'حذف رمز المدير',
+      message: 'لن يستطيع الموظفون التراجع عن البيع حتى تضع رمزاً جديداً.',
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        {
+          text: 'حذف', role: 'destructive',
+          handler: () => {
+            void clearManagerPin()
+              .then(() => { setPinSet(false); void presentToast({ message: 'تم حذف رمز المدير', duration: 1500, color: 'medium' }); })
+              .catch((err: unknown) => { void presentToast({ message: arabicError(err), duration: 2500, color: 'danger' }); });
           },
         },
       ],
@@ -219,12 +247,24 @@ const StaffPage: React.FC = () => {
         ) : (
           <IonList>
             {!me && (
-              <IonItem button detail onClick={changePin}>
+              <IonItem>
                 <IonLabel>
                   <h2 style={{ fontWeight: 700 }}>رمز المدير</h2>
-                  <p>للتراجع عن عملية بيع من حساب موظف</p>
+                  <p>
+                    <IonBadge color={pinSet ? 'success' : 'medium'}>{pinSet ? 'محدّد' : 'غير محدّد'}</IonBadge>
+                  </p>
                 </IonLabel>
-                <IonBadge slot="end" color={pinSet ? 'success' : 'medium'}>{pinSet ? 'محدّد' : 'غير محدّد'}</IonBadge>
+                <IonButton slot="end" fill="clear" aria-label={pinSet ? 'تعديل الرمز' : 'تحديد الرمز'} onClick={() => changePin()}>
+                  <IonIcon slot="icon-only" icon={createOutline} />
+                </IonButton>
+                <IonButton slot="end" fill="clear" aria-label="مشاركة الرمز" onClick={() => changePin(true)}>
+                  <IonIcon slot="icon-only" icon={shareSocialOutline} />
+                </IonButton>
+                {pinSet && (
+                  <IonButton slot="end" fill="clear" color="danger" aria-label="حذف الرمز" onClick={removePin}>
+                    <IonIcon slot="icon-only" icon={ICONS.trash} />
+                  </IonButton>
+                )}
               </IonItem>
             )}
             {list.map((m) => (

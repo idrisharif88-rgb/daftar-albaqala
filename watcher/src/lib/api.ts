@@ -117,6 +117,11 @@ export function setContractorStatus(id: string, active: boolean, code: string): 
   });
 }
 
+/** A one-time ticket for the live line (GET /events?ticket=…). */
+export function liveTicket(): Promise<{ ticket: string }> {
+  return request('/admin/events/ticket', { method: 'POST' });
+}
+
 /** Ask the user to agree to server sync (their app shows ✓ / ✗). No code needed. */
 export function requestSync(id: string): Promise<{ sync_consent: string }> {
   return request(`/admin/users/${encodeURIComponent(id)}/sync-request`, { method: 'POST' });

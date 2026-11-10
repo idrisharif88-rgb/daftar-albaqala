@@ -65,14 +65,13 @@ const grantable = (req: PosRequest): ReadonlySet<Permission> =>
 const within = (set: Iterable<Permission>, limit: ReadonlySet<Permission>) =>
   [...set].every((p) => limit.has(p));
 
-/** Is this number already someone's login — another staff member's, or an
- *  owner's? Refused either way: one number must mean one person at the login
- *  screen. */
+/** Is this number already a STAFF login (in any shop)? Staff sign in by
+ *  phone alone («دخول موظف»), so it must point at one member. An OWNER account
+ *  with the same number is fine: that is a separate login (the owner's own
+ *  book), and a shopkeeper may well work as someone else's cashier (owner's
+ *  request 2026-11-10, test 9). */
 async function phoneTaken(phone: string): Promise<boolean> {
-  const [rows] = await pool.query(
-    'SELECT 1 FROM pos_staff WHERE phone = ? UNION ALL SELECT 1 FROM users WHERE phone = ? LIMIT 1',
-    [phone, phone],
-  );
+  const [rows] = await pool.query('SELECT 1 FROM pos_staff WHERE phone = ? LIMIT 1', [phone]);
   return (rows as Row[]).length > 0;
 }
 
@@ -229,6 +228,17 @@ router.put(
       return res.status(400).json({ error: 'pin is too easy to guess' });
     }
     await pool.query('UPDATE users SET pos_manager_pin = ? WHERE id = ?', [hashPin(pin), req.userId]);
+    return res.json({ ok: true });
+  }),
+);
+
+// DELETE /pos-staff/manager-pin — the owner clears «رمز المدير». Staff can then
+// not undo a sale until a new one is set.
+router.delete(
+  '/manager-pin',
+  asyncHandler(async (req: PosRequest, res) => {
+    if (req.staff) return res.status(403).json({ error: 'owner only' });
+    await pool.query('UPDATE users SET pos_manager_pin = NULL WHERE id = ?', [req.userId]);
     return res.json({ ok: true });
   }),
 );

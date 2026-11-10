@@ -80,10 +80,11 @@ describe('POS staff', () => {
     assert.equal((await add(good)).status, 201);
     assert.equal((await add({ ...good, name: 'آخر' })).status, 409);           // a staff number
     const [[owner]] = await pool.query('SELECT phone FROM users WHERE id = ?', [ownerB]) as unknown as [[{ phone: string }]];
-    assert.equal((await add({ ...good, phone: owner.phone })).status, 409);    // an owner's number
-    // and an owner cannot register with a staff member's number
+    // An owner's number is allowed: staff sign in on their own path.
+    assert.equal((await add({ ...good, phone: owner.phone, name: 'صاحب متجر آخر' })).status, 201);
+    // …and a staff member may register a book of their own with the same number.
     const reg = await request(app).post('/auth/register').send({ phone: good.phone, password: PASSWORD });
-    assert.equal(reg.status, 409);
+    assert.equal(reg.status, 201);
   });
 
   test("an owner cannot change another owner's staff", async () => {

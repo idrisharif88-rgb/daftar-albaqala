@@ -8,6 +8,10 @@ import {
 } from './storage';
 import { ensureLocalOwner } from '../data/owner';
 import { isOwnerPhone } from '../config';
+import { openLive } from './live';
+
+/** Fired when the Watcher sends a sync request (SyncConsentPrompt listens). */
+export const SYNC_REQUEST_EVENT = 'daftar:sync-request';
 
 // App-wide auth state. Holds the current session (JWT + user) and exposes
 // login / register / logout. The token is persisted via storage.ts so a
@@ -168,6 +172,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch { /* offline: the last answer stands */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);
+
+  // The live line: a sync request or an access change from the Watcher
+  // arrives at once (the minute timer below is the fallback). Owner only.
+  useEffect(() => {
+    if (!authed || staff) return undefined;
+    return openLive((event) => {
+      void refreshAccess().then(() => {
+        if (event === 'sync-request') window.dispatchEvent(new Event(SYNC_REQUEST_EVENT));
+      });
+    });
+  }, [authed, staff, refreshAccess]);
 
   useEffect(() => {
     if (!authed) return undefined;
