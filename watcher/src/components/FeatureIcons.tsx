@@ -8,8 +8,8 @@ import type { Account } from '../lib/api';
 // One row of feature icons on an account card — what is switched on for this
 // shop, readable at a glance. Each icon has a state, and the state decides the
 // colour (and the words in the legend):
-//   on   green — switched on and working
-//   off  grey  — switched off
+//   on   dark green — switched on and working
+//   off  grey       — switched off
 //   wait amber — asked, waiting for the user (sync not yet approved)
 //   bad  red   — refused by the user
 // Tapping the row opens a legend that names every feature and its state, so
@@ -30,10 +30,12 @@ const STATE_AR: Record<FeatureState, string> = {
 
 /** The features of one account, in a fixed order. Pure — easy to test. */
 export function accountFeatures(a: Account): Feature[] {
+  // Sync: the user's answer counts even while it is off — a request waits
+  // (amber) or was refused (red) before anything can be switched on.
   const active = a.subscription_status === 'active';
-  const sync: FeatureState = !active ? 'off'
-    : a.sync_consent === 'pending' ? 'wait'
-      : a.sync_consent === 'rejected' ? 'bad' : 'on';
+  const sync: FeatureState = a.sync_consent === 'pending' ? 'wait'
+    : a.sync_consent === 'rejected' ? 'bad'
+      : active ? 'on' : 'off';
   const flag = (on: boolean | undefined): FeatureState => (on ? 'on' : 'off');
   return [
     { key: 'sync', icon: syncOutline, label: 'مزامنة الخادم', state: sync },

@@ -6,7 +6,7 @@ import {
 } from '@ionic/react';
 import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
-  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess,
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import FeatureIcons from '../components/FeatureIcons';
@@ -45,6 +45,30 @@ function day(iso: string | null): string {
   if (isNaN(d.getTime())) return '—';
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** The server's refusals the owner can act on, in Arabic. */
+function arabicAdminError(err: ApiError): string {
+  if (err.message.includes('not agreed')) return 'لم يوافق المستخدم على المزامنة بعد. أرسل له طلباً.';
+  return err.message;
+}
+
+/** What the sync row says, with the user's answer when sync is off. */
+function syncNote(a: Account): string {
+  if (a.subscription_status === 'active') return 'مفعّلة';
+  switch (a.sync_consent) {
+    case 'approved': return 'وافق ✓ — فعّل';
+    case 'pending': return 'بانتظار الرد';
+    case 'rejected': return 'رفض ✗';
+    default: return 'إرسال طلب';
+  }
+}
+function syncNoteColor(a: Account): string | undefined {
+  if (a.subscription_status === 'active') return undefined;
+  if (a.sync_consent === 'approved') return 'success';
+  if (a.sync_consent === 'rejected') return 'danger';
+  if (a.sync_consent === 'pending') return 'warning';
+  return 'primary';
 }
 
 const Accounts: React.FC = () => {
@@ -109,8 +133,7 @@ const Accounts: React.FC = () => {
       await setAccountStatus(a.id, status, code);
       presentToast({
         // Switching sync on ASKS the shopkeeper; it starts when he approves.
-        message: activating
-          ? (a.sync_consent === 'approved' ? 'تم التفعيل' : 'أُرسل طلب الموافقة إلى صاحب الدفتر')
+        message: activating ? 'تم تفعيل المزامنة'
           : status === 'none' ? 'تم إيقاف المزامنة' : 'تم الإيقاف',
         duration: 1800,
         color: activating ? 'success' : 'danger',
@@ -118,7 +141,7 @@ const Accounts: React.FC = () => {
       await load();
     } catch (err) {
       presentToast({
-        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        message: err instanceof ApiError ? arabicAdminError(err) : 'تعذّر التنفيذ',
         duration: 2500,
         color: 'danger',
       });
@@ -141,7 +164,7 @@ const Accounts: React.FC = () => {
       await load();
     } catch (err) {
       presentToast({
-        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        message: err instanceof ApiError ? arabicAdminError(err) : 'تعذّر التنفيذ',
         duration: 2500,
         color: 'danger',
       });
@@ -153,6 +176,7 @@ const Accounts: React.FC = () => {
   const changeContractor = (a: Account) => {
     const who = a.store_name || a.phone;
     const activating = a.contractor_status !== 'active';
+    if (activating && a.sync_consent !== 'approved') { sendRequest(a); return; } // the user's yes first
     presentAlert({
       header: 'دفتر المقاول',
       message: activating
@@ -189,7 +213,7 @@ const Accounts: React.FC = () => {
       await load();
     } catch (err) {
       presentToast({
-        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        message: err instanceof ApiError ? arabicAdminError(err) : 'تعذّر التنفيذ',
         duration: 2500,
         color: 'danger',
       });
@@ -348,7 +372,7 @@ const Accounts: React.FC = () => {
       await load();
     } catch (err) {
       presentToast({
-        message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ',
+        message: err instanceof ApiError ? arabicAdminError(err) : 'تعذّر التنفيذ',
         duration: 2500,
         color: 'danger',
       });
@@ -514,13 +538,34 @@ const Accounts: React.FC = () => {
     });
   };
 
+  // Server sync starts with the USER's yes: first a request (no code), their
+  // app asks ✓ / ✗, and only once they agreed can it be switched on (with a code).
+  const sendRequest = (a: Account) => {
+    presentAlert({
+      header: 'طلب مزامنة',
+      message: a.sync_consent === 'pending' ? 'لم يرد بعد. إرسال الطلب مرة أخرى؟' : 'إرسال طلب المزامنة إلى المستخدم؟',
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'إرسال طلب',
+          role: 'confirm',
+          handler: () => {
+            void run(a, () => requestSync(a.id), 'أُرسل الطلب');
+          },
+        },
+      ],
+    });
+  };
+  /** The sync row's action when sync is OFF: ask first, switch on once agreed. */
+  const syncOn = (a: Account) => (a.sync_consent === 'approved' ? change(a, 'active') : sendRequest(a));
+
   const change = (a: Account, status: 'active' | 'suspended') => {
     const who = a.store_name || a.phone;
     const activating = status === 'active';
     presentAlert({
       header: activating ? 'تفعيل المزامنة' : 'إيقاف الحساب',
       message: activating
-        ? `تفعيل المزامنة لـ«${who}»؟ يُرفع دفتره إلى الخادم.`
+        ? `وافق «${who}» ✓. تفعيل المزامنة الآن؟`
         : `إيقاف «${who}»؟ لن يستطيع الدخول ولا المزامنة حتى تعيد تفعيله. بياناته تبقى محفوظة.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
@@ -567,10 +612,10 @@ const Accounts: React.FC = () => {
             {effectiveStatus(managed) !== 'suspended' && (
               <IonItem
                 button detail
-                onClick={() => pick((a) => (effectiveStatus(a) === 'active' ? syncOff(a) : change(a, 'active')))}
+                onClick={() => pick((a) => (effectiveStatus(a) === 'active' ? syncOff(a) : syncOn(a)))}
               >
                 <IonLabel>مزامنة الخادم</IonLabel>
-                <IonNote slot="end">{effectiveStatus(managed) === 'active' ? 'مفعّلة' : 'متوقفة'}</IonNote>
+                <IonNote slot="end" color={syncNoteColor(managed)}>{syncNote(managed)}</IonNote>
               </IonItem>
             )}
             {effectiveStatus(managed) !== 'suspended' && (

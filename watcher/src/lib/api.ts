@@ -117,6 +117,11 @@ export function setContractorStatus(id: string, active: boolean, code: string): 
   });
 }
 
+/** Ask the user to agree to server sync (their app shows ✓ / ✗). No code needed. */
+export function requestSync(id: string): Promise<{ sync_consent: string }> {
+  return request(`/admin/users/${encodeURIComponent(id)}/sync-request`, { method: 'POST' });
+}
+
 export function setAccountStatus(id: string, status: 'active' | 'none' | 'suspended', code: string): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/status`, {
     method: 'POST',

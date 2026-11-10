@@ -869,3 +869,14 @@ ion-select::part(text), ion-select::part(placeholder) {
 .chat__msg--theirs { align-self: flex-start; background: var(--ion-color-light); color: var(--ion-text-color); border-end-start-radius: 4px; }
 .chat__body { white-space: pre-wrap; font-size: 1.05rem; }
 .chat__meta { font-size: .75rem; opacity: .8; margin-top: 2px; }
+
+/* «طلب مزامنة» — one question, ✕ (red) and ✓ (green) side by side. */
+ion-alert.consent-ask .alert-message { font-size: 1.1rem; font-weight: 700; text-align: center; }
+ion-alert.consent-ask .alert-button-group { flex-direction: row; justify-content: center; gap: 24px; padding: 8px 8px 16px; }
+ion-alert.consent-ask .alert-button {
+  width: 64px; height: 64px; min-width: 64px; border-radius: 50%; margin: 0;
+  font-size: 2rem; font-weight: 700; color: #fff;
+}
+ion-alert.consent-ask .alert-button .alert-button-inner { justify-content: center; }
+ion-alert.consent-ask .alert-button.consent-yes { background: #1b8a2e; }
+ion-alert.consent-ask .alert-button.consent-no { background: #c62828; }

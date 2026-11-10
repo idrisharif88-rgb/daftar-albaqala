@@ -1515,3 +1515,16 @@ Branch `round2-fixes`. Server migration **020** (`020_manager_pin_chat.sql`). Ap
   `accountFeatures()`): sync / Drive / POS / staff / notes / report / contractor; green on, grey
   off (dashed), amber waiting, red refused; tap = legend in words.
 - ⚠️ **MIGRATION 020 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet.
+
+## Status — BUILT (Phase 37: sync starts with a request) (2026-11-10)
+Branch `sync-request-flow`. No migration. Server 189/189.
+- **Watcher, sync OFF:** the row reads «إرسال طلب» / «بانتظار الرد» / «وافق ✓ — فعّل» / «رفض ✗».
+  «إرسال طلب» = `POST /admin/users/:id/sync-request` (no authenticator code) → `sync_consent='pending'`.
+  Only after «وافق» does the row switch sync on (authenticator code, `status: active`).
+- **Server:** `status: active` (grocery or contractor) is refused **409 'user has not agreed to sync'**
+  unless `sync_consent='approved'` — checked BEFORE `requireAdminCode`, so the code is not spent.
+  Activation no longer sets 'pending'. Switching OFF (once neither app syncs) resets consent to 'none'.
+- **App:** `SyncConsentPrompt` = «طلب مزامنة» / «مزامنة دفترك مع الخادم؟» with two round buttons on
+  one line, red ✕ and green ✓ (`ion-alert.consent-ask`); back/outside = later (asked again).
+- **Watcher feature icons:** on = solid dark green with a white mark, off = grey, amber = waiting for
+  the user, red = refused (the sync icon shows the answer even while sync is off).

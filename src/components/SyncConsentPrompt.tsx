@@ -41,15 +41,20 @@ const SyncConsentPrompt: React.FC = () => {
           void presentToast({ message: 'تعذّر إرسال الرد. حاول من الإعدادات.', duration: 2600, color: 'danger' });
         });
     };
+    // Short on purpose: one question, two big marks on one line. The long
+    // explanation stays in Settings («المزامنة»), where it can be read calmly.
+    // Back / outside the box = «later»: it is asked again.
     presentAlert({
-      header: 'طلب تفعيل المزامنة',
-      message: SYNC_CONSENT_MESSAGE,
-      backdropDismiss: false,
+      header: 'طلب مزامنة',
+      message: 'مزامنة دفترك مع الخادم؟',
+      cssClass: 'consent-ask',
       buttons: [
-        { text: 'لاحقاً', role: 'cancel' },
-        { text: 'رفض', role: 'destructive', handler: () => answer(false) },
-        { text: 'موافق', handler: () => answer(true) },
+        { text: '✕', role: 'destructive', cssClass: 'consent-no', htmlAttributes: { 'aria-label': 'رفض' }, handler: () => answer(false) },
+        { text: '✓', cssClass: 'consent-yes', htmlAttributes: { 'aria-label': 'موافق' }, handler: () => answer(true) },
       ],
+      onDidDismiss: (e: CustomEvent<{ role?: string }>) => {
+        if (e.detail.role === 'backdrop' || e.detail.role === 'cancel') asked.current = false; // ask again later
+      },
     });
   }, [syncConsent, answerSyncConsent, presentAlert, presentToast]);
 
