@@ -79,6 +79,7 @@ describe('/sync subscription enforcement', () => {
   test('the contractor app is activated on its own', async () => {
     const user = await seedUser({ status: 'none' });
     await setContractor(user, 'active');
+    await pool.query("UPDATE users SET sync_consent = 'approved' WHERE id = ?", [user]); // he agreed (016)
     assert.equal((await pull(user, 'contractor')).status, 200);
     assert.equal((await pull(user)).status, 402); // the grocery app still is not
   });

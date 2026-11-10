@@ -287,7 +287,7 @@ describe('POS staff: developer switch and permissions', () => {
   test('a role is a preset; an explicit list replaces it; unknown codes are refused', async () => {
     const res = await request(app).post('/pos-staff').set(AUTH(token))
       .send({ name: 'x', phone: phone(), role: 'cashier', password: PASSWORD });
-    assert.deepEqual(res.body.staff.permissions, ['sell']);
+    assert.deepEqual(res.body.staff.permissions, ['sell', 'notes']);
     const custom = await request(app).post('/pos-staff').set(AUTH(token))
       .send({ name: 'y', phone: phone(), role: 'cashier', password: PASSWORD, permissions: ['sell', 'see_stock'] });
     assert.deepEqual(custom.body.staff.permissions, ['sell', 'see_stock']);

@@ -143,6 +143,9 @@ describe('/admin', () => {
     const row = res.body.users.find((u: { id: string }) => u.id === user);
     assert.equal(row.contractor_status, 'active');
     assert.equal(row.subscription_status, 'none');
+    assert.equal(row.sync_consent, 'pending'); // switching sync on ASKS the shopkeeper…
+    await request(app).post('/account/sync-consent')
+      .set('Authorization', `Bearer ${tokenFor(user)}`).send({ approve: true }); // …who says yes
 
     const pull = (appId: string) => request(app).get('/sync/pull')
       .set('Authorization', `Bearer ${tokenFor(user)}`).set('X-App', appId);
@@ -174,6 +177,9 @@ describe('/admin', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ status: 'active', code: codeNow(1) });
     assert.equal(res.status, 200);
+    // Activation asks; the shopkeeper approves (migration 016).
+    await request(app).post('/account/sync-consent')
+      .set('Authorization', `Bearer ${tokenFor(user)}`).send({ approve: true });
     res = await request(app).get('/sync/pull').set('Authorization', `Bearer ${tokenFor(user)}`);
     assert.equal(res.status, 200);
 
