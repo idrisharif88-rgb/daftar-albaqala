@@ -1528,3 +1528,23 @@ Branch `sync-request-flow`. No migration. Server 189/189.
   one line, red ✕ and green ✓ (`ion-alert.consent-ask`); back/outside = later (asked again).
 - **Watcher feature icons:** on = solid dark green with a white mark, off = grey, amber = waiting for
   the user, red = refused (the sync icon shows the answer even while sync is off).
+
+## Status — BUILT (Phase 38: live line + round-3 fixes) (2026-11-10)
+Branch `live-and-round3`. No migration. Server 193/193, app 137/137.
+- **Live line (server-sent events):** `server/src/live/hub.ts` + `routes/events.ts`. The app trades its
+  token for a one-time 30 s ticket (`POST /events/ticket`; Watcher `POST /admin/events/ticket`), then
+  opens `GET /events?ticket=…` (CORS `*`, `X-Accel-Buffering: no`, heartbeat 25 s — no nginx change).
+  In-memory, one process; an event only means "look again". Events: `sync-request` + `access` →
+  channel `user:<id>`; `consent` → channel `admin`. Clients: `src/lib/live.ts` (auth.tsx, owner only),
+  `watcher/src/lib/live.ts` (Accounts → toast + reload). Reconnect after 5 s with a fresh ticket.
+- **Sync request** = small top notification (`ion-toast.consent-toast`): «🔄 مزامنة دفترك مع الخادم؟»
+  red ✕ / green ✓. Shown whenever pending and again on each live `sync-request` (fixes test 21:
+  it was asked once per launch).
+- **Staff number may belong to an OWNER account** (test 9): `phoneTaken` checks `pos_staff` only;
+  register checks `users` only. Staff login (`دخول موظف`) and owner login are separate paths.
+- **∅ icon** for sold out (custom SVG data URL in `icons.ts` — raw markup after `;utf8,`).
+- **«رمز المدير»:** ✏️ set/change, 📤 share (type it → saved → share sheet; the only moment it is
+  known), 🗑️ `DELETE /pos-staff/manager-pin`.
+- **«تأكيد كل بيعة ✓ / ✕»** on «بيع» (default ON, localStorage `daftar.pos.confirm-sale`): every scan
+  and tap waits for green ✓ / red ✕ (`ion-alert.mark-ask`) before the sale is recorded
+  (`findByScan` looks the code up without selling).

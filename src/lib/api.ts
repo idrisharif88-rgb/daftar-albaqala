@@ -174,9 +174,19 @@ export function chatRead(staffId: string): Promise<{ ok: boolean }> {
   return request(`/pos-chat/${encodeURIComponent(staffId)}/read`, { method: 'POST' });
 }
 
+/** A one-time ticket for the live line (GET /events?ticket=…). Owner only. */
+export function liveTicket(): Promise<{ ticket: string }> {
+  return request('/events/ticket', { method: 'POST' });
+}
+
 /** The owner sets «رمز المدير» (4 digits) — what a staff member types to undo a sale. */
 export function setManagerPin(pin: string): Promise<{ ok: boolean }> {
   return request('/pos-staff/manager-pin', { method: 'PUT', body: JSON.stringify({ pin }) });
+}
+
+/** The owner clears «رمز المدير». */
+export function clearManagerPin(): Promise<{ ok: boolean }> {
+  return request('/pos-staff/manager-pin', { method: 'DELETE' });
 }
 
 export function listStaff(): Promise<{ staff: StaffMember[]; report_enabled?: boolean; manager_pin_set?: boolean }> {

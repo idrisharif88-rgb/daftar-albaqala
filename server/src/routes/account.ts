@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import { eraseAccount } from '../account/erase';
+import { publish } from '../live/hub';
 import { pool } from '../db';
 
 const router = Router();
@@ -56,6 +57,7 @@ router.post(
     if ((result as { affectedRows?: number }).affectedRows !== 1) {
       return res.status(404).json({ error: 'user not found' });
     }
+    publish('admin', 'consent', { id: req.userId, sync_consent: consent }); // the Watcher sees the answer at once
     return res.json({ sync_consent: consent });
   })
 );

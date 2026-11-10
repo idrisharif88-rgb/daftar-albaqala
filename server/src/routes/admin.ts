@@ -12,6 +12,7 @@ import {
 import { VALID_ROLES } from '../domain';
 import { eraseAccount } from '../account/erase';
 import { buildStaffReport, validRange } from '../pos/staffReport';
+import { issueTicket, publish } from '../live/hub';
 
 // The Watcher app's API: the owner's view over EVERY account.
 //
@@ -295,6 +296,11 @@ async function userAgreed(id: string): Promise<boolean | null> {
   return row ? row.sync_consent === 'approved' : null;
 }
 
+// POST /admin/events/ticket — the Watcher's one-time ticket for GET /events.
+router.post('/events/ticket', (_req, res) => {
+  res.json({ ticket: issueTicket('admin') });
+});
+
 // POST /admin/users/:id/sync-request — ask the USER to agree to server sync.
 // Their app shows «✓ / ✗» at once (it re-reads /me every minute); the Watcher
 // then shows the answer. No authenticator code: asking changes nothing on the
@@ -309,7 +315,9 @@ router.post(
     );
     if ((r as { affectedRows: number }).affectedRows === 0) return res.status(404).json({ error: 'user not found' });
     const [rows] = await pool.query('SELECT sync_consent FROM users WHERE id = ?', [req.params.id]);
-    return res.json({ id: req.params.id, sync_consent: (rows as Array<Record<string, unknown>>)[0].sync_consent });
+    const consent = (rows as Array<Record<string, unknown>>)[0].sync_consent;
+    publish(`user:${req.params.id}`, 'sync-request', { sync_consent: consent }); // the user's app asks at once
+    return res.json({ id: req.params.id, sync_consent: consent });
   }),
 );
 
@@ -342,6 +350,7 @@ router.post(
       if ((r as { affectedRows: number }).affectedRows === 0) {
         return res.status(404).json({ error: 'user not found' });
       }
+      publish(`user:${req.params.id}`, 'access');
       return res.json({ id: req.params.id, contractor_status: status });
     }
     if (!SETTABLE.has(status)) {
@@ -361,6 +370,7 @@ router.post(
     if ((result as { affectedRows: number }).affectedRows === 0) {
       return res.status(404).json({ error: 'user not found' });
     }
+    publish(`user:${req.params.id}`, 'access'); // the app re-reads what it may do, at once
     return res.json({ id: req.params.id, subscription_status: status });
   })
 );

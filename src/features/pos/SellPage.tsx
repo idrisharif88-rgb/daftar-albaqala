@@ -6,7 +6,9 @@ import {
 } from '@ionic/react';
 import { ICONS } from './icons';
 import PosFooter from './PosFooter';
-import { sellByCode, recordSale, getDayRows, totalsOf, type DayRow } from './stock';
+import { findByScan, recordSale, getDayRows, totalsOf, type DayRow } from './stock';
+import type { PosProduct } from './products';
+import { formatMinor } from '../../data/money';
 import { cameraScanAvailable, scanOne } from './scanner';
 import { beepBad, beepOk, setSoundEnabled, soundEnabled, unlockAudio } from './beep';
 import { parseScannedCode } from '../../lib/productCodes';
@@ -25,6 +27,12 @@ import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 //    label.
 // «تراجع» takes back the last sale with an opposite entry.
 
+// «تأكيد كل بيعة»: each sale waits for ✓ (green) or ✕ (red) before it is
+// recorded — fewer undos. On by default; a switch on this screen turns it off.
+const CONFIRM_KEY = 'daftar.pos.confirm-sale';
+const readConfirm = (): boolean => {
+  try { return localStorage.getItem(CONFIRM_KEY) !== '0'; } catch { return true; }
+};
 const CONT_KEY = 'daftar.pos.continuous';
 const readContinuous = (): boolean => {
   try { return localStorage.getItem(CONT_KEY) !== '0'; } catch { return true; }
@@ -42,6 +50,7 @@ const SellPage: React.FC = () => {
   const [typed, setTyped] = useState('');
   const [search, setSearch] = useState('');
   const [continuous, setContinuous] = useState<boolean>(readContinuous);
+  const [confirmSale, setConfirmSale] = useState<boolean>(readConfirm);
   const [sound, setSound] = useState<boolean>(soundEnabled);
   // A cashier sells without being shown the stock or the day's totals (the
   // list still holds only what is in stock — that is what makes it sellable).
@@ -63,6 +72,36 @@ const SellPage: React.FC = () => {
     if (on) { unlockAudio(); beepOk(); } // let him hear what he just switched on
   };
 
+  const toggleConfirm = (on: boolean) => {
+    setConfirmSale(on);
+    try { localStorage.setItem(CONFIRM_KEY, on ? '1' : '0'); } catch { /* a convenience only */ }
+  };
+
+  /** ✓ / ✕ for one sale. Resolves true to record it. Always true when off. */
+  const confirmOne = (product: PosProduct) => new Promise<boolean>((resolve) => {
+    if (!confirmSale) { resolve(true); return; }
+    void presentPin({
+      header: product.name,
+      message: `${formatMinor(product.price)} ريال`,
+      cssClass: 'mark-ask',
+      backdropDismiss: false,
+      buttons: [
+        { text: '✕', role: 'cancel', htmlAttributes: { 'aria-label': 'إلغاء البيع' }, handler: () => resolve(false) },
+        { text: '✓', cssClass: 'mark-yes', htmlAttributes: { 'aria-label': 'تأكيد البيع' }, handler: () => resolve(true) },
+      ],
+    });
+  });
+
+  /** Find what a code names, confirm, then record. */
+  const sellScanned = async (raw: string): Promise<{ ok: true; row: DayRow } | { ok: false; reason: string }> => {
+    const found = await findByScan(toLatinDigits(raw), parseScannedCode);
+    if (!found.ok) return found;
+    if (!(await confirmOne(found.product))) return { ok: false, reason: 'cancelled' };
+    await recordSale(found.product, 1);
+    const row = (await getDayRows()).find((r) => r.product.id === found.product.id)!;
+    return { ok: true, row };
+  };
+
   const toggleContinuous = (on: boolean) => {
     setContinuous(on);
     try { localStorage.setItem(CONT_KEY, on ? '1' : '0'); } catch { /* a convenience only */ }
@@ -71,8 +110,9 @@ const SellPage: React.FC = () => {
   // The browser has no camera scanner: a typed or pasted code stands in.
   const handleTyped = async (raw: string) => {
     unlockAudio();
-    const out = await sellByCode(toLatinDigits(raw), parseScannedCode);
+    const out = await sellScanned(raw);
     if (out.ok) { beepOk(); setLast(out.row); setMessage(null); setSession(null); await refresh(); }
+    else if (out.reason === 'cancelled') { setMessage('لم تُسجَّل البيعة.'); }
     else {
       beepBad();
       setLast(null);
@@ -91,11 +131,13 @@ const SellPage: React.FC = () => {
       for (;;) {
         const raw = await scanOne();
         if (!raw) break; // he backed out — the session is over
-        const out = await sellByCode(toLatinDigits(raw), parseScannedCode);
+        const out = await sellScanned(raw);
         if (out.ok) {
           beepOk();
           counts.set(out.row.product.name, (counts.get(out.row.product.name) ?? 0) + 1);
           lastRow = out.row;
+        } else if (out.reason === 'cancelled') {
+          // ✕ — not sold; scanning goes on
         } else {
           beepBad();
           unknown += 1;
@@ -117,6 +159,7 @@ const SellPage: React.FC = () => {
 
   const tapSell = async (r: DayRow) => {
     unlockAudio();
+    if (!(await confirmOne(r.product))) return;
     await recordSale(r.product, 1);
     beepOk();
     const fresh = await refresh();
@@ -224,6 +267,12 @@ const SellPage: React.FC = () => {
             />
           </IonItem>
         )}
+        {/* Applies to scans AND to tapping a product below. */}
+        <IonItem lines="none">
+          <IonToggle checked={confirmSale} onIonChange={(e) => toggleConfirm(e.detail.checked)}>
+            تأكيد كل بيعة ✓ / ✕
+          </IonToggle>
+        </IonItem>
 
         {message && <IonText color="medium"><p className="ion-text-center">{message}</p></IonText>}
 

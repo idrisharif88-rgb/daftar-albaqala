@@ -2,7 +2,7 @@ import {
   add, arrowUndoOutline, checkmarkCircle, bookOutline, cameraOutline, cardOutline, cartOutline, copyOutline,
   downloadOutline, listOutline, pricetagsOutline, printOutline, shareSocialOutline,
   syncOutline, timeOutline, todayOutline, trashOutline, peopleOutline, personCircleOutline, chatbubblesOutline,
-  barChartOutline, refreshOutline, fileTrayOutline, chatbubbleEllipsesOutline,
+  barChartOutline, refreshOutline, chatbubbleEllipsesOutline,
 } from 'ionicons/icons';
 
 // The icons of the app's sections and of the POS section, in ONE place.
@@ -14,6 +14,16 @@ import {
 //
 // An icon on its own tells a screen reader nothing, so every control that
 // shows only an icon must also carry a label (`aria-label`) — see `ICON_LABELS`.
+/** ∅ — a circle crossed by a diagonal that runs past it. Ionicons has no such
+ *  sign, so it is drawn here; `currentColor` lets it take the colour it is
+ *  given (red on «اليوم»). */
+// Plain markup after ';utf8,' — ionicons parses it as such (no URI-encoding).
+const EMPTY_SET = 'data:image/svg+xml;utf8,'
+  + '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+  + '<circle cx="256" cy="256" r="150" fill="none" stroke="currentColor" stroke-width="40"/>'
+  + '<line x1="92" y1="420" x2="420" y2="92" stroke="currentColor" stroke-width="40" stroke-linecap="square"/>'
+  + '</svg>';
+
 export const ICONS = {
   debts: bookOutline,
   pos: cardOutline,
@@ -38,8 +48,8 @@ export const ICONS = {
   notes: chatbubblesOutline,
   report: barChartOutline,
   refresh: refreshOutline,
-  // Sold out — an empty tray, in place of the word «نفد».
-  empty: fileTrayOutline,
+  // Sold out — the empty-set sign ∅ (owner's choice), in place of «نفد».
+  empty: EMPTY_SET,
   chat: chatbubbleEllipsesOutline,
 } as const;
 

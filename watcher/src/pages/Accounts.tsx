@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IonContent, IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIcon,
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
@@ -10,6 +10,7 @@ import {
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import FeatureIcons from '../components/FeatureIcons';
+import { openLive } from '../lib/live';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
@@ -98,6 +99,20 @@ const Accounts: React.FC = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  // A user's answer to a sync request arrives at once on the live line.
+  const accountsRef = useRef<Account[] | null>(null);
+  accountsRef.current = accounts;
+  useEffect(() => openLive((_event, data) => {
+    const who = accountsRef.current?.find((x) => x.id === data.id);
+    const name = who ? (who.store_name || who.phone) : '';
+    const yes = data.sync_consent === 'approved';
+    void presentToast({
+      message: `${yes ? '✓' : '✕'} ${name} ${yes ? 'وافق على المزامنة' : 'رفض المزامنة'}`,
+      duration: 2500, position: 'top', color: yes ? 'success' : 'danger',
+    });
+    void load();
+  }), [load, presentToast]);
 
   const counts = useMemo(() => {
     const c = { all: 0, allowed: 0, suspended: 0, sync: 0 };

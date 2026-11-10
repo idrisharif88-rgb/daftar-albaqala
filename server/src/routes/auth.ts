@@ -31,12 +31,10 @@ router.post(
       return res.status(400).json({ error: 'password must be at least 6 characters' });
     }
 
-    // A staff member's login number is taken too: one number, one person at
-    // the login screen.
-    const [existing] = await pool.query(
-      'SELECT 1 FROM users WHERE phone = ? UNION ALL SELECT 1 FROM pos_staff WHERE phone = ? LIMIT 1',
-      [normPhone, normPhone]
-    );
+    // Only another OWNER account takes the number. A staff login with the
+    // same number is a separate path («دخول موظف»), so a cashier may have a
+    // book of their own.
+    const [existing] = await pool.query('SELECT 1 FROM users WHERE phone = ? LIMIT 1', [normPhone]);
     if ((existing as unknown[]).length > 0) {
       return res.status(409).json({ error: 'phone already registered' });
     }

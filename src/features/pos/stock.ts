@@ -168,6 +168,17 @@ export type ScanOutcome =
   | { ok: false; reason: 'unknown-code' | 'no-product' };
 
 /** What a scanned string does: find its product and record ONE sale. */
+/** The product a scanned code names, WITHOUT selling it (for «✓ / ✕» first). */
+export async function findByScan(
+  raw: string,
+  parse: (s: string) => string | null,
+): Promise<{ ok: true; product: PosProduct } | { ok: false; reason: 'unknown-code' | 'no-product' }> {
+  const code = parse(raw);
+  if (!code) return { ok: false, reason: 'unknown-code' };
+  const product = await findProductByCode(code);
+  return product ? { ok: true, product } : { ok: false, reason: 'no-product' };
+}
+
 export async function sellByCode(
   raw: string,
   parse: (s: string) => string | null,
