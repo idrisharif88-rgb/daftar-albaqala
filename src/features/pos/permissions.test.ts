@@ -17,8 +17,10 @@ describe('POS tabs by permission', () => {
     expect(posTabsFor(all, false, true).map((t) => t.path)).toContain('/pos/staff');
   });
 
-  it('cashier preset: selling only', () => {
+  it('cashier preset: selling only (+ notes once the developer switched them on)', () => {
     expect(paths(ROLE_PRESETS.cashier)).toEqual(['/pos/sell']);
+    expect(posTabsFor(holding(ROLE_PRESETS.cashier), true, true, true).map((t) => t.path))
+      .toEqual(['/pos/sell', '/pos/notes']);
   });
 
   it('adder preset: the day and the history, no selling, no products', () => {

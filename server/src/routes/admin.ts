@@ -89,7 +89,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -108,6 +108,7 @@ router.get(
       drive_backup: Number(r.drive_backup) === 1,
       pos_enabled: Number(r.pos_enabled) === 1,
       pos_staff_enabled: Number(r.pos_staff_enabled) === 1,
+      pos_notes_enabled: Number(r.pos_notes_enabled) === 1,
     }));
     return res.json({ users });
   })
@@ -157,6 +158,28 @@ router.post(
   })
 );
 
+// POST /admin/users/:id/pos-notes  { enabled: boolean }
+// POS notes, switched on per shop by the developer. Off: no note is accepted
+// or handed out (routes/posSync.ts). Notes already written are kept.
+router.post(
+  '/users/:id/pos-notes',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be true or false' });
+    }
+    const [result] = await pool.query(
+      'UPDATE users SET pos_notes_enabled = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [enabled ? 1 : 0, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ id: req.params.id, pos_notes_enabled: enabled });
+  })
+);
+
 // POST /admin/users/:id/pos-staff  { enabled: boolean }
 // Staff accounts (cashier / adder / admin) are switched on per account by the
 // developer. Off: the shop never sees «الموظفون», and every staff login and
@@ -186,6 +209,13 @@ router.post(
 // locked out. 'expired' is a state an account falls into, not one handed out.
 const SETTABLE = new Set(['active', 'none', 'suspended']);
 
+// Switching sync ON asks the shopkeeper (sync_consent → 'pending') unless he
+// has already approved. The developer cannot answer for him: the server keeps
+// refusing sync until the shopkeeper's own app says yes (routes/account.ts).
+// Takes one bound parameter: the status being set.
+const CONSENT_ON_ACTIVATE =
+  `sync_consent = CASE WHEN ? = 'active' AND sync_consent <> 'approved' THEN 'pending' ELSE sync_consent END`;
+
 // POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended' }
 //                               { app: 'contractor', status: 'active' | 'none' }
 // Without `app` it is the account (and the grocery app). With app=contractor it
@@ -201,8 +231,8 @@ router.post(
         return res.status(400).json({ error: "contractor status must be 'active' or 'none'" });
       }
       const [r] = await pool.query(
-        'UPDATE users SET contractor_status = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
-        [status, req.params.id],
+        `UPDATE users SET contractor_status = ?, ${CONSENT_ON_ACTIVATE}, updated_at = UTC_TIMESTAMP() WHERE id = ?`,
+        [status, status, req.params.id],
       );
       if ((r as { affectedRows: number }).affectedRows === 0) {
         return res.status(404).json({ error: 'user not found' });
@@ -218,9 +248,10 @@ router.post(
       `UPDATE users
           SET subscription_status = ?,
               subscription_expires_at = CASE WHEN ? = 'active' THEN NULL ELSE subscription_expires_at END,
+              ${CONSENT_ON_ACTIVATE},
               updated_at = UTC_TIMESTAMP()
         WHERE id = ?`,
-      [status, status, req.params.id]
+      [status, status, status, req.params.id]
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       return res.status(404).json({ error: 'user not found' });

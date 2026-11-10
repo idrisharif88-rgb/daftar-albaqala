@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler } from '../asyncHandler';
 import { AuthedRequest } from '../middleware/auth';
 import { eraseAccount } from '../account/erase';
+import { pool } from '../db';
 
 const router = Router();
 
@@ -31,6 +32,31 @@ router.delete(
     // user who does not exist — every authenticated route reads the row and
     // finds nothing. The client throws it away as well.
     return res.json({ deleted: await eraseAccount(String(req.userId)) });
+  })
+);
+
+// POST /account/sync-consent  { approve: boolean }
+// The shopkeeper's own answer to «may your book be kept on the server?». Only
+// this route — behind requireAuth, so only the book's OWNER (a staff token is
+// refused there) — can set 'approved'; the Watcher can only ask. 'rejected'
+// is also how an approval is WITHDRAWN later, from Settings: sync stops on the
+// next request (requireSubscription).
+router.post(
+  '/sync-consent',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const approve = req.body?.approve;
+    if (typeof approve !== 'boolean') {
+      return res.status(400).json({ error: 'approve must be true or false' });
+    }
+    const consent = approve ? 'approved' : 'rejected';
+    const [result] = await pool.query(
+      'UPDATE users SET sync_consent = ?, sync_consent_at = UTC_TIMESTAMP(3), updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [consent, req.userId]
+    );
+    if ((result as { affectedRows?: number }).affectedRows !== 1) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    return res.json({ sync_consent: consent });
   })
 );
 

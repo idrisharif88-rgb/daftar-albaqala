@@ -82,6 +82,11 @@ export interface Account {
   pos_enabled: boolean;
   /** POS staff accounts (cashier / adder / admin) — switched on per account by the owner. */
   pos_staff_enabled?: boolean;
+  /** POS notes — switched on per account by the owner. */
+  pos_notes_enabled?: boolean;
+  /** The shopkeeper's own answer to the sync request. Switching sync on only
+   *  ASKS ('pending'); the server syncs nothing until he approves. */
+  sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
   /** «دفتر المقاول»'s own activation ('active' | 'none'); subscription_status
    *  is the grocery app's, and 'suspended' there blocks both apps. */
   contractor_status: string;
@@ -135,6 +140,14 @@ export function setPosAccess(id: string, enabled: boolean, code: string): Promis
  *  «الموظفون», and its staff cannot sign in. The staff are kept. */
 export function setPosStaffAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/pos-staff`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled, code }),
+  });
+}
+
+/** Switch POS notes on/off for one shop. Notes already written are kept. */
+export function setPosNotesAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/pos-notes`, {
     method: 'POST',
     body: JSON.stringify({ enabled, code }),
   });

@@ -41,6 +41,21 @@ type Row = Record<string, unknown>;
 const rowsOf = async (sql: string, params: unknown[] = []): Promise<Row[]> =>
   (((await (await getDB()).query(sql, params)).values ?? []) as Row[]);
 
+/** How many POS rows on this phone the server has not acknowledged yet. A
+ *  staff session must not end while this is above zero: the next sign-in on
+ *  the phone wipes the local store (data/owner.ts), and these rows exist
+ *  nowhere else. */
+export async function countUnsyncedPos(): Promise<number> {
+  const [r] = await rowsOf(
+    `SELECT (SELECT COUNT(*) FROM pos_products WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_baked WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_sales WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_day_lock WHERE synced = 0)
+          + (SELECT COUNT(*) FROM pos_notes WHERE synced = 0) AS n`,
+  );
+  return Number(r?.n) || 0;
+}
+
 let inFlight: Promise<PosSyncOutcome> | null = null;
 
 /** Run one sync. Concurrent calls share the run in progress. */
@@ -84,11 +99,15 @@ async function pushDirty(api: PosSyncApi): Promise<{ pushed: number; refused: nu
       'SELECT id, product_id, day, qty, price, created_at FROM pos_sales WHERE synced = 0 LIMIT ?', [CHUNK]);
     const locks = await rowsOf(
       'SELECT day, locked_at, reopened, updated_at FROM pos_day_lock WHERE synced = 0 LIMIT ?', [CHUNK]);
-    if (products.length + baked.length + sales.length + locks.length === 0) break;
+    // Only what this phone wrote: the author is the server's to set.
+    const notes = await rowsOf(
+      'SELECT id, day, body, created_at, deleted_at FROM pos_notes WHERE synced = 0 LIMIT ?', [CHUNK]);
+    if (products.length + baked.length + sales.length + locks.length + notes.length === 0) break;
 
     const res = await api.push({
       products: products as never, baked: baked as never,
       sales: sales as never, day_locks: locks as never,
+      ...(notes.length > 0 ? { notes: notes as never } : {}),
     });
 
     let cleared = 0;
@@ -102,11 +121,12 @@ async function pushDirty(api: PosSyncApi): Promise<{ pushed: number; refused: nu
     await clear('pos_baked', 'id', res.baked.accepted);
     await clear('pos_sales', 'id', res.sales.accepted);
     await clear('pos_day_lock', 'day', res.day_locks.accepted);
+    await clear('pos_notes', 'id', res.notes?.accepted ?? []);
     pushed += cleared;
     // What is STILL refused after this round (not a running total: a row that
     // stays refused would otherwise be counted once per round).
     refused = res.products.rejected.length + res.baked.rejected.length +
-      res.sales.rejected.length + res.day_locks.rejected.length;
+      res.sales.rejected.length + res.day_locks.rejected.length + (res.notes?.rejected.length ?? 0);
     await persist();
     if (cleared === 0) break; // nothing moved: what is left was refused — stop, don't spin
   }
@@ -188,6 +208,27 @@ export async function applyPull(res: PosPullResult): Promise<number> {
       );
       applied += 1;
     }
+  }
+  // Notes: insert if new; otherwise only the server's copy of who wrote it and
+  // whether it was deleted is taken — the text never changes.
+  for (const n of res.notes ?? []) {
+    const local = (await rowsOf('SELECT id FROM pos_notes WHERE id = ?', [n.id]))[0];
+    if (!local) {
+      await db.run(
+        `INSERT INTO pos_notes (id, author_staff_id, author_name, day, body, created_at, updated_at, deleted_at, synced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [n.id, n.author_staff_id ?? null, n.author_name ?? '', n.day, n.body, n.created_at,
+          n.updated_at ?? n.created_at, n.deleted_at],
+      );
+    } else {
+      await db.run(
+        `UPDATE pos_notes SET author_staff_id = ?, author_name = ?, updated_at = ?,
+                deleted_at = COALESCE(deleted_at, ?), synced = CASE WHEN synced = 0 AND deleted_at IS NOT NULL AND ? IS NULL THEN 0 ELSE 1 END
+          WHERE id = ?`,
+        [n.author_staff_id ?? null, n.author_name ?? '', n.updated_at ?? n.created_at, n.deleted_at, n.deleted_at, n.id],
+      );
+    }
+    applied += 1;
   }
   await persist();
   return applied;

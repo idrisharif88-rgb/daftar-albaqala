@@ -40,6 +40,7 @@ const TABLES: TableSpec[] = [
   { name: 'pos_baked', mutable: false, soft: false, key: 'id' },
   { name: 'pos_sales', mutable: false, soft: false, key: 'id' },
   { name: 'pos_day_lock', mutable: true, soft: false, key: 'day' },
+  { name: 'pos_notes', mutable: true, soft: true, key: 'id' },
 ];
 
 type Row = Record<string, unknown>;

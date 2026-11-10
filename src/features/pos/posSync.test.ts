@@ -22,9 +22,10 @@ import { SCHEMA } from '../../data/schema';
 import { runMigrations } from '../../data/migrations';
 import { createProduct, listProducts } from './products';
 import { addBaked, recordSale, lockDay, getDayRows } from './stock';
-import { applyPull, runPosSync, type PosSyncApi } from './posSync';
+import { applyPull, countUnsyncedPos, runPosSync, type PosSyncApi } from './posSync';
 import { ApiError, type PosPullResult, type PosPushBody, type PosPushResult } from '../../lib/api';
 import { getMeta } from '../../data/meta';
+import { addNote, deleteNote, listNotes } from './notes';
 
 const ack = (ids: string[] = [], rejected: { id: string; reason: string }[] = []) => ({ accepted: ids, rejected });
 const emptyPull = (over: Partial<PosPullResult> = {}): PosPullResult => ({
@@ -55,6 +56,7 @@ function acceptingApi(pulls: PosPullResult[] = [emptyPull()]): PosSyncApi & { pu
         products: ack((body.products ?? []).map((r) => r.id)),
         baked: ack((body.baked ?? []).map((r) => r.id)),
         sales: ack((body.sales ?? []).map((r) => r.id)),
+        notes: ack((body.notes ?? []).map((r) => r.id)),
         day_locks: ack((body.day_locks ?? []).map((r) => r.day)),
       } as PosPushResult;
     },
@@ -75,6 +77,16 @@ describe('POS sync — push', () => {
     expect(out).toMatchObject({ status: 'ok', pushed: 4, refused: 0 });
     for (const t of ['pos_products', 'pos_baked', 'pos_sales', 'pos_day_lock']) expect(await dirty(t)).toBe(0);
     expect(api.pushes[0].sales?.[0]).toMatchObject({ product_id: p.id, qty: 1, price: 5000 });
+  });
+
+  it('counts what is still waiting — what guards a staff sign-out', async () => {
+    const before = await countUnsyncedPos();
+    const p = await createProduct({ name: 'عدّاد', price: 100 });
+    await addBaked(p.id, 3);
+    await recordSale(p);
+    expect(await countUnsyncedPos()).toBe(before + 3);
+    await runPosSync(acceptingApi());
+    expect(await countUnsyncedPos()).toBe(0);
   });
 
   it('keeps a REFUSED row dirty — only what the server named is forgotten', async () => {
@@ -190,3 +202,38 @@ describe('POS sync — outcomes', () => {
     expect((await runPosSync(failing(0))).status).toBe('offline');
   });
 });
+
+describe('POS sync — notes', () => {
+  it('pushes only what was written here, and takes the author from the server', async () => {
+    await addNote('  نفد السكر  ');
+    const api = acceptingApi();
+    await runPosSync(api);
+    const sent = api.pushes[0].notes!;
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body).toBe('نفد السكر');
+    expect(Object.keys(sent[0]).sort()).toEqual(['body', 'created_at', 'day', 'deleted_at', 'id']); // no author
+    expect(await dirty('pos_notes')).toBe(0);
+
+    await applyPull(emptyPull({ notes: [{ ...sent[0], author_staff_id: 's1', author_name: 'سالم', updated_at: sent[0].created_at }] }));
+    const [n] = await listNotes();
+    expect([n.authorName, n.authorStaffId, n.pending]).toEqual(['سالم', 's1', false]);
+  });
+
+  it("a note from another phone arrives; a deletion here is kept until the server has it", async () => {
+    await applyPull(emptyPull({ notes: [{
+      id: 'n-remote', day: '2026-11-10', body: 'من جهاز آخر', created_at: '2026-11-10T08:00:00Z',
+      updated_at: '2026-11-10T08:00:00Z', deleted_at: null, author_staff_id: null, author_name: '',
+    }] }));
+    expect((await listNotes()).some((n) => n.id === 'n-remote')).toBe(true);
+    await deleteNote('n-remote');
+    expect((await listNotes()).some((n) => n.id === 'n-remote')).toBe(false);
+    // a pull of the server's (not yet deleted) copy must not undo the local deletion
+    await applyPull(emptyPull({ notes: [{
+      id: 'n-remote', day: '2026-11-10', body: 'من جهاز آخر', created_at: '2026-11-10T08:00:00Z',
+      updated_at: '2026-11-10T08:00:00Z', deleted_at: null, author_staff_id: null, author_name: '',
+    }] }));
+    expect((await listNotes()).some((n) => n.id === 'n-remote')).toBe(false);
+    expect(await dirty('pos_notes')).toBe(1); // still to be pushed
+  });
+});
+

@@ -14,6 +14,8 @@ import SellPage from './features/pos/SellPage';
 import HistoryPage from './features/pos/HistoryPage';
 import StaffPage from './features/pos/StaffPage';
 import StaffAccountPage from './features/pos/StaffAccountPage';
+import NotesPage from './features/pos/NotesPage';
+import SyncConsentPrompt from './components/SyncConsentPrompt';
 import { firstPosTab, usePosTabs } from './features/pos/PosFooter';
 import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
@@ -245,6 +247,9 @@ const Routes: React.FC = () => {
         <Route exact path="/pos/staff">
           {pos('/pos/staff', <StaffPage />)}
         </Route>
+        <Route exact path="/pos/notes">
+          {pos('/pos/notes', <NotesPage />)}
+        </Route>
         <Route exact path="/pos/account">
           {staff ? <StaffAccountPage /> : <Redirect to={isAuthenticated ? '/home' : '/welcome'} />}
         </Route>
@@ -274,6 +279,7 @@ const App: React.FC = () => (
         <PosAutoSync />
         <DriveDailyBackup />
         <Routes />
+        <SyncConsentPrompt />
         <BiometricGate />
         <SplashIntro />
       </AuthProvider>

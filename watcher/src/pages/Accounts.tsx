@@ -6,7 +6,7 @@ import {
 } from '@ionic/react';
 import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
-  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess,
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -107,7 +107,10 @@ const Accounts: React.FC = () => {
     try {
       await setAccountStatus(a.id, status, code);
       presentToast({
-        message: activating ? 'تم التفعيل' : status === 'none' ? 'تم إيقاف المزامنة' : 'تم الإيقاف',
+        // Switching sync on ASKS the shopkeeper; it starts when he approves.
+        message: activating
+          ? (a.sync_consent === 'approved' ? 'تم التفعيل' : 'أُرسل طلب الموافقة إلى صاحب الدفتر')
+          : status === 'none' ? 'تم إيقاف المزامنة' : 'تم الإيقاف',
         duration: 1800,
         color: activating ? 'success' : 'danger',
       });
@@ -268,6 +271,35 @@ const Accounts: React.FC = () => {
                 if (code) {
                   void run(a, () => setPosStaffAccess(a.id, enabling, code),
                     enabling ? 'تم تفعيل حسابات الموظفين' : 'تم إيقاف حسابات الموظفين');
+                }
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
+  // POS notes: same gate.
+  const changePosNotes = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const enabling = !a.pos_notes_enabled;
+    presentAlert({
+      header: 'الملاحظات',
+      message: enabling
+        ? `تفعيل ملاحظات نقطة البيع لـ«${who}»؟`
+        : `إيقاف ملاحظات نقطة البيع لـ«${who}»؟ الملاحظات المكتوبة تبقى.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: enabling ? 'تفعيل' : 'إيقاف',
+          role: enabling ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('الملاحظات').then((code) => {
+                if (code) {
+                  void run(a, () => setPosNotesAccess(a.id, enabling, code),
+                    enabling ? 'تم تفعيل الملاحظات' : 'تم إيقاف الملاحظات');
                 }
               });
             }, 350);
@@ -531,6 +563,12 @@ const Accounts: React.FC = () => {
                 <IonNote slot="end">{managed.pos_staff_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
               </IonItem>
             )}
+            {managed.pos_enabled && (
+              <IonItem button detail onClick={() => pick(changePosNotes)}>
+                <IonLabel>الملاحظات</IonLabel>
+                <IonNote slot="end">{managed.pos_notes_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
+              </IonItem>
+            )}
 
             <IonListHeader><IonLabel>الحساب</IonLabel></IonListHeader>
             <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
@@ -603,12 +641,15 @@ const Accounts: React.FC = () => {
                 </div>
                 <div className="acct__badges">
                   <span className={`badge badge--${s === 'suspended' ? 'suspended' : 'active'}`}>{STATUS_AR[s]}</span>
-                  {s === 'active' && <span className="badge badge--contractor">مزامنة</span>}
+                  {s === 'active' && a.sync_consent === 'approved' && <span className="badge badge--contractor">مزامنة</span>}
+                  {s === 'active' && a.sync_consent === 'pending' && <span className="badge badge--contractor">بانتظار موافقته</span>}
+                  {s === 'active' && a.sync_consent === 'rejected' && <span className="badge badge--suspended">رفض المزامنة</span>}
                   {a.contractor_status === 'active' && s !== 'suspended' && (
                     <span className="badge badge--contractor">المقاول</span>
                   )}
                   {a.pos_enabled && <span className="badge badge--contractor">نقطة البيع</span>}
                   {a.pos_staff_enabled && <span className="badge badge--contractor">موظفون</span>}
+                  {a.pos_notes_enabled && <span className="badge badge--contractor">ملاحظات</span>}
                   {a.drive_backup && <span className="badge badge--contractor">Drive</span>}
                 </div>
               </div>
