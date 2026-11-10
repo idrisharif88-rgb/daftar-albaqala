@@ -5,8 +5,8 @@ import { totalInBase, type CurrencyBalance, type CurrencyCode, type Rates } from
 //
 // Checked BEFORE an entry is recorded, against the balance as it would be
 // after it (foreign amounts converted at today's rates; one with no rate set
-// cannot be counted, so it is left out). Only an entry that RAISES what they
-// owe is checked — a payment is always welcome.
+// cannot be counted, so it is left out). Only an entry that RAISES the debt
+// (in either direction — see below) is checked; one that lowers it never is.
 //
 //   ok   → record as usual
 //   near → at NEAR_SHARE of the limit or more: a warning, the owner continues
@@ -32,9 +32,14 @@ export function checkDebtLimit(
   currency: CurrencyCode,
   rates: Rates,
 ): LimitCheck {
-  const before = totalInBase(balances, rates).minor;
-  const after = totalInBase(projectBalances(balances, type, amount, currency), rates).minor;
-  if (limit === null || limit <= 0 || after <= before) return { state: 'ok', after, limit };
+  // The debt is measured in the direction THIS entry pushes it. A زبون's
+  // «تسجيل دين» is a `debt` (balance goes up); a صاحب متجر's is a `payment`
+  // (balance goes down, i.e. the owner owes more). Measuring only "balance
+  // up" made the limit silent for every صاحب متجر.
+  const sign = type === 'debt' ? 1 : -1;
+  const before = sign * totalInBase(balances, rates).minor;
+  const after = sign * totalInBase(projectBalances(balances, type, amount, currency), rates).minor;
+  if (limit === null || limit <= 0 || after <= before || after <= 0) return { state: 'ok', after, limit };
   if (after > limit) return { state: 'over', after, limit };
   if (after >= limit * NEAR_SHARE) return { state: 'near', after, limit };
   return { state: 'ok', after, limit };
