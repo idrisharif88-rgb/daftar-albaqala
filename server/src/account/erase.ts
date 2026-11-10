@@ -26,6 +26,12 @@ export async function eraseAccount(userId: string): Promise<boolean> {
     await conn.query('DELETE FROM items WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM customers WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM user_settings WHERE user_id = ?', [userId]);
+    // Point of sale: every table holds a foreign key onto users.
+    await conn.query('DELETE FROM pos_staff WHERE owner_id = ?', [userId]);
+    await conn.query('DELETE FROM pos_sales WHERE user_id = ?', [userId]);
+    await conn.query('DELETE FROM pos_baked WHERE user_id = ?', [userId]);
+    await conn.query('DELETE FROM pos_day_lock WHERE user_id = ?', [userId]);
+    await conn.query('DELETE FROM pos_products WHERE user_id = ?', [userId]);
     const [result] = await conn.query('DELETE FROM users WHERE id = ?', [userId]);
     await conn.commit();
     // The rows are gone; reclaim the files. Best-effort and after the commit —

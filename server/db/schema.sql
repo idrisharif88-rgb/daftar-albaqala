@@ -253,3 +253,21 @@ CREATE TABLE IF NOT EXISTS pos_day_lock (
   KEY idx_pos_lock_sync (user_id, server_updated_at),
   CONSTRAINT fk_pos_lock_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---- POS staff (014): their own login, the owner's POS data ----
+CREATE TABLE IF NOT EXISTS pos_staff (
+  id             CHAR(36)     NOT NULL,
+  owner_id       CHAR(36)     NOT NULL,
+  name           VARCHAR(100) NOT NULL,
+  phone          VARCHAR(32)  NOT NULL,
+  role           ENUM('admin','cashier','adder') NOT NULL,
+  password_hash  VARCHAR(255) NOT NULL,
+  token_version  INT          NOT NULL DEFAULT 0,
+  disabled_at    DATETIME(3)  NULL,
+  created_at     DATETIME(3)  NOT NULL,
+  updated_at     DATETIME(3)  NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_pos_staff_phone (phone),
+  KEY idx_pos_staff_owner (owner_id),
+  CONSTRAINT fk_pos_staff_owner FOREIGN KEY (owner_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
