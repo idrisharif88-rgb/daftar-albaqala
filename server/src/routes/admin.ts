@@ -281,18 +281,37 @@ const SETTABLE = new Set(['active', 'none', 'suspended']);
 // has already approved. The developer cannot answer for him: the server keeps
 // refusing sync until the shopkeeper's own app says yes (routes/account.ts).
 // Takes one bound parameter: the status being set.
-// Switching sync ON from off ALWAYS asks the user again (pending) — an old
-// "yes" does not carry over to a new switch-on. The one exception: the
-// account's OTHER app is still syncing on that yes, and asking again would
-// stop it until answered. Switching OFF — once neither app syncs — forgets
-// the answer. `self` / `other` = the two apps' status columns; the CASE runs
-// before `self` is assigned, so it sees the status as it was.
-const consentOnChange = (self: 'subscription_status' | 'contractor_status', other: 'contractor_status' | 'subscription_status') =>
-  `sync_consent = CASE
-     WHEN ? = 'active' AND ${self} <> 'active' AND ${other} <> 'active' THEN 'pending'
-     WHEN ? = 'active' AND sync_consent <> 'approved' THEN 'pending'
-     WHEN ? = 'none' AND ${other} <> 'active' THEN 'none'
-     ELSE sync_consent END`;
+// Server sync needs the USER's yes, asked first (POST /users/:id/sync-request,
+// answered in their app); switching sync on is refused until it is 'approved'.
+// Switching OFF — once neither app syncs — forgets the answer, so the next
+// time starts with a new request. `other` = the other app's status column.
+const consentOnOff = (other: 'contractor_status' | 'subscription_status') =>
+  `sync_consent = CASE WHEN ? = 'none' AND ${other} <> 'active' THEN 'none' ELSE sync_consent END`;
+
+/** Refuse switching sync on (either app) until the user agreed. */
+async function userAgreed(id: string): Promise<boolean | null> {
+  const [rows] = await pool.query('SELECT sync_consent FROM users WHERE id = ?', [id]);
+  const row = (rows as Array<Record<string, unknown>>)[0];
+  return row ? row.sync_consent === 'approved' : null;
+}
+
+// POST /admin/users/:id/sync-request — ask the USER to agree to server sync.
+// Their app shows «✓ / ✗» at once (it re-reads /me every minute); the Watcher
+// then shows the answer. No authenticator code: asking changes nothing on the
+// server copy — switching sync on (below) still needs one.
+router.post(
+  '/users/:id/sync-request',
+  asyncHandler(async (req, res) => {
+    const [r] = await pool.query(
+      `UPDATE users SET sync_consent = CASE WHEN sync_consent = 'approved' THEN 'approved' ELSE 'pending' END,
+              updated_at = UTC_TIMESTAMP() WHERE id = ?`,
+      [req.params.id],
+    );
+    if ((r as { affectedRows: number }).affectedRows === 0) return res.status(404).json({ error: 'user not found' });
+    const [rows] = await pool.query('SELECT sync_consent FROM users WHERE id = ?', [req.params.id]);
+    return res.json({ id: req.params.id, sync_consent: (rows as Array<Record<string, unknown>>)[0].sync_consent });
+  }),
+);
 
 // POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended' }
 //                               { app: 'contractor', status: 'active' | 'none' }
@@ -301,6 +320,14 @@ const consentOnChange = (self: 'subscription_status' | 'contractor_status', othe
 // account-wide act, done without `app`.
 router.post(
   '/users/:id/status',
+  // Checked BEFORE the authenticator code, so a refusal does not spend it.
+  asyncHandler(async (req, res, next) => {
+    if (String(req.body?.status ?? '') !== 'active') return next();
+    const agreed = await userAgreed(req.params.id);
+    if (agreed === null) return res.status(404).json({ error: 'user not found' });
+    if (!agreed) return res.status(409).json({ error: 'user has not agreed to sync' });
+    return next();
+  }),
   requireAdminCode,
   asyncHandler(async (req, res) => {
     const status = String(req.body?.status ?? '');
@@ -309,8 +336,8 @@ router.post(
         return res.status(400).json({ error: "contractor status must be 'active' or 'none'" });
       }
       const [r] = await pool.query(
-        `UPDATE users SET ${consentOnChange('contractor_status', 'subscription_status')}, contractor_status = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?`,
-        [status, status, status, status, req.params.id],
+        `UPDATE users SET ${consentOnOff('subscription_status')}, contractor_status = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?`,
+        [status, status, req.params.id],
       );
       if ((r as { affectedRows: number }).affectedRows === 0) {
         return res.status(404).json({ error: 'user not found' });
@@ -324,12 +351,12 @@ router.post(
     // not active-until-a-date-set-long-ago.
     const [result] = await pool.query(
       `UPDATE users
-          SET ${consentOnChange('subscription_status', 'contractor_status')},
+          SET ${consentOnOff('contractor_status')},
               subscription_status = ?,
               subscription_expires_at = CASE WHEN ? = 'active' THEN NULL ELSE subscription_expires_at END,
               updated_at = UTC_TIMESTAMP()
         WHERE id = ?`,
-      [status, status, status, status, status, req.params.id]
+      [status, status, status, req.params.id]
     );
     if ((result as { affectedRows: number }).affectedRows === 0) {
       return res.status(404).json({ error: 'user not found' });
