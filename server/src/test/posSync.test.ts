@@ -93,6 +93,19 @@ describe('POS sync', () => {
     assert.equal(r.code, EAN(1));
   });
 
+  test('products: the daily flag travels, defaults to daily, and follows last-write-wins', async () => {
+    const plain = aProduct();
+    await push(tokenA, { products: [plain] });
+    const vinegar = aProduct({ name: 'خل', code: EAN(2), daily: 0 });
+    await push(tokenA, { products: [vinegar] });
+    const read = async (id: string) =>
+      Number(((await pool.query('SELECT daily FROM pos_products WHERE id = ?', [id]))[0] as { daily: number }[])[0].daily);
+    assert.equal(await read(plain.id), 1);
+    assert.equal(await read(vinegar.id), 0);
+    await push(tokenA, { products: [{ ...vinegar, daily: 1, updated_at: '2026-11-10T05:00:00Z' }] });
+    assert.equal(await read(vinegar.id), 1);
+  });
+
   test('two products with one code: the second is a conflict, not a crash', async () => {
     await push(tokenA, { products: [aProduct()] });
     const res = await push(tokenA, { products: [aProduct({ name: 'آخر' })] });

@@ -17,20 +17,26 @@ export { localDay };
 
 export interface DayRow {
   product: PosProduct;
+  /** A daily product: baked today. A carry-over product: stock ADDED today. */
   baked: number;
   sold: number;
+  /** Daily: baked − sold today. Carry-over: the stock on the shelf, all days. */
   left: number;
   /** Takings, minor units: each sale at the price it was made at. */
   revenue: number;
 }
 
+const DAILY_IDS = 'SELECT id FROM pos_products WHERE daily = 1';
+
 export async function getDayRows(day: string = localDay()): Promise<DayRow[]> {
   const db = await getDB();
   const res = await db.query(
-    `SELECT p.id, p.name, p.code, p.price, p.created_at, p.updated_at,
+    `SELECT p.id, p.name, p.code, p.price, p.daily, p.created_at, p.updated_at,
        COALESCE((SELECT SUM(qty) FROM pos_baked b WHERE b.product_id = p.id AND b.day = ?), 0) AS baked,
        COALESCE((SELECT SUM(qty) FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?), 0) AS sold,
-       COALESCE((SELECT SUM(qty * price) FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?), 0) AS revenue
+       COALESCE((SELECT SUM(qty * price) FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?), 0) AS revenue,
+       COALESCE((SELECT SUM(qty) FROM pos_baked b WHERE b.product_id = p.id), 0) -
+       COALESCE((SELECT SUM(qty) FROM pos_sales s WHERE s.product_id = p.id), 0) AS stock
      FROM pos_products p
      WHERE p.deleted_at IS NULL
         OR EXISTS (SELECT 1 FROM pos_sales s WHERE s.product_id = p.id AND s.day = ?)
@@ -41,22 +47,27 @@ export async function getDayRows(day: string = localDay()): Promise<DayRow[]> {
   return ((res.values ?? []) as Record<string, unknown>[]).map((r) => {
     const baked = Number(r.baked) || 0;
     const sold = Number(r.sold) || 0;
+    const daily = Number(r.daily ?? 1) !== 0;
     return {
       product: {
         id: String(r.id), name: String(r.name), code: String(r.code),
-        price: Number(r.price) || 0,
+        price: Number(r.price) || 0, daily,
         created_at: String(r.created_at), updated_at: String(r.updated_at),
       },
-      baked, sold, left: baked - sold, revenue: Number(r.revenue) || 0,
+      baked, sold, left: daily ? baked - sold : Number(r.stock) || 0,
+      revenue: Number(r.revenue) || 0,
     };
   });
 }
 
+/** The day's totals. Baked and left count DAILY products only — a carry-over
+ *  product's shelf stock is not today's baking — while sold and takings count
+ *  everything sold today. */
 export function totalsOf(rows: DayRow[]): { baked: number; sold: number; left: number; revenue: number } {
   return rows.reduce(
     (t, r) => ({
-      baked: t.baked + r.baked, sold: t.sold + r.sold,
-      left: t.left + r.left, revenue: t.revenue + r.revenue,
+      baked: t.baked + (r.product.daily ? r.baked : 0), sold: t.sold + r.sold,
+      left: t.left + (r.product.daily ? r.left : 0), revenue: t.revenue + r.revenue,
     }),
     { baked: 0, sold: 0, left: 0, revenue: 0 },
   );
@@ -110,14 +121,22 @@ export async function unlockDay(day: string = localDay()): Promise<void> {
  *  a submitted day, and refused if it would leave less baked than sold. */
 export async function addBaked(productId: string, qty: number, day: string = localDay()): Promise<void> {
   if (!Number.isInteger(qty) || qty === 0) throw new Error('أدخل عدداً صحيحاً');
-  if ((await getDayLock(day)).locked) {
+  const db = await getDB();
+  // A carry-over product is stock, not the day's baking: the day's lock does
+  // not apply, and «baked vs sold» is counted over ALL days.
+  const prod = ((await db.query('SELECT daily FROM pos_products WHERE id = ?', [productId])).values ?? [])[0] as
+    { daily: number } | undefined;
+  const carryOver = !!prod && Number(prod.daily) === 0;
+  if (!carryOver && (await getDayLock(day)).locked) {
     throw new Error('الكميات معتمدة. اضغط «تعديل» لإعادة فتحها أولاً.');
   }
-  const db = await getDB();
   const cur = ((await db.query(
-    `SELECT COALESCE((SELECT SUM(qty) FROM pos_baked WHERE product_id = ? AND day = ?), 0) AS baked,
-            COALESCE((SELECT SUM(qty) FROM pos_sales WHERE product_id = ? AND day = ?), 0) AS sold`,
-    [productId, day, productId, day],
+    carryOver
+      ? `SELECT COALESCE((SELECT SUM(qty) FROM pos_baked WHERE product_id = ?), 0) AS baked,
+                COALESCE((SELECT SUM(qty) FROM pos_sales WHERE product_id = ?), 0) AS sold`
+      : `SELECT COALESCE((SELECT SUM(qty) FROM pos_baked WHERE product_id = ? AND day = ?), 0) AS baked,
+                COALESCE((SELECT SUM(qty) FROM pos_sales WHERE product_id = ? AND day = ?), 0) AS sold`,
+    carryOver ? [productId, productId] : [productId, day, productId, day],
   )).values ?? [])[0] as { baked: number; sold: number };
   const baked = Number(cur.baked) || 0;
   const sold = Number(cur.sold) || 0;
@@ -228,6 +247,70 @@ export async function keepForAnotherYear(now: Date = new Date()): Promise<void> 
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + KEEP_DAYS);
   await setMeta(KEEP_UNTIL_KEY, localDay(d));
 }
+
+/** Reverse what a day holds — baked, sold and takings back to zero — for ONE
+ *  product, or for every product when `productId` is null.
+ *
+ *  Both tables are add-only and synced, so this does NOT delete rows (the
+ *  server would hand them back on the next pull). It adds an opposite row for
+ *  everything entered, exactly like an undo, so the day nets to nothing and the
+ *  correction syncs like any other. A sale is reversed at the price it was
+ *  made at, which cancels the takings exactly — a price changed mid-day leaves
+ *  no phantom riyals. A submitted day is reopened first, and that is counted,
+ *  so the record shows the day was amended. Returns the units reversed. */
+async function reverseDay(
+  day: string,
+  productId: string | null,
+): Promise<{ baked: number; sold: number }> {
+  const db = await getDB();
+  const now = new Date().toISOString();
+  // Carry-over stock is not part of a day's list: it is never reversed here.
+  const only = ` AND product_id IN (${DAILY_IDS})` + (productId ? ' AND product_id = ?' : '');
+  const args = productId ? [day, productId] : [day];
+  const sales = ((await db.query(
+    `SELECT product_id, price, SUM(qty) AS qty FROM pos_sales WHERE day = ?${only}
+      GROUP BY product_id, price HAVING SUM(qty) <> 0`, args,
+  )).values ?? []) as { product_id: string; price: number; qty: number }[];
+  const baked = ((await db.query(
+    `SELECT product_id, SUM(qty) AS qty FROM pos_baked WHERE day = ?${only}
+      GROUP BY product_id HAVING SUM(qty) <> 0`, args,
+  )).values ?? []) as { product_id: string; qty: number }[];
+  if (sales.length === 0 && baked.length === 0) return { baked: 0, sold: 0 };
+
+  // One statement per call — see owner.ts on the Android plugin's batching.
+  // Sales first: the baked number can never be taken below the sold one.
+  for (const s of sales) {
+    await db.run(
+      'INSERT INTO pos_sales (id, product_id, day, qty, price, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, 0)',
+      [uuidv4(), s.product_id, day, -Number(s.qty), Number(s.price), now],
+    );
+  }
+  for (const b of baked) {
+    await db.run(
+      'INSERT INTO pos_baked (id, product_id, day, qty, created_at, synced) VALUES (?, ?, ?, ?, ?, 0)',
+      [uuidv4(), b.product_id, day, -Number(b.qty), now],
+    );
+  }
+  if ((await getDayLock(day)).locked) {
+    await db.run(
+      'UPDATE pos_day_lock SET locked_at = NULL, reopened = reopened + 1, updated_at = ?, synced = 0 WHERE day = ?',
+      [now, day],
+    );
+  }
+  await persist();
+  kickPosSync();
+  return {
+    baked: baked.reduce((n, b) => n + Number(b.qty), 0),
+    sold: sales.reduce((n, s) => n + Number(s.qty), 0),
+  };
+}
+
+/** «مسح قائمة اليوم»: the whole day's list back to zero. */
+export const eraseDay = (day: string = localDay()) => reverseDay(day, null);
+
+/** «حذف من قائمة اليوم»: one product off the day's list. */
+export const removeProductFromDay = (productId: string, day: string = localDay()) =>
+  reverseDay(day, productId);
 
 /** «Delete»: remove everything older than a year. Returns the rows removed. */
 export async function deleteOlderThanYear(now: Date = new Date()): Promise<number> {

@@ -16,11 +16,13 @@ export interface PosProduct {
   code: string;
   /** Minor units — see data/money.ts. */
   price: number;
+  /** true = baked fresh each day; false = stock that carries over between days. */
+  daily: boolean;
   created_at: string;
   updated_at: string;
 }
 
-const COLS = 'id, name, code, price, created_at, updated_at';
+const COLS = 'id, name, code, price, daily, created_at, updated_at';
 const nowIso = () => new Date().toISOString();
 
 function toProduct(row: Record<string, unknown>): PosProduct {
@@ -29,6 +31,7 @@ function toProduct(row: Record<string, unknown>): PosProduct {
     name: String(row.name),
     code: String(row.code),
     price: Number(row.price) || 0,
+    daily: row.daily === undefined || row.daily === null ? true : Number(row.daily) !== 0,
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
   };
@@ -71,7 +74,7 @@ async function allCodes(): Promise<string[]> {
   return ((res.values ?? []) as { code: string }[]).map((r) => r.code);
 }
 
-export async function createProduct(input: { name: string; price: number }): Promise<PosProduct> {
+export async function createProduct(input: { name: string; price: number; daily?: boolean }): Promise<PosProduct> {
   const name = input.name.trim();
   if (!name) throw new Error('اسم المنتج مطلوب');
   if (!Number.isFinite(input.price) || input.price < 0) throw new Error('أدخل سعراً صحيحاً');
@@ -82,14 +85,15 @@ export async function createProduct(input: { name: string; price: number }): Pro
   const id = uuidv4();
   const now = nowIso();
   const price = Math.round(input.price);
+  const daily = input.daily !== false;
   await db.run(
-    `INSERT INTO pos_products (id, name, code, price, created_at, updated_at, deleted_at, synced)
-     VALUES (?, ?, ?, ?, ?, ?, NULL, 0)`,
-    [id, name, code, price, now, now],
+    `INSERT INTO pos_products (id, name, code, price, daily, created_at, updated_at, deleted_at, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
+    [id, name, code, price, daily ? 1 : 0, now, now],
   );
   await persist();
   kickPosSync();
-  return { id, name, code, price, created_at: now, updated_at: now };
+  return { id, name, code, price, daily, created_at: now, updated_at: now };
 }
 
 /** Many at once, one name per entry; blanks and names already in use are
@@ -115,7 +119,7 @@ export async function createProducts(
 /** The code is deliberately not editable: it is already printed somewhere. */
 export async function updateProduct(
   id: string,
-  fields: { name: string; price: number },
+  fields: { name: string; price: number; daily?: boolean },
 ): Promise<void> {
   const name = fields.name.trim();
   if (!name) throw new Error('اسم المنتج مطلوب');
@@ -123,8 +127,8 @@ export async function updateProduct(
   if (await nameTaken(name, id)) throw new Error('المنتج مسجل مسبقاً');
   const db = await getDB();
   await db.run(
-    `UPDATE pos_products SET name = ?, price = ?, updated_at = ?, synced = 0 WHERE id = ?`,
-    [name, Math.round(fields.price), nowIso(), id],
+    `UPDATE pos_products SET name = ?, price = ?, daily = COALESCE(?, daily), updated_at = ?, synced = 0 WHERE id = ?`,
+    [name, Math.round(fields.price), fields.daily === undefined ? null : fields.daily ? 1 : 0, nowIso(), id],
   );
   await persist();
   kickPosSync();
@@ -158,7 +162,7 @@ export async function exportProductsJson(): Promise<string> {
   )).values ?? []) as Record<string, unknown>[];
   return JSON.stringify({
     v: 2,
-    products: list.map((p) => ({ id: p.id, name: p.name, code: p.code, price: p.price })),
+    products: list.map((p) => ({ id: p.id, name: p.name, code: p.code, price: p.price, daily: p.daily })),
     baked,
   });
 }
@@ -195,9 +199,9 @@ export async function importProductsJson(
     if (raw.id) idByTheirId.set(String(raw.id), id);
     const now = nowIso();
     await db.run(
-      `INSERT INTO pos_products (id, name, code, price, created_at, updated_at, deleted_at, synced)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, 0)`,
-      [id, name, code, price, now, now],
+      `INSERT INTO pos_products (id, name, code, price, daily, created_at, updated_at, deleted_at, synced)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0)`,
+      [id, name, code, price, raw.daily === false || raw.daily === 0 ? 0 : 1, now, now],
     );
     added += 1;
   }

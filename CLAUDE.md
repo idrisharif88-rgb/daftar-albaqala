@@ -1352,6 +1352,13 @@ applied on the droplet; owner verified rows reach the server.
   per-row acks, tenant isolation, keyset pull on the server clock. Phone: `posSync.ts` +
   `PosAutoSync` (open, online, ~3 s after a change). The round button on «اليوم» = server sync,
   else Google Drive backup (the Drive file includes the POS tables). Account switch WIPES POS rows.
+- **Non-daily stock (2026-11-10, branch `pos-erase-today`):** `pos_products.daily` (local migration 11,
+  server migration **013**, default 1). A `daily=0` product (vinegar, honey, ghee) keeps a running stock
+  across days: stock = all `pos_baked` − all `pos_sales`; shown always on «اليوم» under «المخزون الدائم»;
+  the day lock, submit totals and «مسح قائمة اليوم» ignore it; `addBaked` refuses stock below sold over
+  all days. Toggle «يُخبز كل يوم» on the product form; the flag syncs (LWW) and rides the export/import.
+  ⚠️ **MIGRATION 013 REQUIRED** (root): local `daftar_test` + `daftar_db`, then the droplet, BEFORE the app.
+  Not device-tested. Still open from the updates notebook: cashier/admin/adder roles + notes; sync consent.
 - **Watcher:** per-account «مفعّل / موقوف» button (allow/block use of the app); everything else
   (مزامنة الخادم, نقطة البيع, Drive, المقاول, name, password, delete) in the «المزيد» sheet; all
   Watcher text bold. Server tests 133/133, app tests 110/110.

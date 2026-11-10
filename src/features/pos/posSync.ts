@@ -76,7 +76,7 @@ async function pushDirty(api: PosSyncApi): Promise<{ pushed: number; refused: nu
   // `missing_product` may go through once its product has been acknowledged.
   for (let round = 0; round < 50; round++) {
     const products = await rowsOf(
-      `SELECT id, name, code, price, created_at, updated_at, deleted_at
+      `SELECT id, name, code, price, daily, created_at, updated_at, deleted_at
          FROM pos_products WHERE synced = 0 LIMIT ?`, [CHUNK]);
     const baked = await rowsOf(
       'SELECT id, product_id, day, qty, created_at FROM pos_baked WHERE synced = 0 LIMIT ?', [CHUNK]);
@@ -141,16 +141,16 @@ export async function applyPull(res: PosPullResult): Promise<number> {
       const clash = await rowsOf('SELECT id FROM pos_products WHERE code = ? AND id <> ?', [p.code, p.id]);
       if (clash.length > 0) continue;
       await db.run(
-        `INSERT INTO pos_products (id, name, code, price, created_at, updated_at, deleted_at, synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-        [p.id, p.name, p.code, p.price, p.created_at, p.updated_at, p.deleted_at],
+        `INSERT INTO pos_products (id, name, code, price, daily, created_at, updated_at, deleted_at, synced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [p.id, p.name, p.code, p.price, p.daily === 0 ? 0 : 1, p.created_at, p.updated_at, p.deleted_at],
       );
       applied += 1;
     } else if (ms(p.updated_at) > ms(String(local.updated_at))) {
       // Last write wins; the code stays as it is.
       await db.run(
-        'UPDATE pos_products SET name = ?, price = ?, updated_at = ?, deleted_at = ?, synced = 1 WHERE id = ?',
-        [p.name, p.price, p.updated_at, p.deleted_at, p.id],
+        'UPDATE pos_products SET name = ?, price = ?, daily = ?, updated_at = ?, deleted_at = ?, synced = 1 WHERE id = ?',
+        [p.name, p.price, p.daily === 0 ? 0 : 1, p.updated_at, p.deleted_at, p.id],
       );
       applied += 1;
     }
