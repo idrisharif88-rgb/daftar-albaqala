@@ -95,6 +95,25 @@ export async function phoneExists(phone: string, exceptId?: string): Promise<boo
   return (res.values ?? []).length > 0;
 }
 
+/**
+ * An active contact of this book whose number is `phone` — compared on the
+ * last 9 digits, so «0777…», «967777…» and «777…» are the same number. Used to
+ * warn before the same person is added as staff.
+ */
+export async function findContactByPhone(phone: string): Promise<Customer | null> {
+  const tail = phone.replace(/\D/g, '').slice(-9);
+  if (tail.length < 6) return null;
+  const db = await getDB();
+  const marks = VISIBLE_ROLE_CODES.map(() => '?').join(', ');
+  const res = await db.query(
+    `SELECT ${COLS} FROM customers WHERE deleted_at IS NULL AND role IN (${marks})`,
+    VISIBLE_ROLE_CODES,
+  );
+  const row = ((res.values ?? []) as Record<string, unknown>[])
+    .find((r) => String(r.phone).replace(/\D/g, '').slice(-9) === tail);
+  return row ? toCustomer(row) : null;
+}
+
 export async function createCustomer(input: {
   name: string;
   phone: string;

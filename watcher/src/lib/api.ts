@@ -163,6 +163,15 @@ export function setPosReportAccess(id: string, enabled: boolean, code: string): 
   });
 }
 
+export interface ShopNote {
+  id: string; author_staff_id: string | null; author_name: string; day: string;
+  body: string; edited_at: string | null; created_at: string;
+}
+/** One shop's POS notes, newest first (read-only). */
+export function listShopNotes(id: string): Promise<{ notes: ShopNote[] }> {
+  return request(`/admin/users/${encodeURIComponent(id)}/notes`);
+}
+
 export interface ShopStaff { id: string; name: string; phone: string; role: string; disabled: boolean }
 export function listShopStaff(id: string): Promise<{ staff: ShopStaff[] }> {
   return request(`/admin/users/${encodeURIComponent(id)}/staff`);

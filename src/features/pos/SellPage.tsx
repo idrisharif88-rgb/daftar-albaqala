@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
-  IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButton, IonIcon, IonInput,
+  IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton, IonIcon, IonInput,
   IonItem, IonLabel, IonText, IonSpinner, IonToggle, IonSearchbar, IonList,
   useIonViewWillEnter,
 } from '@ionic/react';
@@ -12,6 +12,8 @@ import { beepBad, beepOk, setSoundEnabled, soundEnabled, unlockAudio } from './b
 import { parseScannedCode } from '../../lib/productCodes';
 import { toLatinDigits } from '../../lib/digits';
 import { usePosPermissions } from './permissions';
+import { useAuth } from '../../lib/auth';
+import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 
 // «بيع» — sell by scanning the product's barcode, or by tapping its name.
 //
@@ -29,6 +31,7 @@ const readContinuous = (): boolean => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const SellPage: React.FC = () => {
+  const { staff } = useAuth();
   const [rows, setRows] = useState<DayRow[]>([]);
   const [last, setLast] = useState<DayRow | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -50,6 +53,7 @@ const SellPage: React.FC = () => {
     return r;
   }, []);
   useIonViewWillEnter(() => { void refresh(); });
+  const pull = usePosRefresh(refresh);
 
   const toggleSound = (on: boolean) => {
     setSound(on);
@@ -136,8 +140,14 @@ const SellPage: React.FC = () => {
 
   return (
     <IonPage>
-      <IonHeader><IonToolbar><IonTitle>بيع</IonTitle></IonToolbar></IonHeader>
+      <IonHeader>
+        <IonToolbar>
+          <IonTitle>بيع</IonTitle>
+          <IonButtons slot="end"><RefreshButton busy={pull.busy} onClick={() => { void pull.run(); }} /></IonButtons>
+        </IonToolbar>
+      </IonHeader>
       <IonContent className="ion-padding">
+        <PosRefresher onRefresh={pull.run} />
         {cameraScanAvailable() ? (
           <>
             <IonButton expand="block" size="large" onClick={() => { void scan(); }} disabled={busy}>
@@ -220,7 +230,9 @@ const SellPage: React.FC = () => {
           {shown.length === 0 && (
             <IonText color="medium">
               <p className="ion-text-center ion-padding">
-                {term ? 'لا نتائج.' : 'لا توجد منتجات في المخزون. أضف الكميات من تبويب «اليوم».'}
+                {term ? 'لا نتائج.'
+                  : staff ? 'لا توجد كميات للبيع. تواصل مع مُدخل الكميات أو المدير.'
+                    : 'لا توجد منتجات في المخزون. أضف الكميات من تبويب «اليوم».'}
               </p>
             </IonText>
           )}

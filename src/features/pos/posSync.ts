@@ -66,6 +66,21 @@ export function runPosSync(api: PosSyncApi = realApi): Promise<PosSyncOutcome> {
   return inFlight;
 }
 
+let again = false;
+
+/**
+ * Sync NOW, in the background — called after every sale. Never waits and never
+ * blocks the screen. If a run is already going, one more run is queued for when
+ * it ends, so a sale made during a sync is sent right after it instead of
+ * waiting for the next change; any number of sales in that window share it.
+ */
+export function requestPosSync(): void {
+  if (inFlight) { again = true; return; }
+  void runPosSync().finally(() => {
+    if (again) { again = false; requestPosSync(); }
+  });
+}
+
 async function doSync(api: PosSyncApi): Promise<PosSyncOutcome> {
   try {
     const { pushed, refused } = await pushDirty(api);
@@ -101,7 +116,7 @@ async function pushDirty(api: PosSyncApi): Promise<{ pushed: number; refused: nu
       'SELECT day, locked_at, reopened, updated_at FROM pos_day_lock WHERE synced = 0 LIMIT ?', [CHUNK]);
     // Only what this phone wrote: the author is the server's to set.
     const notes = await rowsOf(
-      'SELECT id, day, body, created_at, deleted_at FROM pos_notes WHERE synced = 0 LIMIT ?', [CHUNK]);
+      'SELECT id, day, body, edited_at, created_at, deleted_at FROM pos_notes WHERE synced = 0 LIMIT ?', [CHUNK]);
     if (products.length + baked.length + sales.length + locks.length + notes.length === 0) break;
 
     const res = await api.push({
@@ -209,23 +224,27 @@ export async function applyPull(res: PosPullResult): Promise<number> {
       applied += 1;
     }
   }
-  // Notes: insert if new; otherwise only the server's copy of who wrote it and
-  // whether it was deleted is taken — the text never changes.
+  // Notes: insert if new; otherwise the server's copy wins (author, text, last
+  // edit, deletion) — unless this phone holds a change not yet pushed, which
+  // goes up on the next run.
   for (const n of res.notes ?? []) {
     const local = (await rowsOf('SELECT id FROM pos_notes WHERE id = ?', [n.id]))[0];
     if (!local) {
       await db.run(
-        `INSERT INTO pos_notes (id, author_staff_id, author_name, day, body, created_at, updated_at, deleted_at, synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-        [n.id, n.author_staff_id ?? null, n.author_name ?? '', n.day, n.body, n.created_at,
+        `INSERT INTO pos_notes (id, author_staff_id, author_name, day, body, edited_at, created_at, updated_at, deleted_at, synced)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [n.id, n.author_staff_id ?? null, n.author_name ?? '', n.day, n.body, n.edited_at ?? null, n.created_at,
           n.updated_at ?? n.created_at, n.deleted_at],
       );
     } else {
       await db.run(
         `UPDATE pos_notes SET author_staff_id = ?, author_name = ?, updated_at = ?,
-                deleted_at = COALESCE(deleted_at, ?), synced = CASE WHEN synced = 0 AND deleted_at IS NOT NULL AND ? IS NULL THEN 0 ELSE 1 END
+                body = CASE WHEN synced = 0 THEN body ELSE ? END,
+                edited_at = CASE WHEN synced = 0 THEN edited_at ELSE ? END,
+                deleted_at = COALESCE(deleted_at, ?)
           WHERE id = ?`,
-        [n.author_staff_id ?? null, n.author_name ?? '', n.updated_at ?? n.created_at, n.deleted_at, n.deleted_at, n.id],
+        [n.author_staff_id ?? null, n.author_name ?? '', n.updated_at ?? n.created_at,
+          n.body, n.edited_at ?? null, n.deleted_at, n.id],
       );
     }
     applied += 1;

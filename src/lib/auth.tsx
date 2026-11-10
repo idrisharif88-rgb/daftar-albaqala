@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
 import {
@@ -40,6 +40,8 @@ interface AuthState {
   syncConsent: 'none' | 'pending' | 'approved' | 'rejected' | null;
   /** Record his answer on the server; resolves once it is stored there. */
   answerSyncConsent: (approve: boolean) => Promise<void>;
+  /** Re-read what this account may do (pull-to-refresh calls it). */
+  refreshAccess: () => Promise<void>;
   login: (phone: string, password: string) => Promise<void>;
   staffLogin: (phone: string, password: string) => Promise<void>;
   register: (phone: string, password: string, storeName: string) => Promise<void>;
@@ -131,20 +133,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // any time. A refusal (401: disabled / new password; 403: the shop's staff
   // accounts switched off, or the shop suspended) signs them out — the server
   // refuses everything they would do anyway.
-  useEffect(() => {
-    if (!authed) return;
-    if (staff) {
-      api.staffMe().then((res) => {
+  // What the account is allowed is re-read: at sign-in / launch, whenever the
+  // app comes back to the screen, every minute while it is open, and on demand
+  // (pull-to-refresh). So a change made from the Watcher or by the shop owner —
+  // a sync request to approve, a permission, notes switched on — shows at once
+  // instead of on the next launch.
+  const staffRef = useRef(staff);
+  staffRef.current = staff;
+  const refreshAccess = useCallback(async (): Promise<void> => {
+    if (!getToken()) return;
+    if (staffRef.current) {
+      try {
+        const res = await api.staffMe();
         const next = { ...res.staff, store_name: res.store_name };
         setStaff(next);
         setStaffState(next);
         rememberNotes(res.notes_enabled === true);
-      }).catch((err: unknown) => {
+      } catch (err) {
         if (err instanceof api.ApiError && (err.status === 401 || err.status === 403)) logout();
-      });
+      }
       return;
     }
-    api.me().then((res) => {
+    try {
+      const res = await api.me();
       rememberPhone(res.user.phone);
       setDriveAllowed(res.user.drive_backup === true);
       setDriveAllowedState(res.user.drive_backup === true);
@@ -154,11 +165,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPosStaffAllowedState(res.user.pos_staff_enabled === true);
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
-    }).catch(() => undefined);
-    // Only on sign-in / launch: `staff` changes when /auth/staff/me answers,
-    // and re-asking then would loop.
+    } catch { /* offline: the last answer stands */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [logout]);
+
+  useEffect(() => {
+    if (!authed) return undefined;
+    void refreshAccess();
+    const visible = () => document.visibilityState === 'visible';
+    const onVisible = () => { if (visible()) void refreshAccess(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const minute = setInterval(() => { if (visible()) void refreshAccess(); }, 60_000);
+    return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(minute); };
+  }, [authed, refreshAccess]);
 
   const answerSyncConsent = useCallback(async (approve: boolean) => {
     const res = await api.answerSyncConsent(approve);
@@ -178,7 +197,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         staff: authed ? staff : null,
         posNotesAllowed: authed && posNotesAllowed,
         syncConsent: authed && !staff ? syncConsent : null,
-        answerSyncConsent,
+        answerSyncConsent, refreshAccess,
         login, staffLogin, register, logout,
       }}
     >

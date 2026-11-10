@@ -39,12 +39,14 @@ const NAME_MAX = 100;
 const PASSWORD_MIN = 6;
 const PASSWORD_MAX = 128; // bcrypt reads only the first 72 bytes; a cap also bounds the hashing work
 const BCRYPT_COST = 10;
-const COLS = 'id, name, phone, role, permissions, disabled_at, created_at';
+const COLS = 'id, name, phone, role, permissions, disabled_at, locked_at, created_at';
 
 const toPublic = (r: Row) => ({
   id: r.id, name: r.name, phone: r.phone, role: r.role,
   permissions: [...parsePermissions(r.permissions)],
   disabled: r.disabled_at !== null && r.disabled_at !== undefined,
+  /** Locked after too many wrong passwords — a new password unlocks. */
+  locked: r.locked_at !== null && r.locked_at !== undefined,
   created_at: r.created_at,
 });
 
@@ -126,7 +128,7 @@ router.post(
       throw err;
     }
     return res.status(201).json({
-      staff: toPublic({ id, name, phone, role, permissions: stored, disabled_at: null, created_at: now }),
+      staff: toPublic({ id, name, phone, role, permissions: stored, disabled_at: null, locked_at: null, created_at: now }),
     });
   }),
 );
@@ -180,6 +182,7 @@ router.patch(
       const password = checkPassword(body.password);
       if (!password) return res.status(400).json({ error: 'password must be 6–128 characters' });
       sets.push('password_hash = ?'); args.push(await bcrypt.hash(password, BCRYPT_COST)); signOut = true;
+      sets.push('failed_logins = 0', 'locked_at = NULL'); // a new password unlocks
     }
     if (body.disabled !== undefined) {
       if (typeof body.disabled !== 'boolean') return res.status(400).json({ error: 'disabled must be true or false' });
