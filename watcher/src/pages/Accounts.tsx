@@ -9,6 +9,7 @@ import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
+import FeatureIcons from '../components/FeatureIcons';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
@@ -686,18 +687,9 @@ const Accounts: React.FC = () => {
                 </div>
                 <div className="acct__badges">
                   <span className={`badge badge--${s === 'suspended' ? 'suspended' : 'active'}`}>{STATUS_AR[s]}</span>
-                  {s === 'active' && a.sync_consent === 'approved' && <span className="badge badge--contractor">مزامنة</span>}
-                  {s === 'active' && a.sync_consent === 'pending' && <span className="badge badge--contractor">بانتظار موافقته</span>}
-                  {s === 'active' && a.sync_consent === 'rejected' && <span className="badge badge--suspended">رفض المزامنة</span>}
-                  {a.contractor_status === 'active' && s !== 'suspended' && (
-                    <span className="badge badge--contractor">المقاول</span>
-                  )}
-                  {a.pos_enabled && <span className="badge badge--contractor">نقطة البيع</span>}
-                  {a.pos_staff_enabled && <span className="badge badge--contractor">موظفون</span>}
-                  {a.pos_notes_enabled && <span className="badge badge--contractor">ملاحظات</span>}
-                  {a.drive_backup && <span className="badge badge--contractor">Drive</span>}
                 </div>
               </div>
+              {s !== 'suspended' && <FeatureIcons account={a} />}
               <div className="acct__meta">
                 جهات: {a.customers_count} · حركات: {a.transactions_count}
                 <br />

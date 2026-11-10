@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton, IonIcon, IonInput,
   IonItem, IonLabel, IonText, IonSpinner, IonToggle, IonSearchbar, IonList,
-  useIonViewWillEnter,
+  useIonViewWillEnter, useIonAlert,
 } from '@ionic/react';
 import { ICONS } from './icons';
 import PosFooter from './PosFooter';
@@ -13,6 +13,7 @@ import { parseScannedCode } from '../../lib/productCodes';
 import { toLatinDigits } from '../../lib/digits';
 import { usePosPermissions } from './permissions';
 import { useAuth } from '../../lib/auth';
+import { pinMatches } from './managerPin';
 import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 
 // «بيع» — sell by scanning the product's barcode, or by tapping its name.
@@ -32,6 +33,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const SellPage: React.FC = () => {
   const { staff } = useAuth();
+  const [presentPin] = useIonAlert();
   const [rows, setRows] = useState<DayRow[]>([]);
   const [last, setLast] = useState<DayRow | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -123,8 +125,39 @@ const SellPage: React.FC = () => {
     setSession(null);
   };
 
+  /** A staff member undoes a sale only with «رمز المدير»; the owner is not asked. */
+  const askManagerPin = () => new Promise<boolean>((resolve) => {
+    if (!staff?.manager_pin) {
+      void presentPin({
+        header: 'رمز المدير',
+        message: 'لم يحدّد صاحب المتجر رمز المدير بعد. اطلب منه تحديده من «الموظفون».',
+        buttons: [{ text: 'حسناً', handler: () => resolve(false) }],
+      });
+      return;
+    }
+    void presentPin({
+      header: 'رمز المدير',
+      message: 'التراجع عن البيع يحتاج رمز المدير.',
+      inputs: [{ name: 'pin', type: 'password', placeholder: '••••', attributes: { inputmode: 'numeric', maxlength: 4 } }],
+      backdropDismiss: false,
+      buttons: [
+        { text: 'إلغاء', role: 'cancel', handler: () => resolve(false) },
+        {
+          text: 'تأكيد',
+          handler: (v: { pin?: string }) => {
+            void pinMatches(toLatinDigits(v.pin ?? ''), staff.manager_pin).then((ok) => {
+              if (!ok) setMessage('رمز المدير غير صحيح.');
+              resolve(ok);
+            });
+          },
+        },
+      ],
+    });
+  });
+
   const undo = async () => {
     if (!last) return;
+    if (staff && !(await askManagerPin())) return;
     await recordSale(last.product, -1);
     const fresh = await refresh();
     setLast(fresh.find((r) => r.product.id === last.product.id) ?? null);

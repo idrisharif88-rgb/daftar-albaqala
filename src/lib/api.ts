@@ -114,6 +114,8 @@ export function me(): Promise<{ user: Me }> {
 export interface StaffInfo { id: string; name: string; role: string; permissions: string[] }
 export interface StaffSessionResult {
   token: string; staff: StaffInfo; store_name: string | null; notes_enabled?: boolean;
+  /** «رمز المدير» as a salted hash ('s1:salt:sha256'), null = not set. */
+  manager_pin?: string | null;
 }
 
 export function staffLogin(phone: string, password: string): Promise<StaffSessionResult> {
@@ -124,7 +126,7 @@ export function staffLogin(phone: string, password: string): Promise<StaffSessio
 }
 
 /** Who this staff token is, and what they may do NOW. */
-export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null; notes_enabled?: boolean }> {
+export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null; notes_enabled?: boolean; manager_pin?: string | null }> {
   return request('/auth/staff/me');
 }
 
@@ -153,7 +155,31 @@ export function staffReport(id: string, from: string, to: string): Promise<Staff
   return request(`/pos-staff/${encodeURIComponent(id)}/report?from=${from}&to=${to}`);
 }
 
-export function listStaff(): Promise<{ staff: StaffMember[]; report_enabled?: boolean }> {
+// ---- Chat: owner ↔ each staff member (online, text only) ----
+export interface ChatThread {
+  staff_id: string; name: string; disabled: boolean;
+  last_body: string | null; last_at: string | null; unread: number;
+}
+export interface ChatMessage { id: string; from_staff: boolean; body: string; created_at: string; read_at: string | null }
+export function chatThreads(): Promise<{ threads: ChatThread[] }> { return request('/pos-chat/threads'); }
+export function chatUnread(): Promise<{ unread: number }> { return request('/pos-chat/unread'); }
+/** `staffId` = a member's id (owner), or 'me' (the member's own conversation). */
+export function chatMessages(staffId: string): Promise<{ messages: ChatMessage[] }> {
+  return request(`/pos-chat/${encodeURIComponent(staffId)}/messages`);
+}
+export function chatSend(staffId: string, body: string): Promise<{ id: string }> {
+  return request(`/pos-chat/${encodeURIComponent(staffId)}/messages`, { method: 'POST', body: JSON.stringify({ body }) });
+}
+export function chatRead(staffId: string): Promise<{ ok: boolean }> {
+  return request(`/pos-chat/${encodeURIComponent(staffId)}/read`, { method: 'POST' });
+}
+
+/** The owner sets «رمز المدير» (4 digits) — what a staff member types to undo a sale. */
+export function setManagerPin(pin: string): Promise<{ ok: boolean }> {
+  return request('/pos-staff/manager-pin', { method: 'PUT', body: JSON.stringify({ pin }) });
+}
+
+export function listStaff(): Promise<{ staff: StaffMember[]; report_enabled?: boolean; manager_pin_set?: boolean }> {
   return request('/pos-staff');
 }
 

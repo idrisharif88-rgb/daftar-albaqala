@@ -5,6 +5,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { PosRequest } from '../middleware/posActor';
 import { buildStaffReport, reportEnabled, validRange } from '../pos/staffReport';
+import { PIN_RE, hashPin } from '../pos/managerPin';
 import { normalizePhone, isValidPhone } from '../auth/phone';
 import {
   PERMISSIONS, ROLE_PRESETS, checkPermissionList, isStaffRole, parsePermissions,
@@ -86,6 +87,7 @@ router.get(
       staff: (rows as Row[]).map(toPublic), permissions: PERMISSIONS, presets: ROLE_PRESETS,
       // The owner's report button shows only when the developer allowed it.
       report_enabled: !req.staff && (await reportEnabled(req.userId!)),
+      manager_pin_set: await managerPinSet(req.userId!),
     });
   }),
 );
@@ -204,6 +206,24 @@ router.patch(
       [req.params.id, req.userId],
     );
     return res.json({ staff: toPublic((rows as Row[])[0]) });
+  }),
+);
+
+async function managerPinSet(ownerId: string): Promise<boolean> {
+  const [rows] = await pool.query('SELECT pos_manager_pin FROM users WHERE id = ?', [ownerId]);
+  return !!(rows as Row[])[0]?.pos_manager_pin;
+}
+
+// PUT /pos-staff/manager-pin { pin: '1234' } — the OWNER sets «رمز المدير».
+// Staff phones pick it up on their next refresh (/auth/staff/me).
+router.put(
+  '/manager-pin',
+  asyncHandler(async (req: PosRequest, res) => {
+    if (req.staff) return res.status(403).json({ error: 'owner only' });
+    const pin = String(req.body?.pin ?? '');
+    if (!PIN_RE.test(pin)) return res.status(400).json({ error: 'pin must be 4 digits' });
+    await pool.query('UPDATE users SET pos_manager_pin = ? WHERE id = ?', [hashPin(pin), req.userId]);
+    return res.json({ ok: true });
   }),
 );
 

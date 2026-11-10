@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   sync_consent_at          DATETIME(3)     NULL,
   pos_notes_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- ملاحظات نقطة البيع: يفعّلها المطوّر (016)
   pos_report_enabled       TINYINT(1)      NOT NULL DEFAULT 0,       -- تقرير الموظفين لصاحب المتجر: يفعّله المطوّر (018)
+  pos_manager_pin          VARCHAR(160)    NULL,                     -- «رمز المدير» للتراجع عن بيع: s1:salt:sha256 (020)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
@@ -315,4 +316,19 @@ CREATE TABLE IF NOT EXISTS pos_staff_sessions (
   KEY idx_pos_sessions_staff (owner_id, staff_id, login_at),
   CONSTRAINT fk_pos_sessions_owner FOREIGN KEY (owner_id) REFERENCES users(id),
   CONSTRAINT fk_pos_sessions_staff FOREIGN KEY (staff_id) REFERENCES pos_staff(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Private chat: owner ↔ one staff member (020). Online only, text only.
+CREATE TABLE IF NOT EXISTS pos_messages (
+  id          CHAR(36)      NOT NULL,
+  owner_id    CHAR(36)      NOT NULL,
+  staff_id    CHAR(36)      NOT NULL,
+  from_staff  TINYINT(1)    NOT NULL,
+  body        VARCHAR(1000) NOT NULL,
+  created_at  DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  read_at     DATETIME(3)   NULL,
+  PRIMARY KEY (id),
+  KEY idx_pos_messages_thread (owner_id, staff_id, created_at),
+  CONSTRAINT fk_pos_messages_owner FOREIGN KEY (owner_id) REFERENCES users(id),
+  CONSTRAINT fk_pos_messages_staff FOREIGN KEY (staff_id) REFERENCES pos_staff(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

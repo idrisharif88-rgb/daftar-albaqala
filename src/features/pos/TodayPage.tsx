@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonList, IonItem, IonLabel,
-  IonText, IonListHeader, IonSpinner, IonBadge, IonButton, IonIcon, IonFab, IonFabButton, IonModal, IonSearchbar,
+  IonText, IonListHeader, IonSpinner, IonButton, IonIcon, IonFab, IonFabButton, IonModal, IonSearchbar,
   useIonViewWillEnter, useIonAlert, useIonToast,
 } from '@ionic/react';
 import { remove, lockClosedOutline, checkmarkCircle } from 'ionicons/icons';
@@ -111,7 +111,7 @@ const TodayPage: React.FC = () => {
   const askBaked = (r: DayRow) => {
     presentAlert({
       header: r.product.name,
-      message: r.product.daily ? `مخبوز اليوم: ${r.baked}. كم تضيف؟` : `المخزون الحالي: ${r.left}. كم تضيف؟`,
+      message: `المتبقي: ${Math.max(r.left, 0)}. كم تضيف؟`,
       inputs: [{ name: 'n', type: 'text', placeholder: 'العدد', attributes: { inputmode: 'numeric' } }],
       buttons: [
         { text: 'إلغاء', role: 'cancel' },
@@ -356,10 +356,13 @@ const TodayPage: React.FC = () => {
                 <IonLabel className="ion-text-wrap">
                   <h2>{r.product.name}</h2>
                   <p>
-                    مباع {r.sold} · متبقي{' '}
-                    {r.baked > 0 && r.left <= 0
-                      ? <IonBadge color="danger">نفد</IonBadge>
-                      : <b>{r.left}</b>}
+                    مباع {r.sold}
+                    {r.baked > 0 && r.left <= 0 && (
+                      <IonIcon
+                        icon={ICONS.empty} color="danger" aria-label={ICON_LABELS.empty} title={ICON_LABELS.empty}
+                        style={{ verticalAlign: 'middle', marginInlineStart: 8, fontSize: '1.2em' }}
+                      />
+                    )}
                   </p>
                 </IonLabel>
                 <div slot="end" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -380,7 +383,8 @@ const TodayPage: React.FC = () => {
                       color: 'inherit', fontVariantNumeric: 'tabular-nums',
                     }}
                   >
-                    {r.baked}
+                    {/* What is LEFT — it drops with every sale. */}
+                    {Math.max(r.left, 0)}
                   </button>
                   {editable && (
                     <IonButton shape="round" aria-label="زيادة" onClick={() => nudge(r, 1)}>
@@ -402,7 +406,9 @@ const TodayPage: React.FC = () => {
                   <h2>{r.product.name}</h2>
                   <p>
                     مباع اليوم {r.sold} · في المخزون{' '}
-                    {r.left <= 0 ? <IonBadge color="danger">نفد</IonBadge> : <b>{r.left}</b>}
+                    {r.left <= 0
+                      ? <IonIcon icon={ICONS.empty} color="danger" aria-label={ICON_LABELS.empty} title={ICON_LABELS.empty} style={{ verticalAlign: 'middle' }} />
+                      : <b>{r.left}</b>}
                   </p>
                 </IonLabel>
                 <div slot="end" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

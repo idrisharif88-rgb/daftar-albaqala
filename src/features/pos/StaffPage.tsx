@@ -9,12 +9,14 @@ import { findContactByPhone } from '../../data/customers';
 import { roleDef } from '../../data/roles';
 import PosFooter from './PosFooter';
 import { ICONS, ICON_LABELS } from './icons';
+import { PosRefresher, RefreshButton, usePosRefresh } from './PosRefresh';
 import {
   PERMISSIONS, PERMISSION_LABELS, ROLE_LABELS, ROLE_PRESETS, STAFF_ROLES, isPermission, isStaffRole,
   usePosPermissions, type Permission, type StaffRole,
 } from './permissions';
 import { useAuth } from '../../lib/auth';
-import { ApiError, addStaff, listStaff, updateStaff, type StaffMember } from '../../lib/api';
+import { ApiError, addStaff, listStaff, setManagerPin, updateStaff, type StaffMember } from '../../lib/api';
+import { toLatinDigits } from '../../lib/digits';
 import { phoneInput } from '../../lib/digits';
 
 // «الموظفون» — the shop's staff. Shown to the owner once the developer has
@@ -52,6 +54,8 @@ const StaffPage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   // The developer lets this owner see the report per member (Watcher switch).
   const [reportOn, setReportOn] = useState(false);
+  // «رمز المدير» — what a staff member types to undo a sale (owner sets it).
+  const [pinSet, setPinSet] = useState(false);
   const modal = useRef<HTMLIonModalElement>(null);
   const [editing, setEditing] = useState<StaffMember | null>(null);
   const [name, setName] = useState('');
@@ -64,6 +68,31 @@ const StaffPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [presentToast] = useIonToast();
   const [presentAlert] = useIonAlert();
+  const changePin = () => {
+    void presentAlert({
+      header: 'رمز المدير',
+      message: '4 أرقام. يطلبه التطبيق من الموظف عند التراجع عن عملية بيع.',
+      inputs: [{ name: 'pin', type: 'password', placeholder: '••••', attributes: { inputmode: 'numeric', maxlength: 4 } }],
+      buttons: [
+        { text: 'إلغاء', role: 'cancel' },
+        {
+          text: 'حفظ',
+          handler: (v: { pin?: string }) => {
+            const pin = toLatinDigits(v.pin ?? '');
+            if (!/^\d{4}$/.test(pin)) {
+              void presentToast({ message: 'الرمز 4 أرقام.', duration: 2000, color: 'danger' });
+              return false;
+            }
+            void setManagerPin(pin)
+              .then(() => { setPinSet(true); void presentToast({ message: 'تم حفظ رمز المدير', duration: 1500, color: 'success' }); })
+              .catch((err: unknown) => { void presentToast({ message: arabicError(err), duration: 2500, color: 'danger' }); });
+            return true;
+          },
+        },
+      ],
+    });
+  };
+
   const confirmContact = (name: string, role: string) => new Promise<boolean>((resolve) => {
     void presentAlert({
       header: 'رقم مسجّل في الدفتر',
@@ -83,11 +112,13 @@ const StaffPage: React.FC = () => {
       const res = await listStaff();
       setList(res.staff);
       setReportOn(res.report_enabled === true);
+      setPinSet(res.manager_pin_set === true);
     } catch (err) {
       setLoadError(arabicError(err));
     }
   }, []);
   useIonViewWillEnter(() => { void load(); });
+  const pull = usePosRefresh(load);
 
   /** What this person may hand out: everything for the owner, their own set for a member. */
   const grantable = (p: Permission) => can(p);
@@ -131,6 +162,13 @@ const StaffPage: React.FC = () => {
     // warn, and let the owner decide. Only on a new member — the phone of an
     // existing one does not change.
     if (!editing) {
+      // Already one of this shop's staff: say so now, not after the warning.
+      const tail = phone.replace(/\D/g, '').slice(-9);
+      const member = (list ?? []).find((m) => m.phone.replace(/\D/g, '').slice(-9) === tail);
+      if (member) {
+        void presentAlert({ header: 'رقم مستخدم', message: `هذا الرقم مسجّل لموظف آخر: «${member.name}».`, buttons: ['حسناً'] });
+        return;
+      }
       const contact = await findContactByPhone(phone).catch(() => null);
       if (contact && !(await confirmContact(contact.name, roleDef(contact.role).labelAr))) return;
     }
@@ -149,7 +187,9 @@ const StaffPage: React.FC = () => {
       await presentToast({ message: editing ? 'تم الحفظ' : 'تمت إضافة الموظف', duration: 1500, color: 'success' });
       await load();
     } catch (err) {
+      // Shown as a message box too: a line at the foot of a long form is easy to miss.
       setError(arabicError(err));
+      void presentAlert({ header: 'تعذّر الحفظ', message: arabicError(err), buttons: ['حسناً'] });
     } finally {
       setSaving(false);
     }
@@ -157,8 +197,14 @@ const StaffPage: React.FC = () => {
 
   return (
     <IonPage>
-      <IonHeader><IonToolbar><IonTitle>الموظفون</IonTitle></IonToolbar></IonHeader>
+      <IonHeader>
+        <IonToolbar>
+          <IonTitle>الموظفون</IonTitle>
+          <IonButtons slot="end"><RefreshButton busy={pull.busy} onClick={() => { void pull.run(); }} /></IonButtons>
+        </IonToolbar>
+      </IonHeader>
       <IonContent>
+        <PosRefresher onRefresh={pull.run} />
         {loadError ? (
           <IonText color="danger"><p className="ion-text-center ion-padding">{loadError}</p></IonText>
         ) : list === null ? (
@@ -169,6 +215,15 @@ const StaffPage: React.FC = () => {
           </IonText>
         ) : (
           <IonList>
+            {!me && (
+              <IonItem button detail onClick={changePin}>
+                <IonLabel>
+                  <h2 style={{ fontWeight: 700 }}>رمز المدير</h2>
+                  <p>للتراجع عن عملية بيع من حساب موظف</p>
+                </IonLabel>
+                <IonBadge slot="end" color={pinSet ? 'success' : 'medium'}>{pinSet ? 'محدّد' : 'غير محدّد'}</IonBadge>
+              </IonItem>
+            )}
             {list.map((m) => (
               <IonItem key={m.id} button={editable(m)} detail={editable(m)} onClick={() => { if (editable(m)) open(m); }}>
                 <IonLabel>

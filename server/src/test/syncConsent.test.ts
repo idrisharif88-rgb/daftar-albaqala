@@ -74,16 +74,23 @@ describe('sync consent', () => {
     assert.equal((await pull()).status, 402);
   });
 
-  test('an approval stands: switching sync off and on again does not ask twice', async () => {
+  test('switching sync on from OFF asks again, even after an earlier yes', async () => {
     await pool.query("UPDATE users SET sync_consent = 'approved' WHERE id = ?", [user]);
+    await adminActivate();
+    assert.equal(await consent(), 'pending');
+    assert.equal((await pull()).status, 402);
+  });
+
+  test("…but not while the account's other app is still syncing on that yes", async () => {
+    await pool.query("UPDATE users SET sync_consent = 'approved', contractor_status = 'active' WHERE id = ?", [user]);
     await adminActivate();
     assert.equal(await consent(), 'approved');
     assert.equal((await pull()).status, 200);
   });
 
   test('switching sync OFF forgets the answer: the next switch-on asks again', async () => {
-    await pool.query("UPDATE users SET sync_consent = 'approved' WHERE id = ?", [user]);
     await adminActivate();
+    await request(app).post('/account/sync-consent').set(AUTH(token)).send({ approve: true });
     assert.equal(await consent(), 'approved');
     resetAdminLoginState();
     const login = await request(app).post('/admin/login')

@@ -48,7 +48,7 @@ router.post(
     const [rows] = await pool.query(
       `SELECT s.id, s.name, s.role, s.permissions, s.password_hash, s.token_version, s.disabled_at,
               s.failed_logins, s.locked_at,
-              u.subscription_status, u.pos_staff_enabled, u.pos_notes_enabled, u.store_name
+              u.subscription_status, u.pos_staff_enabled, u.pos_notes_enabled, u.store_name, u.pos_manager_pin
          FROM pos_staff s JOIN users u ON u.id = s.owner_id
         WHERE s.phone = ?`,
       [phone],
@@ -96,6 +96,7 @@ router.post(
       },
       store_name: staff.store_name ?? null,
       notes_enabled: Number(staff.pos_notes_enabled) === 1,
+      manager_pin: staff.pos_manager_pin ?? null, // a salted hash — checked offline to undo a sale
     });
   }),
 );
@@ -111,7 +112,7 @@ router.get(
   asyncHandler(async (req: PosRequest, res) => {
     if (!req.staff) return res.status(400).json({ error: 'not a staff token' });
     const [rows] = await pool.query(
-      `SELECT s.name, u.store_name, u.pos_notes_enabled FROM pos_staff s JOIN users u ON u.id = s.owner_id
+      `SELECT s.name, u.store_name, u.pos_notes_enabled, u.pos_manager_pin FROM pos_staff s JOIN users u ON u.id = s.owner_id
         WHERE s.id = ? AND s.owner_id = ?`,
       [req.staff.id, req.userId],
     );
@@ -121,6 +122,7 @@ router.get(
       staff: { id: req.staff.id, name: row.name, role: req.staff.role, permissions: [...req.staff.permissions] },
       store_name: row.store_name ?? null,
       notes_enabled: Number(row.pos_notes_enabled) === 1,
+      manager_pin: row.pos_manager_pin ?? null,
     });
   }),
 );

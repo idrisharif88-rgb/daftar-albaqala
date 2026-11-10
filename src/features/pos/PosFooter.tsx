@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom';
 import SectionBar from './SectionBar';
 import { useAuth } from '../../lib/auth';
 import { usePosPermissions, type Permission } from './permissions';
+import { useChatUnread } from './chat';
 
 export interface PosTab { path: string; icon: IconName }
 
@@ -29,6 +30,8 @@ export function posTabsFor(
   if (can('manage_products')) tabs.push({ path: '/pos/products', icon: 'products' });
   if (notesOn && can('notes')) tabs.push({ path: '/pos/notes', icon: 'notes' });
   if (isStaff ? can('manage_staff') : staffFeatureOn) tabs.push({ path: '/pos/staff', icon: 'staff' });
+  // Private chat with the owner — every member; the owner once staff exist.
+  if (isStaff || staffFeatureOn) tabs.push({ path: '/pos/chat', icon: 'chat' });
   return tabs;
 }
 
@@ -40,6 +43,7 @@ const PosFooter: React.FC = () => {
   const { pathname } = useLocation();
   const { staff } = useAuth();
   const tabs = usePosTabs();
+  const unread = useChatUnread(tabs.some((t) => t.icon === 'chat'));
   const shown: PosTab[] = staff ? [...tabs, { path: '/pos/account', icon: 'account' }] : tabs;
   return (
     <IonFooter>
@@ -48,7 +52,8 @@ const PosFooter: React.FC = () => {
           {shown.map((t) => (
             <IconButton
               key={t.path} name={t.icon} style={{ flex: 1 }}
-              active={pathname === t.path} routerLink={t.path}
+              active={pathname === t.path || pathname.startsWith(`${t.path}/`)} routerLink={t.path}
+              badge={t.icon === 'chat' ? unread : 0}
             />
           ))}
         </div>
