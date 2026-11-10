@@ -1485,3 +1485,7 @@ Discussed 3 at a time, each confirmed by the owner (memory: «Confirmed plans to
 - ⚠️ **MIGRATION 019 REQUIRED** (root): local `daftar_test` ✓ + `daftar_db`, then droplet.
 - Still open: «تذكير فليكتب» as a separate app (decided, not built — then remove the `direct`
   build from فليكتب); debt-limit failure to test on the device; re-test PDF tests 26–36.
+
+- **Fix (2026-11-10, branch `limit-direction-fix`): the debt limit was silent for صاحب متجر.** Its
+  «تسجيل دين» is stored as a `payment` (balance goes DOWN), and the check only measured "balance up".
+  `checkDebtLimit` now measures in the direction the entry pushes (`sign = debt ? +1 : −1`); tested.
