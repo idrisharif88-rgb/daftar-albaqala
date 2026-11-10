@@ -6,7 +6,7 @@ import {
 } from '@ionic/react';
 import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
-  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess,
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -309,6 +309,35 @@ const Accounts: React.FC = () => {
     });
   };
 
+  // The staff report for the shop owner: same gate.
+  const changePosReport = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const enabling = !a.pos_report_enabled;
+    presentAlert({
+      header: 'تقرير الموظفين',
+      message: enabling
+        ? `السماح لـ«${who}» برؤية تقرير موظفيه (الدخول والخروج والمبيعات)؟`
+        : `إيقاف تقرير الموظفين عن «${who}»؟ تبقى أنت قادراً على رؤيته.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: enabling ? 'تفعيل' : 'إيقاف',
+          role: enabling ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('تقرير الموظفين').then((code) => {
+                if (code) {
+                  void run(a, () => setPosReportAccess(a.id, enabling, code),
+                    enabling ? 'تم تفعيل التقرير' : 'تم إيقاف التقرير');
+                }
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
   // One runner for the two new changes: busy flag, toast, reload.
   const run = async (a: Account, act: () => Promise<unknown>, done: string) => {
     setBusyId(a.id);
@@ -567,6 +596,17 @@ const Accounts: React.FC = () => {
               <IonItem button detail onClick={() => pick(changePosNotes)}>
                 <IonLabel>الملاحظات</IonLabel>
                 <IonNote slot="end">{managed.pos_notes_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
+              </IonItem>
+            )}
+            {managed.pos_staff_enabled && (
+              <IonItem button detail onClick={() => pick(changePosReport)}>
+                <IonLabel>تقرير الموظفين (لصاحب المتجر)</IonLabel>
+                <IonNote slot="end">{managed.pos_report_enabled ? 'مفعّل' : 'متوقف'}</IonNote>
+              </IonItem>
+            )}
+            {managed.pos_staff_enabled && (
+              <IonItem button detail onClick={() => { const id = managed.id; setManageId(null); setTimeout(() => router.push(`/accounts/${id}/staff`), 350); }}>
+                <IonLabel>عرض تقارير الموظفين</IonLabel>
               </IonItem>
             )}
 

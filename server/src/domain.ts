@@ -25,6 +25,10 @@ export const VALID_ROLES = new Set([
 ]);
 export const DEFAULT_ROLE = 'customer';
 
+// The automatic-reminder intervals a contact may carry, in days (mirrored in
+// src/data/customers.ts REMINDER_INTERVALS). Anything else is stored as none.
+export const REMINDER_DAYS = new Set([3, 7, 14, 30]);
+
 // Settings that belong to the ACCOUNT and therefore sync between the owner's
 // devices — the name a notification is signed with, and the exchange rates the
 // riyal reference figures are computed from.

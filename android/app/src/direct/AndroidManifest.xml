@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The DIRECT build only (installed by hand, never uploaded to Google Play).
+  Play allows SEND_SMS only in the phone's SMS app, so this permission must
+  never reach src/main: app/build.gradle refuses any other variant whose merged
+  manifest carries it. Used by AutoSmsPlugin / ReminderWorker for automatic
+  debt reminders the shopkeeper switched on, to contacts who agreed.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+</manifest>

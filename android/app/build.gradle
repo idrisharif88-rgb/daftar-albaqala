@@ -47,6 +47,14 @@ android {
             applicationIdSuffix ".postest"
             matchingFallbacks = ['debug']
         }
+        // Installed BY HAND, never uploaded to Google Play: the only build with
+        // SEND_SMS (automatic debt reminders — src/direct/). Same package id as
+        // the real app, so it replaces a debug install on the owner's phone:
+        //   ./gradlew assembleGroceryDirect
+        direct {
+            initWith debug
+            matchingFallbacks = ['debug']
+        }
     }
 }
 
@@ -69,6 +77,23 @@ android.applicationVariants.all { variant ->
         }
     }
     variant.mergeAssetsProvider.configure { dependsOn check }
+
+    // Google Play refuses SEND_SMS to an app that is not the phone's SMS app.
+    // Only the direct build may carry it — refuse any other variant whose
+    // MERGED manifest does (a plugin could inject it too).
+    if (variant.buildType.name != 'direct') {
+        variant.outputs.each { output ->
+            output.processManifestProvider.configure { t ->
+                t.doLast {
+                    t.outputs.files.asFileTree.matching { include '**/AndroidManifest.xml' }.each { f ->
+                        if (f.text.contains('android.permission.SEND_SMS')) {
+                            throw new GradleException("SEND_SMS found in ${variant.name}: only the direct build may send SMS (Google Play refuses it)")
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 repositories {
@@ -87,6 +112,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // Background sending for the direct build's automatic reminders.
+    directImplementation "androidx.work:work-runtime:2.10.5"
 }
 
 apply from: 'capacitor.build.gradle'

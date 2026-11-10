@@ -4,16 +4,20 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
   IonBackButton, IonList, IonItem, IonLabel, IonText, IonSpinner, IonModal,
   IonInput, IonNote, IonGrid, IonRow, IonCol, IonIcon, IonLoading,
-  IonSelect, IonSelectOption, IonDatetime, useIonViewWillEnter,
+  IonSelect, IonSelectOption, IonDatetime, IonCheckbox, useIonViewWillEnter,
   IonInfiniteScroll, IonInfiniteScrollContent,
   useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import {
   documentTextOutline, createOutline, receiptOutline, pricetagsOutline,
   attachOutline, trashOutline, addOutline, documentOutline, closeOutline,
-  logoWhatsapp, printOutline,
+  logoWhatsapp, printOutline, speedometerOutline,
 } from 'ionicons/icons';
-import { getCustomer, updateCustomer, type Customer } from '../data/customers';
+import {
+  getCustomer, updateCustomer, setCustomerLimits, REMINDER_INTERVALS, type Customer,
+} from '../data/customers';
+import { autoSmsAvailable, autoSmsStatus } from '../data/reminders';
+import { formatMinor, fromMinor } from '../data/money';
 import {
   listTransactions, getBalances, addTransaction, balancesUpTo,
   type Transaction, type TxnType,
@@ -44,6 +48,7 @@ import { NoShareTargetError, ShareCancelledError } from '../lib/shareTarget';
 import { systemPrintAvailable } from '../lib/systemPrint';
 import { runSync } from '../data/sync';
 import { useContactNotifier } from '../lib/useContactNotifier';
+import { useLimitGuard } from '../lib/useLimitGuard';
 import { FEATURES } from '../config';
 import BalanceSummary from '../components/BalanceSummary';
 import { numericInput, phoneInput } from '../lib/digits';
@@ -95,6 +100,17 @@ const ENTRY_DATE = new Intl.DateTimeFormat('ar', {
   hour: 'numeric', minute: 'numeric', second: 'numeric',
 });
 
+/** «كل أسبوع» — a reminder interval in words. */
+function intervalLabel(days: number): string {
+  switch (days) {
+    case 3: return 'كل 3 أيام';
+    case 7: return 'كل أسبوع';
+    case 14: return 'كل أسبوعين';
+    case 30: return 'كل شهر';
+    default: return `كل ${days} يوماً`;
+  }
+}
+
 const CustomerDetail: React.FC = () => {
   const { id: customerId } = useParams<{ id: string }>();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -127,6 +143,15 @@ const CustomerDetail: React.FC = () => {
   const [editRole, setEditRole] = useState<ContactRole>('customer');
   const [editError, setEditError] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  // «حد الدين والتذكير» — open to the shopkeeper (unlike the contact edit).
+  const limitModal = useRef<HTMLIonModalElement>(null);
+  const [limitText, setLimitText] = useState('');
+  const [remDays, setRemDays] = useState<number | null>(null);
+  const [remConsent, setRemConsent] = useState(false);
+  const [remLast, setRemLast] = useState<number | null>(null);
+  const [remSwitchOn, setRemSwitchOn] = useState(false);
+  const [limitError, setLimitError] = useState<string | null>(null);
+  const canRemind = autoSmsAvailable();
   // A long history takes a few seconds to render into the PDF; without this the
   // screen just sits there and reads as a freeze.
   const [exporting, setExporting] = useState(false);
@@ -166,6 +191,7 @@ const CustomerDetail: React.FC = () => {
   // The SMS + WhatsApp flow, shared with the invoice screen so both tell the
   // contact exactly the same thing.
   const notifyContact = useContactNotifier();
+  const limitGuard = useLimitGuard();
 
   const load = useCallback(async () => {
     const [c, list, bals, currentRates, attCounts] = await Promise.all([
@@ -208,6 +234,12 @@ const CustomerDetail: React.FC = () => {
     try {
       const amountMinor = toMinor(major);
       const entryCurrency = currency;
+      // The debt limit: a warning near it, a refusal past it unless allowed.
+      const allowed = await limitGuard({
+        limit: customer?.debt_limit ?? null, balances,
+        type: formType, amount: amountMinor, currency: entryCurrency, rates,
+      });
+      if (!allowed) return;
       // A numbered «إشعار حركة» for the roles that send one. The number is only
       // PEEKED here — it is consumed inside commit, so backing out of the send
       // sheet does not burn one and leave a gap in the series (docNumber.ts).
@@ -303,6 +335,47 @@ const CustomerDetail: React.FC = () => {
       });
     } finally {
       setPrinting(false);
+    }
+  };
+
+  // ---- Debt limit + automatic reminder ----
+  const openLimits = async () => {
+    if (!customer) return;
+    setLimitText(customer.debt_limit !== null ? String(fromMinor(customer.debt_limit)) : '');
+    setRemDays(customer.reminder_days);
+    setRemConsent(customer.reminder_consent);
+    setLimitError(null);
+    const st = await autoSmsStatus();
+    setRemLast(st?.lastSent[customer.id] ?? null);
+    setRemSwitchOn(!!st && st.enabled && st.permission === 'granted');
+    void limitModal.current?.present();
+  };
+
+  const saveLimits = async () => {
+    if (!customer) return;
+    setLimitError(null);
+    const t = limitText.trim();
+    const major = t ? Number(t.replace(',', '.')) : null;
+    if (major !== null && (Number.isNaN(major) || major <= 0)) {
+      setLimitError('أدخل حداً صحيحاً أكبر من صفر، أو اتركه فارغاً');
+      return;
+    }
+    // No consent, no reminder — the contact must have agreed.
+    if (remDays !== null && !remConsent) {
+      setLimitError('لا يُرسل تذكير دون موافقة الزبون. ضع علامة الموافقة أو اختر «بدون تذكير».');
+      return;
+    }
+    try {
+      await setCustomerLimits(customer.id, {
+        debtLimit: major === null ? null : toMinor(major),
+        reminderDays: remDays,
+        reminderConsent: remConsent,
+      });
+      void runSync();
+      await limitModal.current?.dismiss();
+      await load();
+    } catch (err) {
+      setLimitError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     }
   };
 
@@ -656,6 +729,9 @@ const CustomerDetail: React.FC = () => {
                 <IonIcon slot="icon-only" icon={createOutline} />
               </IonButton>
             )}
+            <IonButton onClick={() => { void openLimits(); }} disabled={!customer} aria-label="حد الدين والتذكير">
+              <IonIcon slot="icon-only" icon={speedometerOutline} />
+            </IonButton>
             <IonButton onClick={askExport} disabled={!customer}>
               <IonIcon slot="icon-only" icon={documentTextOutline} />
             </IonButton>
@@ -681,6 +757,13 @@ const CustomerDetail: React.FC = () => {
                 الرصيد الحالي · {roleDef(role).labelAr}
               </div>
               <BalanceSummary balances={balances} rates={rates} align="center" />
+              {(customer.debt_limit !== null || (canRemind && customer.reminder_days !== null)) && (
+                <div className="balance-card__label" style={{ marginTop: 6 }}>
+                  {customer.debt_limit !== null && <>حد الدين: {formatMinor(customer.debt_limit)} ريال</>}
+                  {customer.debt_limit !== null && canRemind && customer.reminder_days !== null && ' · '}
+                  {canRemind && customer.reminder_days !== null && <>تذكير {intervalLabel(customer.reminder_days)}</>}
+                </div>
+              )}
             </div>
 
             {/* The two directions, everyday one first, named for this role */}
@@ -902,6 +985,72 @@ const CustomerDetail: React.FC = () => {
         {/* Edit the contact — including its role, which decides the wording of
             every message this contact receives from here on. Not mounted at all
             outside the owner build, so there is no way to reach it. */}
+        <IonModal ref={limitModal}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>حد الدين والتذكير</IonTitle>
+              <IonButtons slot="end">
+                <IonButton onClick={() => limitModal.current?.dismiss()}>إلغاء</IonButton>
+              </IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent className="ion-padding">
+            <IonItem>
+              <IonLabel position="stacked">حد الدين (ريال يمني) — اتركه فارغاً بلا حد</IonLabel>
+              <IonInput
+                type="text" inputmode="decimal" value={limitText} placeholder="مثلاً 50000"
+                onIonInput={(e) => setLimitText(numericInput(e.detail.value ?? ''))}
+              />
+            </IonItem>
+            <IonText color="medium">
+              <p style={{ fontSize: '.85rem' }}>
+                عند الاقتراب من الحد يظهر تنبيه، وعند تجاوزه لا تُسجَّل الحركة إلا إذا سمحت بها.
+              </p>
+            </IonText>
+
+            {canRemind && (
+              <>
+                <IonItem className="ion-margin-top">
+                  <IonSelect
+                    label="التذكير التلقائي برسالة SMS" interface="popover"
+                    value={remDays === null ? 'none' : remDays}
+                    onIonChange={(e) => setRemDays(e.detail.value === 'none' ? null : Number(e.detail.value))}
+                  >
+                    <IonSelectOption value="none">بدون تذكير</IonSelectOption>
+                    {REMINDER_INTERVALS.map((d) => (
+                      <IonSelectOption key={d} value={d}>{intervalLabel(d)}</IonSelectOption>
+                    ))}
+                  </IonSelect>
+                </IonItem>
+                <IonItem lines="none">
+                  <IonCheckbox
+                    checked={remConsent} labelPlacement="end" justify="start"
+                    onIonChange={(e) => setRemConsent(e.detail.checked)}
+                  >
+                    الزبون وافق على استلام التذكير
+                  </IonCheckbox>
+                </IonItem>
+                <IonText color="medium">
+                  <p style={{ fontSize: '.85rem' }}>
+                    يُرسَل التذكير من شريحتك تلقائياً، نهاراً فقط، ما دام عليه دين.
+                    {remLast ? ` آخر تذكير: ${ENTRY_DATE.format(new Date(remLast))}.` : ''}
+                  </p>
+                </IonText>
+                {!remSwitchOn && (
+                  <IonText color="warning">
+                    <p style={{ fontSize: '.85rem' }}>التذكير التلقائي متوقف. فعّله من الإعدادات.</p>
+                  </IonText>
+                )}
+              </>
+            )}
+
+            {limitError && <IonNote color="danger">{limitError}</IonNote>}
+            <IonButton expand="block" className="ion-margin-top" onClick={() => { void saveLimits(); }}>
+              حفظ
+            </IonButton>
+          </IonContent>
+        </IonModal>
+
         {FEATURES.editContacts && (
         <IonModal ref={editModal}>
           <IonHeader>

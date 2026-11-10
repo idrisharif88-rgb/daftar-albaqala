@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { PosRequest } from '../middleware/posActor';
+import { buildStaffReport, reportEnabled, validRange } from '../pos/staffReport';
 import { normalizePhone, isValidPhone } from '../auth/phone';
 import {
   PERMISSIONS, ROLE_PRESETS, checkPermissionList, isStaffRole, parsePermissions,
@@ -79,7 +80,11 @@ router.get(
       `SELECT ${COLS} FROM pos_staff WHERE owner_id = ? ORDER BY created_at`,
       [req.userId],
     );
-    return res.json({ staff: (rows as Row[]).map(toPublic), permissions: PERMISSIONS, presets: ROLE_PRESETS });
+    return res.json({
+      staff: (rows as Row[]).map(toPublic), permissions: PERMISSIONS, presets: ROLE_PRESETS,
+      // The owner's report button shows only when the developer allowed it.
+      report_enabled: !req.staff && (await reportEnabled(req.userId!)),
+    });
   }),
 );
 
@@ -196,6 +201,23 @@ router.patch(
       [req.params.id, req.userId],
     );
     return res.json({ staff: toPublic((rows as Row[])[0]) });
+  }),
+);
+
+// GET /pos-staff/:id/report?from=YYYY-MM-DD&to=YYYY-MM-DD — the shop
+// OWNER's report on one member (pos/staffReport.ts). Only the owner, and only
+// once the developer allowed it for this shop (Watcher «تقرير الموظفين»): no
+// staff member sees it, not even one managing staff.
+router.get(
+  '/:id/report',
+  asyncHandler(async (req: PosRequest, res) => {
+    if (req.staff) return res.status(403).json({ error: 'owner only' });
+    if (!(await reportEnabled(req.userId!))) return res.status(403).json({ error: 'report not enabled' });
+    const r = validRange(req.query.from, req.query.to);
+    if (!r) return res.status(400).json({ error: 'from and to must be YYYY-MM-DD, from <= to' });
+    const report = await buildStaffReport(req.userId!, req.params.id, r.from, r.to);
+    if (!report) return res.status(404).json({ error: 'staff member not found' });
+    return res.json(report);
   }),
 );
 

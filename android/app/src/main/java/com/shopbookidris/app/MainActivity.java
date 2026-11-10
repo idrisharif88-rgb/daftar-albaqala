@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.os.Bundle;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginHandle;
 
 import ee.forgr.capacitor.social.login.GoogleProvider;
@@ -21,9 +22,22 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(SystemPrintPlugin.class);
         registerPlugin(FilePickerPlugin.class);
         registerPlugin(DevicePinPlugin.class);
+        registerDirectOnlyPlugins();
         super.onCreate(savedInstanceState);
         // The opening animation, played natively over the page (NativeSplash).
         NativeSplash.show(this, getBridge());
+    }
+
+    // The automatic-SMS sender exists only in the DIRECT build
+    // (android/app/src/direct/). It is looked up by name, so this file compiles
+    // in every build and the Play build simply has no such plugin.
+    @SuppressWarnings("unchecked")
+    private void registerDirectOnlyPlugins() {
+        try {
+            registerPlugin((Class<? extends Plugin>) Class.forName("com.shopbookidris.app.AutoSmsPlugin"));
+        } catch (ClassNotFoundException ignored) {
+            // not the direct build
+        }
     }
 
     // Google Drive backup. The Google sign-in plugin will not ask for any extra

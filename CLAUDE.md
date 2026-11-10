@@ -1409,3 +1409,52 @@ applied on the droplet; owner verified rows reach the server.
   POS-enabled bundle ships. Known gaps: the labels/report PDFs are bitmaps (Arabic shaping); Drive
   file grows with sales history; «تعديل» (reopen a submitted day) kept — owner once said "delete the
   button, no need" but never confirmed which; don't remove it without a clear yes.
+
+## Status — BUILT (Phase 33: debt limit + automatic SMS reminders) (2026-11-10)
+Branch `debt-limit-reminders`. App tests 134/134; server migration **017** + `sync.limits.test.ts`.
+**Not deployed, not device-tested.**
+- **Debt limit per contact** (`customers.debt_limit`, riyal minor units locally / DECIMAL on the
+  server; local migration 13). Set from the contact screen (speedometer icon → «حد الدين والتذكير»),
+  open to the shopkeeper (unlike contact edit). `src/data/debtLimit.ts` checks the balance AFTER
+  the entry in riyals (foreign at today's rate; no rate = not counted): ≥80% → warning «متابعة»;
+  over → refused unless «السماح هذه المرة». Only entries that RAISE the debt are checked.
+  `useLimitGuard` runs before the notifier in CustomerDetail and Invoice.
+- **Automatic SMS reminders** — `reminder_days` (3/7/14/30) + `reminder_consent` per contact. No
+  consent = no reminder (the form refuses an interval without the tick). Fields sync with the
+  contact; an OLDER app's push (no fields) keeps the stored values on the server.
+- ⚠️ **Sending exists ONLY in the `direct` build type** (`./gradlew assembleGroceryDirect`,
+  installed by hand, NEVER to Play): `android/app/src/direct/` holds the `SEND_SMS` manifest,
+  `AutoSmsPlugin.java` and `ReminderWorker.java` (WorkManager, every 3 h, 09–21 only, ≤20 per run,
+  from the owner's SIM). MainActivity registers the plugin by class name, so main compiles without
+  it. `app/build.gradle` FAILS any non-direct variant whose merged manifest has SEND_SMS.
+  JS: `src/data/reminders.ts` writes the outbox (who, interval, finished text with today's
+  balance) after every entry / limit edit / sync / app start / wipe (`kickReminders`); the native
+  side keeps `since`/`last` per contact (first reminder one interval after entering the outbox;
+  paying up resets it; switching on resets waiting intervals — no burst). Settings
+  «التذكير التلقائي» (`AutoReminderSection`) shows a disclosure BEFORE Android's permission dialog.
+  Text: «تذكير من <المتجر>: / رصيدك المستحق: … / نرجو التكرم بالسداد… / رسالة آلية من تطبيق فليكتب
+  دون تدخل من أحد.» (2 SMS parts).
+- Direct build = debug-signed, same package id as the grocery app (replaces a debug install;
+  cannot update over a Play install).
+- ⚠️ **MIGRATION 017 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+  `git pull` + `pm2 restart daftar-api`.
+
+## Status — BUILT (Phase 34: the owner's report per cashier) (2026-11-10)
+Branch `staff-report` (on top of `debt-limit-reminders`). Server migration **018** +
+`staffReport.test.ts`. **Not deployed, not device-tested.**
+- `pos_sales.staff_id` — the seller, stamped by the SERVER from the token on `/pos-sync/push`
+  (NULL = owner, or a sale older than 018 — those appear in no report).
+- `pos_staff_sessions` — a row per staff sign-in (`/auth/staff/login`); `POST /auth/staff/logout`
+  closes the latest open one. The app calls it from «حسابي» → خروج (best effort; the logout guard
+  already requires being online). No sign-out = «لم يخرج».
+- `GET /pos-staff/:id/report?from&to` — **shop owner only, and only when the developer switched
+  `users.pos_report_enabled` on** (Watcher «تقرير الموظفين (لصاحب المتجر)», under «حسابات الموظفين»);
+  any staff token → 403, even admin/manager. `GET /pos-staff` returns `report_enabled` for the icon.
+  One builder, `server/src/pos/staffReport.ts`. Sessions with ±1 day margin (the app sorts them into
+  LOCAL days); sales grouped by `day`.
+- **The developer always sees it:** `GET /admin/users/:id/staff` + `/admin/users/:id/staff/:sid/report`;
+  Watcher «المزيد» → «عرض تقارير الموظفين» → `watcher/src/pages/StaffReports.tsx`.
+  Switch: `POST /admin/users/:id/pos-report {enabled, code}`.
+- App: «الموظفون» → chart icon per member (owner, switch on) → `/pos/staff/:id/report`
+  (`StaffReportPage`): اليوم / أمس / 7 أيام / هذا الشهر; per day: دخول/خروج times, pieces sold, amount.
+- ⚠️ **MIGRATION 018 REQUIRED** after 017 (root): local `daftar_test` + `daftar_db`, then droplet.

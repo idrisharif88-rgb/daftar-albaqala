@@ -130,7 +130,26 @@ export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null
 
 export interface StaffMember extends StaffInfo { phone: string; disabled: boolean; created_at: string }
 
-export function listStaff(): Promise<{ staff: StaffMember[] }> {
+/** Sign the staff member out on the server — closes their session for the
+ *  owner's report. */
+export function staffLogout(): Promise<{ ok: boolean }> {
+  return request('/auth/staff/logout', { method: 'POST' });
+}
+
+export interface StaffReport {
+  staff: { id: string; name: string };
+  /** Instants (server time). logout_at null = never signed out. */
+  sessions: { login_at: string; logout_at: string | null }[];
+  /** Per LOCAL day: items sold (corrections subtracted) and money, minor units. */
+  days: { day: string; qty: number; amount: number }[];
+  totals: { qty: number; amount: number };
+}
+/** The OWNER's report on one staff member, `from`..`to` inclusive (YYYY-MM-DD). */
+export function staffReport(id: string, from: string, to: string): Promise<StaffReport> {
+  return request(`/pos-staff/${encodeURIComponent(id)}/report?from=${from}&to=${to}`);
+}
+
+export function listStaff(): Promise<{ staff: StaffMember[]; report_enabled?: boolean }> {
   return request('/pos-staff');
 }
 
@@ -167,6 +186,8 @@ export function deleteAccount(): Promise<{ deleted: boolean }> {
 export interface PushCustomer {
   id: string; name: string; phone: string; note: string | null; role: string;
   created_at: string; updated_at: string; deleted_at: string | null;
+  /** MAJOR riyal units, like every amount on the wire; null = no limit. */
+  debt_limit: number | null; reminder_days: number | null; reminder_consent: boolean;
 }
 export interface PushTransaction {
   id: string; customer_id: string; type: string; amount: number; currency: string;
@@ -221,6 +242,8 @@ export interface SettingRow {
 export interface PullCustomer {
   id: string; name: string; phone: string; note: string | null; role: string | null;
   created_at: string; updated_at: string; deleted_at: string | null;
+  /** Absent from a server older than limits. */
+  debt_limit?: string | number | null; reminder_days?: number | null; reminder_consent?: number | boolean;
 }
 export interface PullTransaction {
   id: string; customer_id: string; type: string; amount: string | number;

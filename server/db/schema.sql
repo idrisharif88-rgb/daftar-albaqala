@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS users (
   sync_consent             ENUM('none','pending','approved','rejected') NOT NULL DEFAULT 'none', -- موافقة صاحب الدفتر على المزامنة (016)
   sync_consent_at          DATETIME(3)     NULL,
   pos_notes_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- ملاحظات نقطة البيع: يفعّلها المطوّر (016)
+  pos_report_enabled       TINYINT(1)      NOT NULL DEFAULT 0,       -- تقرير الموظفين لصاحب المتجر: يفعّله المطوّر (018)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
@@ -48,6 +49,9 @@ CREATE TABLE IF NOT EXISTS customers (
   phone       VARCHAR(32)     NOT NULL,                -- مطلوب
   note        TEXT            NULL,
   role        VARCHAR(16)     NOT NULL DEFAULT 'customer', -- عميل / مورد / شريك
+  debt_limit  DECIMAL(12,2)   NULL,                    -- حد الدين (ريال)، NULL = بلا حد
+  reminder_days TINYINT UNSIGNED NULL,                 -- تذكير كل 3/7/14/30 يوماً
+  reminder_consent TINYINT(1) NOT NULL DEFAULT 0,      -- الزبون وافق على التذكير
 
   created_at  DATETIME        NOT NULL,
   updated_at  DATETIME        NOT NULL,                -- آخر-كتابة-تفوز (بساعة الجهاز)
@@ -231,6 +235,7 @@ CREATE TABLE IF NOT EXISTS pos_baked (
 CREATE TABLE IF NOT EXISTS pos_sales (
   id          CHAR(36)    NOT NULL,
   user_id     CHAR(36)    NOT NULL,
+  staff_id    CHAR(36)    NULL,                    -- who sold it (server-set); NULL = owner / older
   product_id  CHAR(36)    NOT NULL,
   day         CHAR(10)    NOT NULL,
   qty         INT         NOT NULL,
@@ -241,6 +246,7 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   PRIMARY KEY (id),
   KEY idx_pos_sales_sync (user_id, server_updated_at),
   KEY idx_pos_sales_day (user_id, day),
+  KEY idx_pos_sales_staff (user_id, staff_id, day),
   CONSTRAINT fk_pos_sales_user FOREIGN KEY (user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -293,4 +299,17 @@ CREATE TABLE IF NOT EXISTS pos_notes (
   PRIMARY KEY (id),
   KEY idx_pos_notes_sync (user_id, server_updated_at),
   CONSTRAINT fk_pos_notes_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per POS staff sign-in (the owner's report per cashier).
+CREATE TABLE IF NOT EXISTS pos_staff_sessions (
+  id         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  owner_id   CHAR(36)    NOT NULL,
+  staff_id   CHAR(36)    NOT NULL,
+  login_at   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  logout_at  DATETIME(3) NULL,
+  PRIMARY KEY (id),
+  KEY idx_pos_sessions_staff (owner_id, staff_id, login_at),
+  CONSTRAINT fk_pos_sessions_owner FOREIGN KEY (owner_id) REFERENCES users(id),
+  CONSTRAINT fk_pos_sessions_staff FOREIGN KEY (staff_id) REFERENCES pos_staff(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

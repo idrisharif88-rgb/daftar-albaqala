@@ -28,6 +28,7 @@ import {
 } from '../data/currencies';
 import { directionLabel, orderedTypes, roleDef } from '../data/roles';
 import { useContactNotifier } from '../lib/useContactNotifier';
+import { useLimitGuard } from '../lib/useLimitGuard';
 import { printedBalanceLines } from '../lib/notify';
 import type { InvoiceLine } from '../lib/receipt';
 
@@ -106,6 +107,7 @@ const Invoice: React.FC = () => {
   const [presentToast] = useIonToast();
   // Same SMS + WhatsApp flow the contact screen uses.
   const notifyContact = useContactNotifier();
+  const limitGuard = useLimitGuard();
   // Synchronous guard — `busy` lands a render late, and a double tap on «حفظ»
   // would otherwise record the basket twice (see CustomerDetail).
   const savingRef = useRef(false);
@@ -358,6 +360,12 @@ const Invoice: React.FC = () => {
     if (savingRef.current) return;
     savingRef.current = true;
     try {
+      // The contact's debt limit, checked against the balance after this invoice.
+      const allowed = await limitGuard({
+        limit: customer.debt_limit, balances: await getBalances(customerId),
+        type: growthType, amount: total, currency: invoiceCurrency, rates,
+      });
+      if (!allowed) return;
       // The number the invoice WILL take. It is only consumed inside `commit`,
       // so an invoice abandoned at the send sheet leaves no gap in the book
       // (see docNumber.ts) — but the message has to quote it, and the

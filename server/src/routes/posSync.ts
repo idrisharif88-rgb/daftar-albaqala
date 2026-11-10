@@ -177,9 +177,10 @@ router.post(
           }
           if (table === 'pos_sales') {
             await conn.query(
-              `INSERT INTO pos_sales (id, user_id, product_id, day, qty, price, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              [id, userId, productId, day, qty, price, createdAt]
+              `INSERT INTO pos_sales (id, user_id, staff_id, product_id, day, qty, price, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              // Who sold it comes from the TOKEN, never from the phone.
+              [id, userId, req.staff?.id ?? null, productId, day, qty, price, createdAt]
             );
           } else {
             await conn.query(

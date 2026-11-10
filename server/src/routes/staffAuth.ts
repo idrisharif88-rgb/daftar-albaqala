@@ -64,6 +64,12 @@ router.post(
     if (staff.subscription_status === 'suspended') return res.status(403).json({ error: 'account suspended' });
     if (Number(staff.pos_staff_enabled) !== 1) return res.status(403).json({ error: 'staff accounts are not enabled' });
 
+    // The owner's report: when this member signed in.
+    await pool.query(
+      `INSERT INTO pos_staff_sessions (owner_id, staff_id) SELECT owner_id, id FROM pos_staff WHERE id = ?`,
+      [staff.id],
+    );
+
     return res.json({
       token: signStaffToken(String(staff.id), Number(staff.token_version)),
       staff: {
@@ -98,6 +104,23 @@ router.get(
       store_name: row.store_name ?? null,
       notes_enabled: Number(row.pos_notes_enabled) === 1,
     });
+  }),
+);
+
+// POST /auth/staff/logout — the member signs out from the app: close their
+// latest open session (the owner's report shows when they left).
+router.post(
+  '/logout',
+  requirePosActor,
+  asyncHandler(async (req: PosRequest, res) => {
+    if (!req.staff) return res.status(400).json({ error: 'not a staff token' });
+    await pool.query(
+      `UPDATE pos_staff_sessions SET logout_at = NOW(3)
+        WHERE owner_id = ? AND staff_id = ? AND logout_at IS NULL
+        ORDER BY login_at DESC LIMIT 1`,
+      [req.userId, req.staff.id],
+    );
+    return res.json({ ok: true });
   }),
 );
 

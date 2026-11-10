@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Accounts from './pages/Accounts';
 import Book from './pages/Book';
 import Contact from './pages/Contact';
+import StaffReports from './pages/StaffReports';
 
 import '@ionic/react/css/core.css';
 import '@ionic/react/css/normalize.css';
@@ -31,6 +32,9 @@ const Routes: React.FC = () => {
       </Route>
       <Route exact path="/accounts/:id">
         {authed ? <Book /> : <Redirect to="/login" />}
+      </Route>
+      <Route exact path="/accounts/:id/staff">
+        {authed ? <StaffReports /> : <Redirect to="/login" />}
       </Route>
       <Route exact path="/accounts/:id/customers/:cid">
         {authed ? <Contact /> : <Redirect to="/login" />}
