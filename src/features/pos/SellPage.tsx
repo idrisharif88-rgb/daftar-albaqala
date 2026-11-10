@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButton, IonIcon, IonInput,
-  IonItem, IonLabel, IonText, IonSpinner, IonToggle, IonSearchbar, IonList, IonBadge,
+  IonItem, IonLabel, IonText, IonSpinner, IonToggle, IonSearchbar, IonList,
   useIonViewWillEnter,
 } from '@ionic/react';
 import { ICONS } from './icons';
@@ -122,7 +122,10 @@ const SellPage: React.FC = () => {
   };
 
   const term = search.trim().toLowerCase();
-  const shown = term ? rows.filter((r) => r.product.name.toLowerCase().includes(term)) : rows;
+  // Only what can be sold: stock left today (daily) or on the shelf (permanent).
+  // A sold-out product disappears from the list; a scan can still record it.
+  const inStock = rows.filter((r) => r.left > 0);
+  const shown = term ? inStock.filter((r) => r.product.name.toLowerCase().includes(term)) : inStock;
   const soldToday = totalsOf(rows).sold;
 
   return (
@@ -175,8 +178,10 @@ const SellPage: React.FC = () => {
               مباع اليوم <b>{last.sold}</b> · متبقي{' '}
               <b style={{ color: last.left <= 0 ? 'var(--ion-color-danger)' : undefined }}>{last.left}</b>
             </p>
-            {last.baked === 0 && (
+            {last.product.daily && last.baked === 0 ? (
               <IonText color="warning"><p>لم تُسجَّل كمية مخبوزة لهذا المنتج اليوم.</p></IonText>
+            ) : last.left < 0 && (
+              <IonText color="warning"><p>المخزون لا يكفي: بعت أكثر من المتوفر.</p></IonText>
             )}
             <IonButton fill="outline" color="medium" onClick={() => { void undo(); }}>
               <IonIcon slot="start" icon={ICONS.undo} />
@@ -197,11 +202,17 @@ const SellPage: React.FC = () => {
             <IonItem key={r.product.id} button onClick={() => { void tapSell(r); }}>
               <IonLabel className="ion-text-wrap">
                 <h3>{r.product.name}</h3>
-                <p>مباع {r.sold} · متبقي {r.left}</p>
+                <p>متبقي {r.left}</p>
               </IonLabel>
-              {r.baked > 0 && r.left <= 0 && <IonBadge slot="end" color="danger">نفد</IonBadge>}
-            </IonItem>
+                          </IonItem>
           ))}
+          {shown.length === 0 && (
+            <IonText color="medium">
+              <p className="ion-text-center ion-padding">
+                {term ? 'لا نتائج.' : 'لا توجد منتجات في المخزون. أضف الكميات من تبويب «اليوم».'}
+              </p>
+            </IonText>
+          )}
         </IonList>
       </IonContent>
       <PosFooter />
