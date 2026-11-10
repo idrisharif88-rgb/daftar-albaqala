@@ -1,7 +1,7 @@
 import {
   add, arrowUndoOutline, checkmarkCircle, bookOutline, cameraOutline, cardOutline, cartOutline, copyOutline,
   downloadOutline, listOutline, pricetagsOutline, printOutline, shareSocialOutline,
-  syncOutline, timeOutline, todayOutline,
+  syncOutline, timeOutline, todayOutline, trashOutline,
 } from 'ionicons/icons';
 
 // The icons of the app's sections and of the POS section, in ONE place.
@@ -27,6 +27,7 @@ export const ICONS = {
   add,
   // The one FILLED icon: it is the day's main action, so it is bigger and heavier.
   confirm: checkmarkCircle,
+  trash: trashOutline,
   sync: syncOutline,
   share: shareSocialOutline,
   scan: cameraOutline,
@@ -49,6 +50,7 @@ export const ICON_LABELS: Record<IconName, string> = {
   print: 'طباعة الملصقات',
   add: 'إضافة',
   confirm: 'اعتماد الكميات',
+  trash: 'حذف',
   sync: 'مزامنة',
   share: 'مشاركة',
   scan: 'مسح منتج',

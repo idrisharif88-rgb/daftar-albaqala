@@ -229,6 +229,69 @@ export async function keepForAnotherYear(now: Date = new Date()): Promise<void> 
   await setMeta(KEEP_UNTIL_KEY, localDay(d));
 }
 
+/** Reverse what a day holds — baked, sold and takings back to zero — for ONE
+ *  product, or for every product when `productId` is null.
+ *
+ *  Both tables are add-only and synced, so this does NOT delete rows (the
+ *  server would hand them back on the next pull). It adds an opposite row for
+ *  everything entered, exactly like an undo, so the day nets to nothing and the
+ *  correction syncs like any other. A sale is reversed at the price it was
+ *  made at, which cancels the takings exactly — a price changed mid-day leaves
+ *  no phantom riyals. A submitted day is reopened first, and that is counted,
+ *  so the record shows the day was amended. Returns the units reversed. */
+async function reverseDay(
+  day: string,
+  productId: string | null,
+): Promise<{ baked: number; sold: number }> {
+  const db = await getDB();
+  const now = new Date().toISOString();
+  const only = productId ? ' AND product_id = ?' : '';
+  const args = productId ? [day, productId] : [day];
+  const sales = ((await db.query(
+    `SELECT product_id, price, SUM(qty) AS qty FROM pos_sales WHERE day = ?${only}
+      GROUP BY product_id, price HAVING SUM(qty) <> 0`, args,
+  )).values ?? []) as { product_id: string; price: number; qty: number }[];
+  const baked = ((await db.query(
+    `SELECT product_id, SUM(qty) AS qty FROM pos_baked WHERE day = ?${only}
+      GROUP BY product_id HAVING SUM(qty) <> 0`, args,
+  )).values ?? []) as { product_id: string; qty: number }[];
+  if (sales.length === 0 && baked.length === 0) return { baked: 0, sold: 0 };
+
+  // One statement per call — see owner.ts on the Android plugin's batching.
+  // Sales first: the baked number can never be taken below the sold one.
+  for (const s of sales) {
+    await db.run(
+      'INSERT INTO pos_sales (id, product_id, day, qty, price, created_at, synced) VALUES (?, ?, ?, ?, ?, ?, 0)',
+      [uuidv4(), s.product_id, day, -Number(s.qty), Number(s.price), now],
+    );
+  }
+  for (const b of baked) {
+    await db.run(
+      'INSERT INTO pos_baked (id, product_id, day, qty, created_at, synced) VALUES (?, ?, ?, ?, ?, 0)',
+      [uuidv4(), b.product_id, day, -Number(b.qty), now],
+    );
+  }
+  if ((await getDayLock(day)).locked) {
+    await db.run(
+      'UPDATE pos_day_lock SET locked_at = NULL, reopened = reopened + 1, updated_at = ?, synced = 0 WHERE day = ?',
+      [now, day],
+    );
+  }
+  await persist();
+  kickPosSync();
+  return {
+    baked: baked.reduce((n, b) => n + Number(b.qty), 0),
+    sold: sales.reduce((n, s) => n + Number(s.qty), 0),
+  };
+}
+
+/** «مسح قائمة اليوم»: the whole day's list back to zero. */
+export const eraseDay = (day: string = localDay()) => reverseDay(day, null);
+
+/** «حذف من قائمة اليوم»: one product off the day's list. */
+export const removeProductFromDay = (productId: string, day: string = localDay()) =>
+  reverseDay(day, productId);
+
 /** «Delete»: remove everything older than a year. Returns the rows removed. */
 export async function deleteOlderThanYear(now: Date = new Date()): Promise<number> {
   const cutoff = cutoffDay(now);

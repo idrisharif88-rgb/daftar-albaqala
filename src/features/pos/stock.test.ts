@@ -23,7 +23,8 @@ import { runMigrations } from '../../data/migrations';
 import { createProduct } from './products';
 import {
   addBaked, getDayRows, localDay, recordSale, sellByCode, totalsOf, listDays, cutoffDay,
-  retentionDue, keepForAnotherYear, deleteOlderThanYear, getDayLock, lockDay, unlockDay,
+  retentionDue, keepForAnotherYear, deleteOlderThanYear, getDayLock, lockDay, unlockDay, eraseDay,
+  removeProductFromDay,
 } from './stock';
 import { deleteProduct, exportProductsJson, importProductsJson, listProducts } from './products';
 import { parseScannedCode } from '../../lib/productCodes';
@@ -185,5 +186,72 @@ describe('submitting the day', () => {
     await addBaked(p.id, -2); // leaves 3 = sold: fine
     sql.run('DELETE FROM pos_baked'); sql.run('DELETE FROM pos_sales'); sql.run('DELETE FROM pos_day_lock');
     await expect(lockDay()).rejects.toThrow('لا توجد كميات');
+  });
+});
+
+describe("erasing today's list", () => {
+  it('nets baked, sold and takings to zero with opposite rows, and leaves other days alone', async () => {
+    const a = await createProduct({ name: 'مسح أ', price: 5000 });
+    const b = await createProduct({ name: 'مسح ب', price: 800 });
+    await addBaked(a.id, 30);
+    await addBaked(b.id, 12);
+    for (let i = 0; i < 7; i++) await recordSale(a);
+    await recordSale(b);
+    await addBaked(a.id, 9, '2020-01-01'); // another day
+
+    const out = await eraseDay();
+    expect(out.baked).toBeGreaterThanOrEqual(42);
+    expect(out.sold).toBeGreaterThanOrEqual(8);
+    const rows = await getDayRows();
+    const t = totalsOf(rows);
+    expect([t.baked, t.sold, t.left, t.revenue]).toEqual([0, 0, 0, 0]);
+    expect(rows.filter((r) => r.baked !== 0 || r.sold !== 0)).toHaveLength(0);
+    expect((await getDayRows('2020-01-01')).find((r) => r.product.id === a.id)!.baked).toBe(9);
+    // erasing an already-empty day does nothing
+    expect(await eraseDay()).toEqual({ baked: 0, sold: 0 });
+  });
+
+  it('a submitted day is reopened and counted, then erased', async () => {
+    const p = await createProduct({ name: 'مسح ج', price: 300 });
+    await addBaked(p.id, 20);
+    await recordSale(p);
+    await lockDay();
+    const before = await getDayLock();
+    expect(before.locked).toBe(true);
+    await eraseDay();
+    const after = await getDayLock();
+    expect(after.locked).toBe(false);
+    expect(after.reopened).toBe(before.reopened + 1);
+    expect(totalsOf(await getDayRows()).baked).toBe(0);
+  });
+});
+
+describe("removing one product from today's list", () => {
+  it('reverses only that product — at the prices its sales were made at', async () => {
+    const a = await createProduct({ name: 'حذف أ', price: 1000 });
+    const b = await createProduct({ name: 'حذف ب', price: 500 });
+    await addBaked(a.id, 20); await addBaked(b.id, 10);
+    await recordSale(a); await recordSale(a);
+    sql.run('UPDATE pos_products SET price = 1500 WHERE id = ?', [a.id]); // a price change mid-day
+    await recordSale({ ...a, price: 1500 }); await recordSale(b);
+
+    const out = await removeProductFromDay(a.id);
+    expect(out).toEqual({ baked: 20, sold: 3 });
+    const rows = await getDayRows();
+    const ra = rows.find((r) => r.product.id === a.id)!;
+    const rb = rows.find((r) => r.product.id === b.id)!;
+    expect([ra.baked, ra.sold, ra.left, ra.revenue]).toEqual([0, 0, 0, 0]); // no phantom takings
+    expect([rb.baked, rb.sold]).toEqual([10, 1]);                           // the other is untouched
+    expect((await removeProductFromDay(a.id))).toEqual({ baked: 0, sold: 0 }); // nothing left to do
+  });
+
+  it('on a submitted day it reopens and counts, like any amendment', async () => {
+    const p = await createProduct({ name: 'حذف ج', price: 200 });
+    await addBaked(p.id, 5);
+    await lockDay();
+    const before = await getDayLock();
+    await removeProductFromDay(p.id);
+    const after = await getDayLock();
+    expect([after.locked, after.reopened]).toEqual([false, before.reopened + 1]);
   });
 });
