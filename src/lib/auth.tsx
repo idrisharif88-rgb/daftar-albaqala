@@ -12,6 +12,8 @@ import { openLive } from './live';
 
 /** Fired when the Watcher sends a sync request (SyncConsentPrompt listens). */
 export const SYNC_REQUEST_EVENT = 'daftar:sync-request';
+/** Fired when a chat message arrives or is read (ChatPage + the tab badge listen). */
+export const CHAT_EVENT = 'daftar:chat';
 
 // App-wide auth state. Holds the current session (JWT + user) and exposes
 // login / register / logout. The token is persisted via storage.ts so a
@@ -173,16 +175,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);
 
-  // The live line: a sync request or an access change from the Watcher
-  // arrives at once (the minute timer below is the fallback). Owner only.
+  // The live line: a sync request or an access change from the Watcher, and
+  // a new chat message, arrive at once (timers below are the fallback). The
+  // owner listens on his channel, a staff member on theirs (chat only).
+  const isStaff = staff !== null;
   useEffect(() => {
-    if (!authed || staff) return undefined;
+    if (!authed) return undefined;
     return openLive((event) => {
+      if (event === 'chat') { window.dispatchEvent(new Event(CHAT_EVENT)); return; }
       void refreshAccess().then(() => {
         if (event === 'sync-request') window.dispatchEvent(new Event(SYNC_REQUEST_EVENT));
       });
-    });
-  }, [authed, staff, refreshAccess]);
+    }, isStaff ? async () => (await api.staffLiveTicket()).ticket : undefined);
+  }, [authed, isStaff, refreshAccess]);
 
   useEffect(() => {
     if (!authed) return undefined;

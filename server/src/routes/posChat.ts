@@ -3,6 +3,13 @@ import { randomUUID } from 'crypto';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { PosRequest } from '../middleware/posActor';
+import { publish } from '../live/hub';
+
+/** Tell both ends of a conversation to look again (live line). */
+function ping(ownerId: string, staffId: string): void {
+  publish(`user:${ownerId}`, 'chat', { staff_id: staffId });
+  publish(`staff:${staffId}`, 'chat', {});
+}
 
 // Private chat between the shop OWNER and each staff member — one conversation
 // per member, text only, online (nothing is kept on the phones). Mounted
@@ -99,6 +106,7 @@ router.post(
       'INSERT INTO pos_messages (id, owner_id, staff_id, from_staff, body) VALUES (?, ?, ?, ?, ?)',
       [id, req.userId, staffId, req.staff ? 1 : 0, body],
     );
+    ping(req.userId!, staffId); // the other side sees it at once
     return res.status(201).json({ id });
   }),
 );
@@ -113,6 +121,7 @@ router.post(
       'UPDATE pos_messages SET read_at = NOW(3) WHERE owner_id = ? AND staff_id = ? AND from_staff = ? AND read_at IS NULL',
       [req.userId, staffId, req.staff ? 0 : 1],
     );
+    ping(req.userId!, staffId); // the sender's «أُرسلت» turns into «قُرئت» at once
     return res.json({ ok: true });
   }),
 );

@@ -179,6 +179,11 @@ export function liveTicket(): Promise<{ ticket: string }> {
   return request('/events/ticket', { method: 'POST' });
 }
 
+/** A staff member's one-time live ticket (their chat with the owner). */
+export function staffLiveTicket(): Promise<{ ticket: string }> {
+  return request('/events/staff-ticket', { method: 'POST' });
+}
+
 /** The owner sets «رمز المدير» (4 digits) — what a staff member types to undo a sale. */
 export function setManagerPin(pin: string): Promise<{ ok: boolean }> {
   return request('/pos-staff/manager-pin', { method: 'PUT', body: JSON.stringify({ pin }) });

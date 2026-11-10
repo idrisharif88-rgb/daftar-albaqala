@@ -195,8 +195,8 @@ const Accounts: React.FC = () => {
     presentAlert({
       header: 'دفتر المقاول',
       message: activating
-        ? `تفعيل «دفتر المقاول» لـ«${who}»؟ تعمل مزامنته، ودفتر البقالة يبقى كما هو.`
-        : `إلغاء تفعيل «دفتر المقاول» لـ«${who}»؟ تتوقف مزامنته فقط. بياناته تبقى محفوظة.`,
+        ? `تفعيل «دفتر المقاول» لـ«${who}»؟`
+        : `إيقاف «دفتر المقاول» لـ«${who}»؟ البيانات تبقى.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -243,8 +243,8 @@ const Accounts: React.FC = () => {
     presentAlert({
       header: 'نسخ Google Drive',
       message: enabling
-        ? `السماح لـ«${who}» بحفظ نسخة من دفتره في Google Drive الخاص به؟`
-        : `إيقاف نسخ Google Drive لـ«${who}»؟ نسخه السابقة تبقى في حسابه على Google.`,
+        ? `تفعيل نسخ Google Drive لـ«${who}»؟`
+        : `إيقاف نسخ Google Drive لـ«${who}»؟ النسخ السابقة تبقى.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -269,8 +269,8 @@ const Accounts: React.FC = () => {
     presentAlert({
       header: 'قسم نقطة البيع',
       message: enabling
-        ? `تفعيل قسم نقطة البيع لـ«${who}»؟ يظهر له في التطبيق (يحتاج إصداراً يتضمنه).`
-        : `إيقاف قسم نقطة البيع لـ«${who}»؟ تبقى بياناته على هاتفه.`,
+        ? `تفعيل نقطة البيع لـ«${who}»؟`
+        : `إيقاف نقطة البيع لـ«${who}»؟ البيانات تبقى.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -298,8 +298,8 @@ const Accounts: React.FC = () => {
     presentAlert({
       header: 'حسابات الموظفين',
       message: enabling
-        ? `تفعيل حسابات الموظفين لـ«${who}»؟ يستطيع إضافة كاشير ومُدخل كميات ومدير لنقطة البيع.`
-        : `إيقاف حسابات الموظفين لـ«${who}»؟ لن يستطيع موظفوه الدخول. لا يُحذف أحد، ويعودون كما كانوا عند التفعيل.`,
+        ? `تفعيل حسابات الموظفين لـ«${who}»؟`
+        : `إيقاف حسابات الموظفين لـ«${who}»؟ لا يُحذف أحد.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -328,7 +328,7 @@ const Accounts: React.FC = () => {
       header: 'الملاحظات',
       message: enabling
         ? `تفعيل ملاحظات نقطة البيع لـ«${who}»؟`
-        : `إيقاف ملاحظات نقطة البيع لـ«${who}»؟ الملاحظات المكتوبة تبقى.`,
+        : `إيقاف ملاحظات نقطة البيع لـ«${who}»؟ الملاحظات تبقى.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -356,8 +356,8 @@ const Accounts: React.FC = () => {
     presentAlert({
       header: 'تقرير الموظفين',
       message: enabling
-        ? `السماح لـ«${who}» برؤية تقرير موظفيه (الدخول والخروج والمبيعات)؟`
-        : `إيقاف تقرير الموظفين عن «${who}»؟ تبقى أنت قادراً على رؤيته.`,
+        ? `تفعيل تقرير الموظفين لـ«${who}»؟`
+        : `إيقاف تقرير الموظفين عن «${who}»؟`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -401,7 +401,7 @@ const Accounts: React.FC = () => {
     const current = (app === 'contractor' ? a.contractor_store_name : a.store_name) ?? '';
     presentAlert2({
       header: app === 'contractor' ? 'اسم المقاول' : 'اسم المتجر',
-      message: 'يظهر الاسم الجديد على هاتفه بعد المزامنة التالية.',
+      message: 'يظهر على هاتفه بعد المزامنة.',
       inputs: [{ name: 'name', type: 'text', value: current, placeholder: 'الاسم', attributes: { maxlength: 100 } }],
       buttons: [
         { text: 'رجوع', role: 'cancel' },
@@ -442,7 +442,7 @@ const Accounts: React.FC = () => {
     presentAlert({
       header: 'كلمة مرور جديدة',
       cssClass: 'confirm-input',
-      message: `كلمة مرور جديدة لـ«${who}».\nستة أحرف على الأقل. هاتفه يبقى مسجّلاً، وتُستعمل عند الدخول التالي.`,
+      message: `كلمة مرور جديدة لـ«${who}» (6 أحرف على الأقل).`,
       inputs: [{
         name: 'password', type: 'text', placeholder: 'اكتب كلمة المرور هنا',
         attributes: { autocomplete: 'off', autocapitalize: 'off', spellcheck: false, maxlength: 128 },
@@ -513,8 +513,7 @@ const Accounts: React.FC = () => {
     const who = a.store_name || a.phone;
     presentAlert({
       header: 'إيقاف المزامنة',
-      message: `إيقاف المزامنة مع الخادم لـ«${who}»؟ يبقى التطبيق يعمل على هاتفه مع نسخ Google Drive. ` +
-        'ما هو على الخادم يبقى محفوظاً، والجديد لا يصل إليه حتى تعيد التفعيل.',
+      message: `إيقاف مزامنة «${who}»؟ البيانات تبقى محفوظة.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -537,7 +536,7 @@ const Accounts: React.FC = () => {
     const who = a.store_name || a.phone;
     presentAlert({
       header: 'السماح بالاستخدام',
-      message: `السماح لـ«${who}» باستخدام التطبيق من جديد؟ تبقى المزامنة متوقفة حتى تفعّلها من «المزيد».`,
+      message: `السماح لـ«${who}» باستخدام التطبيق؟`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
@@ -581,7 +580,7 @@ const Accounts: React.FC = () => {
       header: activating ? 'تفعيل المزامنة' : 'إيقاف الحساب',
       message: activating
         ? `وافق «${who}» ✓. تفعيل المزامنة الآن؟`
-        : `إيقاف «${who}»؟ لن يستطيع الدخول ولا المزامنة حتى تعيد تفعيله. بياناته تبقى محفوظة.`,
+        : `إيقاف «${who}»؟ لن يدخل حتى تعيد تفعيله. البيانات تبقى.`,
       buttons: [
         { text: 'رجوع', role: 'cancel' },
         {
