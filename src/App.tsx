@@ -13,6 +13,7 @@ import TodayPage from './features/pos/TodayPage';
 import SellPage from './features/pos/SellPage';
 import HistoryPage from './features/pos/HistoryPage';
 import StaffPage from './features/pos/StaffPage';
+import StaffReportPage from './features/pos/StaffReportPage';
 import StaffAccountPage from './features/pos/StaffAccountPage';
 import NotesPage from './features/pos/NotesPage';
 import SyncConsentPrompt from './components/SyncConsentPrompt';
@@ -248,6 +249,9 @@ const Routes: React.FC = () => {
         </Route>
         <Route exact path="/pos/staff">
           {pos('/pos/staff', <StaffPage />)}
+        </Route>
+        <Route exact path="/pos/staff/:id/report">
+          {pos('/pos/staff', <StaffReportPage />)}
         </Route>
         <Route exact path="/pos/notes">
           {pos('/pos/notes', <NotesPage />)}

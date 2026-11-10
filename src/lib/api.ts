@@ -130,6 +130,25 @@ export function staffMe(): Promise<{ staff: StaffInfo; store_name: string | null
 
 export interface StaffMember extends StaffInfo { phone: string; disabled: boolean; created_at: string }
 
+/** Sign the staff member out on the server — closes their session for the
+ *  owner's report. */
+export function staffLogout(): Promise<{ ok: boolean }> {
+  return request('/auth/staff/logout', { method: 'POST' });
+}
+
+export interface StaffReport {
+  staff: { id: string; name: string };
+  /** Instants (server time). logout_at null = never signed out. */
+  sessions: { login_at: string; logout_at: string | null }[];
+  /** Per LOCAL day: items sold (corrections subtracted) and money, minor units. */
+  days: { day: string; qty: number; amount: number }[];
+  totals: { qty: number; amount: number };
+}
+/** The OWNER's report on one staff member, `from`..`to` inclusive (YYYY-MM-DD). */
+export function staffReport(id: string, from: string, to: string): Promise<StaffReport> {
+  return request(`/pos-staff/${encodeURIComponent(id)}/report?from=${from}&to=${to}`);
+}
+
 export function listStaff(): Promise<{ staff: StaffMember[] }> {
   return request('/pos-staff');
 }

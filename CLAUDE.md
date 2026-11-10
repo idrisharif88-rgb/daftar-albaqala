@@ -1438,3 +1438,17 @@ Branch `debt-limit-reminders`. App tests 134/134; server migration **017** + `sy
   cannot update over a Play install).
 - ⚠️ **MIGRATION 017 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`.
+
+## Status — BUILT (Phase 34: the owner's report per cashier) (2026-11-10)
+Branch `staff-report` (on top of `debt-limit-reminders`). Server migration **018** +
+`staffReport.test.ts`. **Not deployed, not device-tested.**
+- `pos_sales.staff_id` — the seller, stamped by the SERVER from the token on `/pos-sync/push`
+  (NULL = owner, or a sale older than 018 — those appear in no report).
+- `pos_staff_sessions` — a row per staff sign-in (`/auth/staff/login`); `POST /auth/staff/logout`
+  closes the latest open one. The app calls it from «حسابي» → خروج (best effort; the logout guard
+  already requires being online). No sign-out = «لم يخرج».
+- `GET /pos-staff/:id/report?from&to` — **owner only** (any staff token → 403, even admin/manager).
+  Sessions with ±1 day margin (the app sorts them into LOCAL days); sales grouped by `day`.
+- App: «الموظفون» → chart icon per member (owner only) → `/pos/staff/:id/report`
+  (`StaffReportPage`): اليوم / أمس / 7 أيام / هذا الشهر; per day: دخول/خروج times, pieces sold, amount.
+- ⚠️ **MIGRATION 018 REQUIRED** after 017 (root): local `daftar_test` + `daftar_db`, then droplet.

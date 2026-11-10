@@ -6,6 +6,7 @@ import {
 import { checkmarkOutline, logOutOutline } from 'ionicons/icons';
 import PosFooter from './PosFooter';
 import { useAuth } from '../../lib/auth';
+import { staffLogout } from '../../lib/api';
 import { countUnsyncedPos, runPosSync } from './posSync';
 import { PERMISSION_LABELS, ROLE_LABELS, isPermission, isStaffRole } from './permissions';
 
@@ -44,7 +45,12 @@ const StaffAccountPage: React.FC = () => {
       message: 'هل تريد تسجيل الخروج؟',
       buttons: [
         { text: 'إلغاء', role: 'cancel' },
-        { text: 'خروج', role: 'destructive', handler: () => logout() },
+        {
+          text: 'خروج', role: 'destructive',
+          // Tell the server first, for the owner's report (when they left).
+          // Best effort: a failure must not keep anyone signed in.
+          handler: () => { void staffLogout().catch(() => undefined).finally(() => logout()); },
+        },
       ],
     });
   };

@@ -199,4 +199,52 @@ router.patch(
   }),
 );
 
+// GET /pos-staff/:id/report?from=YYYY-MM-DD&to=YYYY-MM-DD — the OWNER's
+// report on one member: when they signed in and out, and what they sold per
+// day. Owner only: no staff member sees it, not even one managing staff.
+// `day` is the phone's LOCAL calendar day, as every POS row carries it. The
+// sign-ins are instants; they are returned with a day of margin on each side
+// and the app sorts them into its own local days.
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+router.get(
+  '/:id/report',
+  asyncHandler(async (req: PosRequest, res) => {
+    if (req.staff) return res.status(403).json({ error: 'owner only' });
+    const from = String(req.query.from ?? '');
+    const to = String(req.query.to ?? '');
+    if (!DAY_RE.test(from) || !DAY_RE.test(to) || from > to) {
+      return res.status(400).json({ error: 'from and to must be YYYY-MM-DD, from <= to' });
+    }
+    const [member] = await pool.query(
+      'SELECT id, name FROM pos_staff WHERE id = ? AND owner_id = ?', [req.params.id, req.userId],
+    );
+    if ((member as Row[]).length === 0) return res.status(404).json({ error: 'staff member not found' });
+
+    const [sessions] = await pool.query(
+      `SELECT login_at, logout_at FROM pos_staff_sessions
+        WHERE owner_id = ? AND staff_id = ?
+          AND login_at >= DATE_SUB(?, INTERVAL 1 DAY) AND login_at < DATE_ADD(?, INTERVAL 2 DAY)
+        ORDER BY login_at`,
+      [req.userId, req.params.id, from, to],
+    );
+    const [days] = await pool.query(
+      `SELECT day, CAST(SUM(qty) AS SIGNED) AS qty, CAST(SUM(qty * price) AS SIGNED) AS amount
+         FROM pos_sales
+        WHERE user_id = ? AND staff_id = ? AND day BETWEEN ? AND ?
+        GROUP BY day ORDER BY day`,
+      [req.userId, req.params.id, from, to],
+    );
+    const list = (days as Row[]).map((d) => ({ day: String(d.day), qty: Number(d.qty), amount: Number(d.amount) }));
+    return res.json({
+      staff: (member as Row[])[0],
+      sessions: sessions as Row[],
+      days: list,
+      totals: {
+        qty: list.reduce((n, d) => n + d.qty, 0),
+        amount: list.reduce((n, d) => n + d.amount, 0),
+      },
+    });
+  }),
+);
+
 export default router;

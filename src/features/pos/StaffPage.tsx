@@ -3,10 +3,10 @@ import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton, IonList, IonItem,
   IonLabel, IonText, IonSpinner, IonModal, IonInput, IonInputPasswordToggle, IonNote, IonIcon,
   IonFab, IonFabButton, IonCheckbox, IonSelect, IonSelectOption, IonBadge, IonListHeader, IonToggle,
-  useIonViewWillEnter, useIonToast,
+  useIonViewWillEnter, useIonToast, useIonRouter,
 } from '@ionic/react';
 import PosFooter from './PosFooter';
-import { ICONS } from './icons';
+import { ICONS, ICON_LABELS } from './icons';
 import {
   PERMISSIONS, PERMISSION_LABELS, ROLE_LABELS, ROLE_PRESETS, STAFF_ROLES, isPermission, isStaffRole,
   usePosPermissions, type Permission, type StaffRole,
@@ -59,6 +59,7 @@ const StaffPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [presentToast] = useIonToast();
+  const router = useIonRouter();
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -152,6 +153,15 @@ const StaffPage: React.FC = () => {
                   </p>
                 </IonLabel>
                 {m.disabled && <IonBadge slot="end" color="medium">موقوف</IonBadge>}
+                {/* The owner's report on this member — owner only. */}
+                {!me && (
+                  <IonButton
+                    slot="end" fill="clear" aria-label={ICON_LABELS.report}
+                    onClick={(e) => { e.stopPropagation(); router.push(`/pos/staff/${m.id}/report`); }}
+                  >
+                    <IonIcon slot="icon-only" icon={ICONS.report} />
+                  </IonButton>
+                )}
               </IonItem>
             ))}
           </IonList>
