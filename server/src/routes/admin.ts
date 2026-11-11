@@ -321,7 +321,7 @@ router.post(
   }),
 );
 
-// POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended' }
+// POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended', direct?: true }
 //                               { app: 'contractor', status: 'active' | 'none' }
 // Without `app` it is the account (and the grocery app). With app=contractor it
 // switches «دفتر المقاول» on or off for this account only; suspending stays an
@@ -331,6 +331,7 @@ router.post(
   // Checked BEFORE the authenticator code, so a refusal does not spend it.
   asyncHandler(async (req, res, next) => {
     if (String(req.body?.status ?? '') !== 'active') return next();
+    if (req.body?.direct === true) return next(); // owner switches it on without asking (old apps)
     const agreed = await userAgreed(req.params.id);
     if (agreed === null) return res.status(404).json({ error: 'user not found' });
     if (!agreed) return res.status(409).json({ error: 'user has not agreed to sync' });
@@ -339,6 +340,12 @@ router.post(
   requireAdminCode,
   asyncHandler(async (req, res) => {
     const status = String(req.body?.status ?? '');
+    // «تفعيل مباشر»: the Play app (≤2.1) has no consent prompt, so a request can
+    // never be answered there. The owner switches sync on as before and records
+    // the consent as given, so a newer app will not ask afterwards either.
+    if (status === 'active' && req.body?.direct === true) {
+      await pool.query(`UPDATE users SET sync_consent = 'approved' WHERE id = ?`, [req.params.id]);
+    }
     if (req.body?.app === 'contractor') {
       if (status !== 'active' && status !== 'none') {
         return res.status(400).json({ error: "contractor status must be 'active' or 'none'" });

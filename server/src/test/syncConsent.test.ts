@@ -66,6 +66,26 @@ describe('sync consent', () => {
     assert.equal((await pull()).status, 200);
   });
 
+  test('direct: sync on without a request, consent recorded as given', async () => {
+    const res = await setStatus('active', { direct: true });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(await consent(), 'approved');
+    assert.equal((await pull()).status, 200);
+  });
+
+  test('direct works for the contractor book too', async () => {
+    const res = await setStatus('active', { app: 'contractor', direct: true });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(await consent(), 'approved');
+  });
+
+  test('direct still needs a valid authenticator code', async () => {
+    const res = await request(app).post(`/admin/users/${user}/status`).set(AUTH(await adminToken()))
+      .send({ status: 'active', code: '000000', direct: true });
+    assert.equal(res.status, 403);
+    assert.equal(await consent(), 'none');
+  });
+
   test('a refusal keeps sync off; a new request asks again', async () => {
     await askUser();
     await answer(false);

@@ -141,11 +141,11 @@ const Accounts: React.FC = () => {
     });
   }, [accounts, query, filter]);
 
-  const doChange = async (a: Account, status: 'active' | 'none' | 'suspended', code: string) => {
+  const doChange = async (a: Account, status: 'active' | 'none' | 'suspended', code: string, direct = false) => {
     const activating = status === 'active';
     setBusyId(a.id);
     try {
-      await setAccountStatus(a.id, status, code);
+      await setAccountStatus(a.id, status, code, direct);
       presentToast({
         // Switching sync on ASKS the shopkeeper; it starts when he approves.
         message: activating ? 'تم تفعيل المزامنة'
@@ -573,6 +573,27 @@ const Accounts: React.FC = () => {
   /** The sync row's action when sync is OFF: ask first, switch on once agreed. */
   const syncOn = (a: Account) => (a.sync_consent === 'approved' ? change(a, 'active') : sendRequest(a));
 
+  // «تفعيل مباشر»: no request — for users on the old Play app, which cannot answer one.
+  const directOn = (a: Account) => {
+    const who = a.store_name || a.phone;
+    presentAlert({
+      header: 'تفعيل مباشر',
+      message: `تفعيل مزامنة «${who}» دون طلب؟`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'تفعيل',
+          role: 'confirm',
+          handler: () => {
+            setTimeout(() => {
+              void ask('تفعيل مباشر').then((code) => { if (code) void doChange(a, 'active', code, true); });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
   const change = (a: Account, status: 'active' | 'suspended') => {
     const who = a.store_name || a.phone;
     const activating = status === 'active';
@@ -630,6 +651,12 @@ const Accounts: React.FC = () => {
               >
                 <IonLabel>مزامنة الخادم</IonLabel>
                 <IonNote slot="end" color={syncNoteColor(managed)}>{syncNote(managed)}</IonNote>
+              </IonItem>
+            )}
+            {effectiveStatus(managed) !== 'suspended' && effectiveStatus(managed) !== 'active' && (
+              <IonItem button detail onClick={() => pick(directOn)}>
+                <IonLabel>تفعيل المزامنة مباشرة ⚡</IonLabel>
+                <IonNote slot="end">دون طلب</IonNote>
               </IonItem>
             )}
             {effectiveStatus(managed) !== 'suspended' && (
