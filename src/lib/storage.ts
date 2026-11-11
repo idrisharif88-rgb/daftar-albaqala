@@ -49,6 +49,18 @@ export function setPosAllowed(on: boolean): void {
   if (on) localStorage.setItem(POS_KEY, '1'); else localStorage.removeItem(POS_KEY);
 }
 
+// «عدة أجهزة»: the developer switched this account to several phones — each
+// entry then says who recorded it (data/deviceUser.ts). Refreshed from GET /me.
+const MULTI_DEVICE_KEY = 'daftar.multi-device';
+
+export function getMultiDevice(): boolean {
+  return localStorage.getItem(MULTI_DEVICE_KEY) === '1';
+}
+
+export function setMultiDevice(on: boolean): void {
+  if (on) localStorage.setItem(MULTI_DEVICE_KEY, '1'); else localStorage.removeItem(MULTI_DEVICE_KEY);
+}
+
 // The signed-in phone. The token carries only the user id, and the app needs
 // the phone to know whether this is the owner's own account (see isOwner).
 const PHONE_KEY = 'daftar.phone';

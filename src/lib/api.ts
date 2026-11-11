@@ -98,6 +98,8 @@ export interface Me {
   pos_staff_enabled?: boolean;
   /** POS notes, switched on per account by the developer (Watcher). */
   pos_notes_enabled?: boolean;
+  /** «عدة أجهزة» — several phones on one account (Watcher). */
+  multi_device?: boolean;
   /** The shopkeeper's answer to «keep my book on the server?». 'pending' =
    *  the developer switched sync on and the app must ask. */
   sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
@@ -237,6 +239,8 @@ export interface PushCustomer {
 export interface PushTransaction {
   id: string; customer_id: string; type: string; amount: number; currency: string;
   note: string | null; occurred_at: string; created_at: string;
+  /** «الاسم · 727» — who recorded it (multi-device accounts only). */
+  recorded_by?: string | null;
 }
 export interface PushItem {
   id: string; customer_id: string; name: string; price: number; currency: string;
@@ -294,6 +298,7 @@ export interface PullTransaction {
   id: string; customer_id: string; type: string; amount: string | number;
   currency: string | null;
   note: string | null; occurred_at: string; created_at: string;
+  recorded_by?: string | null;
   /** Set when the owner deleted the entry from the Watcher. */
   deleted_at?: string | null;
 }

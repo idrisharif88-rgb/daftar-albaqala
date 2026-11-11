@@ -346,6 +346,13 @@ CREATE TABLE IF NOT EXISTS pos_notes (
       await db.run('ALTER TABLE pos_notes ADD COLUMN edited_at TEXT');
     },
   },
+  {
+    version: 15,
+    name: 'transactions.recorded_by («الاسم · 727» — who recorded it, multi-device)',
+    async run(db) {
+      await db.run('ALTER TABLE transactions ADD COLUMN recorded_by TEXT');
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

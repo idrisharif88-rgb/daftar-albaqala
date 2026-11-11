@@ -1,6 +1,7 @@
 import { getDB, persist } from './db';
 import { uuidv4 } from './uuid';
 import { kickReminders } from './reminders';
+import { deviceLabel } from './deviceUser';
 import {
   BASE_CURRENCY, CURRENCIES, isCurrencyCode,
   type CurrencyBalance, type CurrencyCode,
@@ -27,9 +28,11 @@ export interface Transaction {
   note: string | null;
   occurred_at: string;
   created_at: string;
+  /** «الاسم · 727» — who recorded it, on a multi-device account. */
+  recorded_by: string | null;
 }
 
-const COLS = 'id, customer_id, type, amount, currency, note, occurred_at, created_at';
+const COLS = 'id, customer_id, type, amount, currency, note, occurred_at, created_at, recorded_by';
 const nowIso = () => new Date().toISOString();
 
 // Canonical display order, so balances don't reshuffle between screens.
@@ -55,6 +58,7 @@ function toTransaction(row: Record<string, unknown>): Transaction {
     note: (row.note as string | null) ?? null,
     occurred_at: String(row.occurred_at),
     created_at: String(row.created_at),
+    recorded_by: (row.recorded_by as string | null) ?? null,
   };
 }
 
@@ -82,18 +86,20 @@ export async function addTransaction(input: {
   const id = uuidv4();
   const now = nowIso();
   const occurredAt = input.occurredAt ?? now;
+  const recordedBy = await deviceLabel(); // null unless this account is multi-device
   await db.run(
     `INSERT INTO transactions
-       (id, customer_id, type, amount, currency, note, occurred_at, created_at, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+       (id, customer_id, type, amount, currency, note, occurred_at, created_at, recorded_by, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [id, input.customerId, input.type, input.amount, currency,
-     input.note ?? null, occurredAt, now]
+     input.note ?? null, occurredAt, now, recordedBy]
   );
   await persist();
   kickReminders(); // the balance a reminder quotes just changed
   return {
     id, customer_id: input.customerId, type: input.type, amount: input.amount,
     currency, note: input.note ?? null, occurred_at: occurredAt, created_at: now,
+    recorded_by: recordedBy,
   };
 }
 
@@ -138,17 +144,17 @@ export async function markTransactionsSynced(ids: string[]): Promise<void> {
 export async function applyServerTransaction(row: {
   id: string; customer_id: string; type: TxnType; amount: number;
   currency: CurrencyCode; note: string | null;
-  occurred_at: string; created_at: string;
+  occurred_at: string; created_at: string; recorded_by?: string | null;
 }): Promise<void> {
   const db = await getDB();
   const res = await db.query(`SELECT id FROM transactions WHERE id = ?`, [row.id]);
   if ((res.values ?? []).length > 0) return;
   await db.run(
     `INSERT INTO transactions
-       (id, customer_id, type, amount, currency, note, occurred_at, created_at, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+       (id, customer_id, type, amount, currency, note, occurred_at, created_at, recorded_by, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
     [row.id, row.customer_id, row.type, row.amount, normalizeCurrency(row.currency),
-     row.note ?? null, row.occurred_at, row.created_at]
+     row.note ?? null, row.occurred_at, row.created_at, row.recorded_by ?? null]
   );
 }
 

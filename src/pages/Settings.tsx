@@ -37,6 +37,8 @@ import { onPrefsArrived } from '../lib/prefKeys';
 import AppScaleSheet from '../components/AppScaleSheet';
 import BackupSection from '../components/BackupSection';
 import AutoReminderSection from '../components/AutoReminderSection';
+import { DEVICE_USER_CHANGED_EVENT, EDIT_DEVICE_USER_EVENT } from '../components/DeviceUserPrompt';
+import { formatDeviceUser, getDeviceUser } from '../data/deviceUser';
 import {
   biometricEnabled, setBiometricEnabled, unlockMethods, verifyFinger, verifyDevicePin,
   BiometricCancelled,
@@ -67,7 +69,15 @@ const Settings: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
   const [version, setVersion] = useState<string | null>(null);
-  const { logout, isOwner, syncConsent, answerSyncConsent } = useAuth();
+  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice } = useAuth();
+  // «عدة أجهزة»: who uses THIS phone («أحمد · 727»), shown + editable here.
+  const [deviceUser, setDeviceUserLabel] = useState<string | null>(null);
+  useEffect(() => {
+    const load = () => { void getDeviceUser().then((u) => setDeviceUserLabel(u ? formatDeviceUser(u) : null)); };
+    load();
+    window.addEventListener(DEVICE_USER_CHANGED_EVENT, load);
+    return () => window.removeEventListener(DEVICE_USER_CHANGED_EVENT, load);
+  }, []);
   const { accent, night, cycleAccent, toggleNight } = useAppearance();
   const { scale, setScale } = useAppScale();
   const [scaleOpen, setScaleOpen] = useState(false);
@@ -558,6 +568,12 @@ const Settings: React.FC = () => {
                   إشعار الجهات (SMS وواتساب)
                 </IonToggle>
               </IonItem>
+              {multiDevice && (
+                <IonItem button detail onClick={() => window.dispatchEvent(new Event(EDIT_DEVICE_USER_EVENT))}>
+                  <IonLabel>مستخدم هذا الهاتف</IonLabel>
+                  <IonNote slot="end">{deviceUser ?? 'غير محدد'}</IonNote>
+                </IonItem>
+              )}
             </IonList>
 
             <IonNote color="medium" className="ion-padding-start">

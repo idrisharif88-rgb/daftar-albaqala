@@ -315,7 +315,7 @@ const Invoice: React.FC = () => {
   // states it (owner's choice, 2026-10-02). The entry is already recorded, so
   // the balance is read back, not projected. Failure is reported, never thrown: the debt is in the book and
   // its message has gone, so printing is the one step that may fail alone.
-  const printInvoice = async (number: number, issuedAt: Date) => {
+  const printInvoice = async (number: number | string, issuedAt: Date) => {
     setBusy('جارٍ الطباعة...');
     try {
       const [settings, balances] = await Promise.all([

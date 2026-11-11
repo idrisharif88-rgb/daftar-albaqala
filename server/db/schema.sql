@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
   pos_notes_enabled        TINYINT(1)      NOT NULL DEFAULT 0,       -- ملاحظات نقطة البيع: يفعّلها المطوّر (016)
   pos_report_enabled       TINYINT(1)      NOT NULL DEFAULT 0,       -- تقرير الموظفين لصاحب المتجر: يفعّله المطوّر (018)
   pos_manager_pin          VARCHAR(160)    NULL,                     -- «رمز المدير» للتراجع عن بيع: s1:salt:sha256 (020)
+  multi_device             TINYINT(1)      NOT NULL DEFAULT 0,       -- «عدة أجهزة»: كل حركة تحمل اسم من سجّلها (021)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
@@ -82,6 +83,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   amount       DECIMAL(12,2)   NOT NULL,               -- دقّة نقدية بلا أخطاء فاصلة
   currency     VARCHAR(8)      NOT NULL DEFAULT 'YER', -- YER / SAR / USD / GOLD (جرام)
   note         TEXT            NULL,
+  recorded_by  VARCHAR(80)     NULL,                       -- «الاسم · 727» (021)
   occurred_at  DATETIME        NOT NULL,               -- وقت حدوث المعاملة فعلياً (يحدده المستخدم)
   created_at   DATETIME        NOT NULL,               -- وقت الإنشاء على الهاتف
   deleted_at   DATETIME        NULL,                   -- حذفها المالك من المراقب (tombstone) — migration 006

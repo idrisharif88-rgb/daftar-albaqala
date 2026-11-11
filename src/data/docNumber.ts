@@ -1,6 +1,7 @@
 import { getDB } from './db';
 import { getMeta, setMeta } from './meta';
 import { VISIBLE_ROLE_CODES } from './roles';
+import { deviceCode } from './deviceUser';
 
 // The numbers this book hands out — «رقم الفاتورة» and «رقم الإشعار».
 //
@@ -30,6 +31,13 @@ import { VISIBLE_ROLE_CODES } from './roles';
 // issued, and two phones issuing offline could not agree on a number anyway —
 // a number has to be handed out before it is used, and sync happens after. So
 // it is a reference, never an identity; the entry's UUID is the identity.
+//
+// «عدة أجهزة» (several phones on one account): each phone numbers its own
+// documents behind the last 3 digits of its user's number — «727-12» — and
+// counts only those, so a father's phone and his son's never clash.
+
+/** A document number as written: «12», or «727-12» on a multi-device phone. */
+export type DocNo = number | string;
 
 interface Series {
   /** Where the counter is cached, in `app_meta`. */
@@ -45,7 +53,7 @@ const NOTICE: Series = { key: 'notice_seq', prefix: 'إشعار رقم ' };
  *  Survives a reinstall, because the entries are pulled back from the server.
  *  Only THIS app's book counts: one account used in both apps syncs the other
  *  app's entries down too, and its numbers are another book's series. */
-async function highestInLedger(series: Series): Promise<number> {
+async function highestInLedger(series: Series, code: string | null): Promise<number> {
   const db = await getDB();
   const marks = VISIBLE_ROLE_CODES.map(() => '?').join(', ');
   const res = await db.query(
@@ -54,7 +62,10 @@ async function highestInLedger(series: Series): Promise<number> {
       WHERE t.note LIKE ? AND c.role IN (${marks})`,
     [`${series.prefix}%`, ...VISIBLE_ROLE_CODES],
   );
-  const pattern = new RegExp(`^${series.prefix}(\\d+)`);
+  // Plain numbers must not swallow a prefixed one («727-12» is not number 727).
+  const pattern = code
+    ? new RegExp(`^${series.prefix}${code}-(\\d+)`)
+    : new RegExp(`^${series.prefix}(\\d+)(?![\\d-])`);
   let highest = 0;
   for (const row of (res.values ?? []) as { note?: string | null }[]) {
     const match = pattern.exec(row.note ?? '');
@@ -65,21 +76,28 @@ async function highestInLedger(series: Series): Promise<number> {
   return highest;
 }
 
-async function peek(series: Series): Promise<number> {
+async function peekRaw(series: Series): Promise<{ n: number; key: string; code: string | null }> {
+  const code = await deviceCode();
+  const key = code ? `${series.key}_${code}` : series.key;
   const [stored, inLedger] = await Promise.all([
-    getMeta(series.key), highestInLedger(series),
+    getMeta(key), highestInLedger(series, code),
   ]);
-  return Math.max(Number(stored ?? 0) || 0, inLedger) + 1;
+  return { n: Math.max(Number(stored ?? 0) || 0, inLedger) + 1, key, code };
+}
+
+async function peek(series: Series): Promise<DocNo> {
+  const { n, code } = await peekRaw(series);
+  return code ? `${code}-${n}` : n;
 }
 
 /**
  * Take the next number and store it. Called only once the document is actually
  * being recorded — a number burnt by an abandoned invoice leaves a gap.
  */
-async function next(series: Series): Promise<number> {
-  const n = await peek(series);
-  await setMeta(series.key, String(n));
-  return n;
+async function next(series: Series): Promise<DocNo> {
+  const { n, key, code } = await peekRaw(series);
+  await setMeta(key, String(n));
+  return code ? `${code}-${n}` : n;
 }
 
 /** The number the NEXT invoice would take, without consuming it. */
@@ -98,14 +116,14 @@ export const nextNoticeNumber = () => next(NOTICE);
  * other person asks which payment is being talked about. The message does not
  * repeat it in its own note section; the header already says it.
  */
-export function noticeNote(number: number, note: string): string {
+export function noticeNote(number: DocNo, note: string): string {
   const own = note.trim();
   return own ? `${NOTICE.prefix}${number}: ${own}` : `${NOTICE.prefix}${number}`;
 }
 
 export interface ParsedDocNote {
   kind: 'invoice' | 'notice' | null;
-  number: number | null;
+  number: DocNo | null;
   /** The note without its «فاتورة رقم 12: » head — the paper prints the
    *  number on its own line, so repeating it in the note is noise. */
   rest: string;
@@ -116,9 +134,10 @@ export interface ParsedDocNote {
 export function parseDocNote(note: string | null): ParsedDocNote {
   const text = (note ?? '').trim();
   for (const [kind, series] of [['invoice', INVOICE], ['notice', NOTICE]] as const) {
-    const match = new RegExp(`^${series.prefix}(\\d+)(?::\\s*)?`).exec(text);
+    const match = new RegExp(`^${series.prefix}(?:(\\d{3})-)?(\\d+)(?::\\s*)?`).exec(text);
     if (match) {
-      return { kind, number: Number(match[1]), rest: text.slice(match[0].length).trim() };
+      const number: DocNo = match[1] ? `${match[1]}-${match[2]}` : Number(match[2]);
+      return { kind, number, rest: text.slice(match[0].length).trim() };
     }
   }
   return { kind: null, number: null, rest: text };

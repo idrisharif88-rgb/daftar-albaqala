@@ -3,7 +3,7 @@ import { balancesUpTo, type Transaction } from './transactions';
 
 const txn = (id: string, type: 'debt' | 'payment', amount: number, currency = 'YER'): Transaction => ({
   id, customer_id: 'c', type, amount, currency: currency as Transaction['currency'],
-  note: null, occurred_at: '', created_at: '',
+  note: null, occurred_at: '', created_at: '', recorded_by: null,
 });
 
 // A reprint must show the balance as it stood THEN, not today's.

@@ -182,6 +182,7 @@ const Contact: React.FC = () => {
               <span className="ltr entry__date">{dateTime(t.occurred_at)}</span>
             </div>
             {t.note && <div className="entry__note">{t.note}</div>}
+            {t.recorded_by && <div className="entry__note">👤 {t.recorded_by}</div>}
             <div className="entry__id ltr">{t.id}</div>
             <div className="acct__actions">
               <IonButton size="small" fill="outline" disabled={busy} onClick={() => askReverse(t)}>

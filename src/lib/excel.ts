@@ -140,8 +140,11 @@ function transactionsSheet(
   transactions: Awaited<ReturnType<typeof listAllTransactions>>,
 ): Sheet<Blob> {
   const byId = new Map(customers.map((c) => [c.id, c]));
+  // «سجّلها» only when some entry says who recorded it (multi-device books).
+  const withBy = transactions.some((t) => t.recorded_by);
   const data: XlsxRow[] = [
-    headerRow(['التاريخ', 'الجهة', 'الهاتف', 'الصفة', 'النوع', 'المبلغ', 'العملة', 'ملاحظة']),
+    headerRow(['التاريخ', 'الجهة', 'الهاتف', 'الصفة', 'النوع', 'المبلغ', 'العملة', 'ملاحظة',
+      ...(withBy ? ['سجّلها'] : [])]),
   ];
 
   for (const t of transactions) {
@@ -161,6 +164,7 @@ function transactionsSheet(
       moneyCell(t.amount, color),
       textCell(currencyDef(t.currency).shortAr),
       textCell(t.note ?? ''),
+      ...(withBy ? [textCell(t.recorded_by ?? '')] : []),
     ]);
   }
 
@@ -172,6 +176,7 @@ function transactionsSheet(
     columns: [
       { width: 20 }, { width: 26 }, { width: 16 }, { width: 10 },
       { width: 14 }, { width: 15 }, { width: 10 }, { width: 34 },
+      ...(withBy ? [{ width: 18 }] : []),
     ],
   };
 }
@@ -303,8 +308,9 @@ export async function exportCustomerStatementXlsx(o: CustomerStatementOptions): 
   const role = customer.role;
 
   // ---- Sheet 1: this contact's entries (caller already ordered them) ----
+  const withBy = transactions.some((t) => t.recorded_by);
   const txnData: XlsxRow[] = [
-    headerRow(['التاريخ', 'النوع', 'المبلغ', 'العملة', 'ملاحظة']),
+    headerRow(['التاريخ', 'النوع', 'المبلغ', 'العملة', 'ملاحظة', ...(withBy ? ['سجّلها'] : [])]),
   ];
   for (const t of transactions) {
     const color = isGrowthEntry(role, t.type) ? DEBT_COLOR : PAYMENT_COLOR;
@@ -314,6 +320,7 @@ export async function exportCustomerStatementXlsx(o: CustomerStatementOptions): 
       moneyCell(t.amount, color),
       textCell(currencyDef(t.currency).shortAr),
       textCell(t.note ?? ''),
+      ...(withBy ? [textCell(t.recorded_by ?? '')] : []),
     ]);
   }
   const txnSheet: Sheet<Blob> = {
@@ -321,7 +328,8 @@ export async function exportCustomerStatementXlsx(o: CustomerStatementOptions): 
     data: txnData,
     rightToLeft: true,
     stickyRowsCount: 1,
-    columns: [{ width: 20 }, { width: 16 }, { width: 16 }, { width: 10 }, { width: 40 }],
+    columns: [{ width: 20 }, { width: 16 }, { width: 16 }, { width: 10 }, { width: 40 },
+      ...(withBy ? [{ width: 18 }] : [])],
   };
 
   // ---- Sheet 2: identity + per-currency totals ----

@@ -3,7 +3,7 @@ import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
 import {
   getToken, setToken, clearToken, getPhone, setPhone, getDriveAllowed, setDriveAllowed,
-  getPosAllowed, setPosAllowed, getPosStaffAllowed, setPosStaffAllowed, getStaff, setStaff, getPosNotesAllowed, setPosNotesAllowed,
+  getPosAllowed, setPosAllowed, getPosStaffAllowed, setPosStaffAllowed, getStaff, setStaff, getPosNotesAllowed, setPosNotesAllowed, getMultiDevice, setMultiDevice,
   type StoredStaff,
 } from './storage';
 import { ensureLocalOwner } from '../data/owner';
@@ -36,6 +36,8 @@ interface AuthState {
   posAllowed: boolean;
   /** Staff accounts were switched on for this OWNER's shop (Watcher). */
   posStaffAllowed: boolean;
+  /** «عدة أجهزة»: several phones on this account; each asks who uses it. */
+  multiDevice: boolean;
   /** Set when a STAFF member is signed in (not the owner): who, and what they
    *  may do. Null for the owner. */
   staff: StoredStaff | null;
@@ -65,6 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [driveAllowed, setDriveAllowedState] = useState<boolean>(getDriveAllowed);
   const [posAllowed, setPosAllowedState] = useState<boolean>(getPosAllowed);
   const [posStaffAllowed, setPosStaffAllowedState] = useState<boolean>(getPosStaffAllowed);
+  const [multiDevice, setMultiDeviceState] = useState<boolean>(getMultiDevice);
   const [staff, setStaffState] = useState<StoredStaff | null>(getStaff);
   const [posNotesAllowed, setPosNotesAllowedState] = useState<boolean>(getPosNotesAllowed);
   const [syncConsent, setSyncConsent] = useState<AuthState['syncConsent']>(null);
@@ -124,6 +127,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPosAllowed(false);
     setPosAllowedState(false);
     setPosStaffAllowedState(false);
+    setMultiDevice(false);
+    setMultiDeviceState(false);
     setStaffState(null);
     setPosNotesAllowedState(false);
     setSyncConsent(null);
@@ -169,6 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPosAllowedState(res.user.pos_enabled === true);
       setPosStaffAllowed(res.user.pos_staff_enabled === true);
       setPosStaffAllowedState(res.user.pos_staff_enabled === true);
+      setMultiDevice(res.user.multi_device === true);
+      setMultiDeviceState(res.user.multi_device === true);
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
     } catch { /* offline: the last answer stands */ }
@@ -214,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Staff exist only to use the POS; the server gates it per request.
         posAllowed: authed && (staff !== null || posAllowed),
         posStaffAllowed: authed && !staff && posStaffAllowed,
+        multiDevice: authed && !staff && multiDevice,
         staff: authed ? staff : null,
         posNotesAllowed: authed && posNotesAllowed,
         syncConsent: authed && !staff ? syncConsent : null,

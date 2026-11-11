@@ -29,6 +29,12 @@ describe('parseDocNote', () => {
       .toEqual({ kind: 'notice', number: 5, rest: '' });
   });
 
+  it('reads a multi-device number «727-12» whole', () => {
+    expect(parseDocNote('فاتورة رقم 727-12: جبن ×3'))
+      .toEqual({ kind: 'invoice', number: '727-12', rest: 'جبن ×3' });
+    expect(noticeNote('727-5', 'دقيق')).toBe('إشعار رقم 727-5: دقيق');
+  });
+
   it('leaves an ordinary note alone', () => {
     expect(parseDocNote('دين قديم')).toEqual({ kind: null, number: null, rest: 'دين قديم' });
     expect(parseDocNote(null)).toEqual({ kind: null, number: null, rest: '' });

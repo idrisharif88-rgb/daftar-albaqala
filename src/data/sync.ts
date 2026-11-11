@@ -107,6 +107,7 @@ function toPushTransaction(t: Transaction): PushTransaction {
     amount: fromMinor(t.amount), // minor → major for the server's DECIMAL
     currency: t.currency,
     note: t.note, occurred_at: t.occurred_at, created_at: t.created_at,
+    recorded_by: t.recorded_by,
   };
 }
 
@@ -391,6 +392,7 @@ async function doSync(): Promise<SyncOutcome> {
           amount: toMinor(Number(t.amount)), // major → minor for local storage
           currency: isCurrencyCode(t.currency) ? t.currency : BASE_CURRENCY,
           note: t.note, occurred_at: t.occurred_at, created_at: t.created_at,
+          recorded_by: t.recorded_by ?? null,
         });
       }
       // The server sends the whole settings set on every page — outside the
