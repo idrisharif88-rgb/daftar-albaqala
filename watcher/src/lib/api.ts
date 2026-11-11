@@ -127,10 +127,13 @@ export function requestSync(id: string): Promise<{ sync_consent: string }> {
   return request(`/admin/users/${encodeURIComponent(id)}/sync-request`, { method: 'POST' });
 }
 
-export function setAccountStatus(id: string, status: 'active' | 'none' | 'suspended', code: string): Promise<unknown> {
+/** `direct`: switch sync on WITHOUT the user's yes (old Play app has no prompt). */
+export function setAccountStatus(
+  id: string, status: 'active' | 'none' | 'suspended', code: string, direct = false,
+): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/status`, {
     method: 'POST',
-    body: JSON.stringify({ status, code }),
+    body: JSON.stringify(direct ? { status, code, direct: true } : { status, code }),
   });
 }
 

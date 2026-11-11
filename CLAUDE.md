@@ -1557,3 +1557,11 @@ Branch `short-texts-live-chat`. No migration. Server 194/194.
   `staff:<staff_id>`. Staff take a ticket at `POST /events/staff-ticket` (requirePosActor). The app
   opens the live line for owner AND staff (auth.tsx); `chat` → `CHAT_EVENT` → the open thread, the
   thread list and the tab badge reload at once. Fallback timers slowed: thread 30 s, badge 60 s.
+
+## Status — BUILT (Phase 40: «تفعيل المزامنة مباشرة») (2026-11-11)
+Branch `sync-direct-enable`. No migration. Server 197/197.
+- The Play app (≤2.1) has no consent prompt, so a sync request can never be answered there.
+- `POST /admin/users/:id/status {status:'active', direct:true, code}` skips the 409 consent check
+  and sets `sync_consent='approved'` (so a newer app won't ask either). Works with `app:'contractor'`.
+  Still needs a fresh authenticator code. The request flow is unchanged.
+- Watcher «المزيد» → «تفعيل المزامنة مباشرة ⚡» (shown while sync is off, grocery book).
