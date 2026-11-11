@@ -361,12 +361,15 @@ router.post(
           result.transactions.rejected.push({ id, reason: 'invalid' });
           continue;
         }
+        // «عدة أجهزة»: who recorded it, «الاسم · 727». Absent from older apps.
+        const recordedBy = typeof t.recorded_by === 'string' && t.recorded_by.trim()
+          ? t.recorded_by.trim().slice(0, 80) : null;
         await conn.query(
           `INSERT INTO transactions
-             (id, user_id, customer_id, type, amount, currency, note, occurred_at, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, user_id, customer_id, type, amount, currency, note, recorded_by, occurred_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [id, req.userId, customerId, type, amt.toFixed(2), currency,
-           t.note ?? null, occurredAt, createdAt]
+           t.note ?? null, recordedBy, occurredAt, createdAt]
         );
         result.transactions.accepted.push(id);
       }
@@ -589,7 +592,7 @@ router.get(
     );
     const wantsTombstones = req.query.tombstones === '1';
     const [transactionRows] = await pool.query(
-      `SELECT id, customer_id, type, amount, currency, note, occurred_at, created_at,
+      `SELECT id, customer_id, type, amount, currency, note, recorded_by, occurred_at, created_at,
               deleted_at, server_updated_at
          FROM transactions
         WHERE user_id = ? AND ${after}${wantsTombstones ? '' : ' AND deleted_at IS NULL'}

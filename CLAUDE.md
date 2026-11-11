@@ -1565,3 +1565,19 @@ Branch `sync-direct-enable`. No migration. Server 197/197.
   and sets `sync_consent='approved'` (so a newer app won't ask either). Works with `app:'contractor'`.
   Still needs a fresh authenticator code. The request flow is unchanged.
 - Watcher «المزيد» → «تفعيل المزامنة مباشرة ⚡» (shown while sync is off, grocery book).
+
+## Status — BUILT (Phase 41: «عدة أجهزة» — one account, several phones) (2026-11-11)
+Branch `multi-device`. Server migration **021**, local migration 15. Server 200/200, app 82/82.
+**Not deployed, not device-tested.** For a grocer + his son sharing one login on two phones.
+- Watcher «المزيد» → «عدة أجهزة 📱📱» (`users.multi_device`, `POST /admin/users/:id/multi-device`,
+  authenticator code). `/me` returns `multi_device`; the app keeps it in localStorage.
+- On: each phone asks once «من يستخدم هذا الهاتف؟» → name + last 3 digits of that person's number
+  (`src/data/deviceUser.ts`, app_meta, per phone, not synced; `DeviceUserPrompt`). Settings «الحساب»
+  → «مستخدم هذا الهاتف» edits the name; the 3 digits lock once an entry carries them.
+- Every entry stores `transactions.recorded_by = «الاسم · 727»` (synced; NULL from older apps) →
+  shown in the history (👤), PDF (with the note), Excel («سجّلها», only when present), Watcher.
+- Invoice/notice numbers become «727-12»: per-phone counter `invoice_seq_<code>`; the ledger scan
+  counts only its own prefix, and plain numbers ignore prefixed ones (`docNumber.ts`, `DocNo`).
+- Sync stays as it is (on app open, after each entry). Same rights on both phones.
+- ⚠️ **MIGRATION 021 REQUIRED** (root): droplet `sudo mysql -u root -p daftar_db < server/db/migrations/021_multi_device.sql`
+  → `git pull` → `pm2 restart daftar-api`, THEN the app (Play update needed for both phones).

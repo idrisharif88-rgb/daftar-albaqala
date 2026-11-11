@@ -145,7 +145,7 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled, pos_notes_enabled, sync_consent FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled, pos_notes_enabled, sync_consent, multi_device FROM users WHERE id = ?',
       [req.userId]
     );
     const row = (rows as Array<Record<string, unknown>>)[0];
@@ -163,6 +163,7 @@ app.get(
         ...user, drive_backup: driveBackup, pos_enabled: Number(user.pos_enabled) === 1,
         pos_staff_enabled: Number(user.pos_staff_enabled) === 1,
         pos_notes_enabled: Number(user.pos_notes_enabled) === 1,
+        multi_device: Number(user.multi_device) === 1,
       },
     });
   })

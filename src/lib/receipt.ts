@@ -32,7 +32,7 @@ export interface ReceiptOptions {
   /** What this entry is called for that role, e.g. «تسجيل دين». */
   entryLabel: string;
   /** «رقم الفاتورة» — how the two sides refer to this basket afterwards. */
-  number: number;
+  number: number | string;
   lines: InvoiceLine[];
   total: number;
   currency: string;
@@ -306,7 +306,7 @@ export interface EntryReceiptOptions {
   entryLabel: string;
   /** «رقم الفاتورة» / «رقم الإشعار», when the entry carries a number. */
   numberLabel?: string;
-  number?: number | null;
+  number?: number | string | null;
   amount: number;
   currency: string;
   note: string;

@@ -25,8 +25,8 @@ const YEMEN_CC = '967';
  *  owner used to fill in by hand: a number, a date, and a line per item with
  *  its price, quantity and total. */
 export interface InvoiceInfo {
-  /** «رقم الفاتورة» — see data/docNumber.ts. */
-  number: number;
+  /** «رقم الفاتورة» — see data/docNumber.ts («12», or «727-12» multi-device). */
+  number: number | string;
   issuedAt: Date;
   lines: InvoiceLine[];
 }
@@ -35,7 +35,7 @@ export interface InvoiceInfo {
  *  series and the moment it was recorded (see data/docNumber.ts). */
 export interface NoticeInfo {
   /** «رقم الإشعار» — counted separately from the invoice numbers. */
-  number: number;
+  number: number | string;
   issuedAt: Date;
 }
 

@@ -84,6 +84,8 @@ export interface Account {
   pos_staff_enabled?: boolean;
   /** POS notes — switched on per account by the owner. */
   pos_notes_enabled?: boolean;
+  /** «عدة أجهزة» — one account on several phones; entries say who recorded them. */
+  multi_device?: boolean;
   /** The shop owner may see the report per staff member (the developer always can). */
   pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
@@ -155,6 +157,13 @@ export function setPosAccess(id: string, enabled: boolean, code: string): Promis
  *  «الموظفون», and its staff cannot sign in. The staff are kept. */
 export function setPosStaffAccess(id: string, enabled: boolean, code: string): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/pos-staff`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled, code }),
+  });
+}
+
+export function setMultiDevice(id: string, enabled: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/multi-device`, {
     method: 'POST',
     body: JSON.stringify({ enabled, code }),
   });
@@ -259,6 +268,8 @@ export interface Entry {
   amount: number;
   currency: string;
   note: string | null;
+  /** «الاسم · 727» — who recorded it (multi-device accounts). */
+  recorded_by?: string | null;
   occurred_at: string;
   created_at: string;
 }

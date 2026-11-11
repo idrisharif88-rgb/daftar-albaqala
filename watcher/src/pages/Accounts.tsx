@@ -6,7 +6,7 @@ import {
 } from '@ionic/react';
 import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
-  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync,
+  Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
   deleteAccount, setStoreName, setPassword,
 } from '../lib/api';
 import FeatureIcons from '../components/FeatureIcons';
@@ -311,6 +311,33 @@ const Accounts: React.FC = () => {
                 if (code) {
                   void run(a, () => setPosStaffAccess(a.id, enabling, code),
                     enabling ? 'تم تفعيل حسابات الموظفين' : 'تم إيقاف حسابات الموظفين');
+                }
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
+  // «عدة أجهزة»: one account on several phones — each entry says who recorded it.
+  const changeMultiDevice = (a: Account) => {
+    const who = a.store_name || a.phone;
+    const enabling = !a.multi_device;
+    presentAlert({
+      header: 'عدة أجهزة',
+      message: enabling ? `تفعيل «عدة أجهزة» لـ«${who}»؟` : `إيقاف «عدة أجهزة» لـ«${who}»؟`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: enabling ? 'تفعيل' : 'إيقاف',
+          role: enabling ? 'confirm' : 'destructive',
+          handler: () => {
+            setTimeout(() => {
+              void ask('عدة أجهزة').then((code) => {
+                if (code) {
+                  void run(a, () => setMultiDevice(a.id, enabling, code),
+                    enabling ? 'تم تفعيل عدة أجهزة' : 'تم إيقاف عدة أجهزة');
                 }
               });
             }, 350);
@@ -657,6 +684,12 @@ const Accounts: React.FC = () => {
               <IonItem button detail onClick={() => pick(directOn)}>
                 <IonLabel>تفعيل المزامنة مباشرة ⚡</IonLabel>
                 <IonNote slot="end">دون طلب</IonNote>
+              </IonItem>
+            )}
+            {effectiveStatus(managed) !== 'suspended' && (
+              <IonItem button detail onClick={() => pick(changeMultiDevice)}>
+                <IonLabel>عدة أجهزة 📱📱</IonLabel>
+                <IonNote slot="end">{managed.multi_device ? 'مفعّل' : 'متوقف'}</IonNote>
               </IonItem>
             )}
             {effectiveStatus(managed) !== 'suspended' && (

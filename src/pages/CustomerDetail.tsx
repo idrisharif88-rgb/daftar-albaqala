@@ -829,6 +829,7 @@ const CustomerDetail: React.FC = () => {
                       </h2>
                       {t.note && <p>{t.note}</p>}
                       <p>{ENTRY_DATE.format(new Date(t.occurred_at))}</p>
+                      {t.recorded_by && <p>👤 {t.recorded_by}</p>}
                     </IonLabel>
                     <IonText slot="end" color={directionColor(role, t.type)}>
                       <div style={{ textAlign: 'end' }}>

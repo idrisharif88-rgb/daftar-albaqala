@@ -91,7 +91,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -112,6 +112,7 @@ router.get(
       pos_staff_enabled: Number(r.pos_staff_enabled) === 1,
       pos_notes_enabled: Number(r.pos_notes_enabled) === 1,
       pos_report_enabled: Number(r.pos_report_enabled) === 1,
+      multi_device: Number(r.multi_device) === 1,
     }));
     return res.json({ users });
   })
@@ -158,6 +159,30 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, pos_enabled: enabled });
+  })
+);
+
+// POST /admin/users/:id/multi-device  { enabled: boolean }
+// «عدة أجهزة»: one account on several phones (e.g. a father and his son). On:
+// each phone asks who uses it, stamps every entry with «الاسم · 727», and
+// numbers its invoices «727-12» so two phones never issue the same number.
+router.post(
+  '/users/:id/multi-device',
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const enabled = req.body?.enabled;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be true or false' });
+    }
+    const [result] = await pool.query(
+      'UPDATE users SET multi_device = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [enabled ? 1 : 0, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    publish(`user:${req.params.id}`, 'access'); // the phones re-read /me at once
+    return res.json({ id: req.params.id, multi_device: enabled });
   })
 );
 
@@ -564,7 +589,7 @@ router.get(
       [req.params.id]
     );
     const [transactions] = await pool.query(
-      `SELECT id, customer_id, type, amount, currency, note, occurred_at, created_at
+      `SELECT id, customer_id, type, amount, currency, note, recorded_by, occurred_at, created_at
          FROM transactions
         WHERE user_id = ? AND deleted_at IS NULL
         ORDER BY occurred_at, created_at`,
@@ -587,7 +612,7 @@ router.get(
     const contact = await findContact(req.params.id, req.params.cid);
     if (!contact) return res.status(404).json({ error: 'customer not found' });
     const [rows] = await pool.query(
-      `SELECT id, type, amount, currency, note, occurred_at, created_at
+      `SELECT id, type, amount, currency, note, recorded_by, occurred_at, created_at
          FROM transactions
         WHERE user_id = ? AND customer_id = ? AND deleted_at IS NULL
         ORDER BY occurred_at DESC, created_at DESC`,
