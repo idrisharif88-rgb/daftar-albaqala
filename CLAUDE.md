@@ -1558,7 +1558,7 @@ Branch `short-texts-live-chat`. No migration. Server 194/194.
   opens the live line for owner AND staff (auth.tsx); `chat` → `CHAT_EVENT` → the open thread, the
   thread list and the tab badge reload at once. Fallback timers slowed: thread 30 s, badge 60 s.
 
-## Status — BUILT (Phase 40: «تفعيل المزامنة مباشرة») (2026-11-11)
+## Status — LIVE (Phase 40: «تفعيل المزامنة مباشرة») (2026-11-11)
 Branch `sync-direct-enable`. No migration. Server 197/197.
 - The Play app (≤2.1) has no consent prompt, so a sync request can never be answered there.
 - `POST /admin/users/:id/status {status:'active', direct:true, code}` skips the 409 consent check
@@ -1566,9 +1566,10 @@ Branch `sync-direct-enable`. No migration. Server 197/197.
   Still needs a fresh authenticator code. The request flow is unchanged.
 - Watcher «المزيد» → «تفعيل المزامنة مباشرة ⚡» (shown while sync is off, grocery book).
 
-## Status — BUILT (Phase 41: «عدة أجهزة» — one account, several phones) (2026-11-11)
-Branch `multi-device`. Server migration **021**, local migration 15. Server 200/200, app 82/82.
-**Not deployed, not device-tested.** For a grocer + his son sharing one login on two phones.
+## Status — LIVE (Phase 41: «عدة أجهزة» — one account, several phones) (2026-11-11)
+PRs #55 + #56. Server migration **021**, local migration 15. Server 200/200, app 82/82.
+**Deployed (021 on droplet) + device-tested on phone + tablet.** The prompt can be skipped
+(«لاحقاً» / back / outside → asks again next launch); 📱 icon on the Watcher feature row. For a grocer + his son sharing one login on two phones.
 - Watcher «المزيد» → «عدة أجهزة 📱📱» (`users.multi_device`, `POST /admin/users/:id/multi-device`,
   authenticator code). `/me` returns `multi_device`; the app keeps it in localStorage.
 - On: each phone asks once «من يستخدم هذا الهاتف؟» → name + last 3 digits of that person's number
