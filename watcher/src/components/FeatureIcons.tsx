@@ -1,7 +1,7 @@
 import { IonIcon, useIonAlert } from '@ionic/react';
 import {
   barChartOutline, cardOutline, chatbubblesOutline, cloudUploadOutline, constructOutline,
-  peopleOutline, syncOutline,
+  peopleOutline, phonePortraitOutline, syncOutline,
 } from 'ionicons/icons';
 import type { Account } from '../lib/api';
 
@@ -44,6 +44,7 @@ export function accountFeatures(a: Account): Feature[] {
     { key: 'staff', icon: peopleOutline, label: 'حسابات الموظفين', state: flag(a.pos_staff_enabled) },
     { key: 'notes', icon: chatbubblesOutline, label: 'الملاحظات', state: flag(a.pos_notes_enabled) },
     { key: 'report', icon: barChartOutline, label: 'تقرير الموظفين', state: flag(a.pos_report_enabled) },
+    { key: 'multi', icon: phonePortraitOutline, label: 'عدة أجهزة', state: flag(a.multi_device) },
     { key: 'contractor', icon: constructOutline, label: 'دفتر المقاول', state: flag(a.contractor_status === 'active') },
   ];
 }

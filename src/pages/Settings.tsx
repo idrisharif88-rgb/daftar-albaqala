@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonTitle, IonToolbar, IonButtons, IonButton,
-  IonBackButton, IonList, IonItem, IonLabel, IonInput,
+  IonBackButton, IonList, IonItem, IonLabel, IonInput, IonIcon,
   IonToggle, IonSpinner, IonNote, IonText, useIonViewWillEnter, useIonViewWillLeave,
   useIonToast, useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { checkmarkCircle } from 'ionicons/icons';
+import { checkmarkCircle, phonePortraitOutline } from 'ionicons/icons';
 import {
   getSettings, saveSettings, messageSender, type Settings as AppSettings,
 } from '../data/settings';
@@ -570,6 +570,7 @@ const Settings: React.FC = () => {
               </IonItem>
               {multiDevice && (
                 <IonItem button detail onClick={() => window.dispatchEvent(new Event(EDIT_DEVICE_USER_EVENT))}>
+                  <IonIcon icon={phonePortraitOutline} slot="start" aria-hidden="true" />
                   <IonLabel>مستخدم هذا الهاتف</IonLabel>
                   <IonNote slot="end">{deviceUser ?? 'غير محدد'}</IonNote>
                 </IonItem>
