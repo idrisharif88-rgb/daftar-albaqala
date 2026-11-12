@@ -33,6 +33,7 @@ const CONFIRM_KEY = 'daftar.pos.confirm-sale';
 const readConfirm = (): boolean => {
   try { return localStorage.getItem(CONFIRM_KEY) !== '0'; } catch { return true; }
 };
+const SOLD_OUT = 'نفد — لا توجد كمية اليوم.';
 const CONT_KEY = 'daftar.pos.continuous';
 const readContinuous = (): boolean => {
   try { return localStorage.getItem(CONT_KEY) !== '0'; } catch { return true; }
@@ -92,10 +93,18 @@ const SellPage: React.FC = () => {
     });
   });
 
+  /** Is there any of this product left to sell today? */
+  const hasLeft = async (productId: string): Promise<boolean> => {
+    const row = (await getDayRows()).find((x) => x.product.id === productId);
+    return !!row && row.left > 0;
+  };
+
   /** Find what a code names, confirm, then record. */
   const sellScanned = async (raw: string): Promise<{ ok: true; row: DayRow } | { ok: false; reason: string }> => {
     const found = await findByScan(toLatinDigits(raw), parseScannedCode);
     if (!found.ok) return found;
+    // Nothing left today (or never added today) → not sold.
+    if (!(await hasLeft(found.product.id))) return { ok: false, reason: 'sold-out' };
     if (!(await confirmOne(found.product))) return { ok: false, reason: 'cancelled' };
     await recordSale(found.product, 1);
     const row = (await getDayRows()).find((r) => r.product.id === found.product.id)!;
@@ -113,6 +122,7 @@ const SellPage: React.FC = () => {
     const out = await sellScanned(raw);
     if (out.ok) { beepOk(); setLast(out.row); setMessage(null); setSession(null); await refresh(); }
     else if (out.reason === 'cancelled') { setMessage('لم تُسجَّل البيعة.'); }
+    else if (out.reason === 'sold-out') { beepBad(); setLast(null); setMessage(SOLD_OUT); }
     else {
       beepBad();
       setLast(null);
@@ -126,6 +136,7 @@ const SellPage: React.FC = () => {
     setMessage(null);
     const counts = new Map<string, number>();
     let unknown = 0;
+    let soldOut = 0;
     let lastRow: DayRow | null = null;
     try {
       for (;;) {
@@ -138,6 +149,9 @@ const SellPage: React.FC = () => {
           lastRow = out.row;
         } else if (out.reason === 'cancelled') {
           // ✕ — not sold; scanning goes on
+        } else if (out.reason === 'sold-out') {
+          beepBad();
+          soldOut += 1;
         } else {
           beepBad();
           unknown += 1;
@@ -154,11 +168,15 @@ const SellPage: React.FC = () => {
     if (lastRow) setLast(fresh.find((r) => r.product.id === lastRow!.product.id) ?? lastRow);
     setSession(continuous && counts.size > 0
       ? [...counts].map(([name, n]) => ({ name, n })) : null);
-    if (unknown > 0) setMessage(`${unknown} رمز لم يُعرف ولم يُسجَّل.`);
+    const notes: string[] = [];
+    if (soldOut > 0) notes.push(soldOut === 1 ? SOLD_OUT : `${soldOut} × ${SOLD_OUT}`);
+    if (unknown > 0) notes.push(`${unknown} رمز لم يُعرف ولم يُسجَّل.`);
+    if (notes.length > 0) setMessage(notes.join(' · '));
   };
 
   const tapSell = async (r: DayRow) => {
     unlockAudio();
+    if (!(await hasLeft(r.product.id))) { beepBad(); setMessage(SOLD_OUT); return; }
     if (!(await confirmOne(r.product))) return;
     await recordSale(r.product, 1);
     beepOk();
