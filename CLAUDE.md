@@ -1582,3 +1582,13 @@ PRs #55 + #56. Server migration **021**, local migration 15. Server 200/200, app
 - Sync stays as it is (on app open, after each entry). Same rights on both phones.
 - ⚠️ **MIGRATION 021 REQUIRED** (root): droplet `sudo mysql -u root -p daftar_db < server/db/migrations/021_multi_device.sql`
   → `git pull` → `pm2 restart daftar-api`, THEN the app (Play update needed for both phones).
+
+## Status — RELEASE 2.2 (code 13) for Google Play (2026-11-12)
+- **POS ships on Play from 2.2** (owner's decision): built with `VITE_POS=1 npm run android:grocery`.
+  Safe because each account sees POS only after the Watcher switch (`users.pos_enabled`); the server
+  gates sync/staff/chat. (Overrides the Phase 32 «no POS on Play» note.)
+- **R8 on** (`minifyEnabled true`, `proguard-android-optimize.txt`) — Play flagged DEX obfuscation 1%.
+  Keep rules in `android/app/proguard-rules.pro` keep the Capacitor bridge + every plugin package
+  (found by name/reflection). Shrunk build device-tested: contact picker, PDF→WhatsApp, print, Drive,
+  fingerprint, sync, POS scan ✅. A new plugin = add its package to the keep rules + retest.
+- Edge-to-edge (Android 15) warning left for later.
