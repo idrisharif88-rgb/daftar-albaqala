@@ -1582,3 +1582,61 @@ PRs #55 + #56. Server migration **021**, local migration 15. Server 200/200, app
 - Sync stays as it is (on app open, after each entry). Same rights on both phones.
 - ⚠️ **MIGRATION 021 REQUIRED** (root): droplet `sudo mysql -u root -p daftar_db < server/db/migrations/021_multi_device.sql`
   → `git pull` → `pm2 restart daftar-api`, THEN the app (Play update needed for both phones).
+
+## Status — RELEASE 2.2 (code 13) for Google Play (2026-11-12)
+- **POS ships on Play from 2.2** (owner's decision): built with `VITE_POS=1 npm run android:grocery`.
+  Safe because each account sees POS only after the Watcher switch (`users.pos_enabled`); the server
+  gates sync/staff/chat. (Overrides the Phase 32 «no POS on Play» note.)
+- **R8 on** (`minifyEnabled true`, `proguard-android-optimize.txt`) — Play flagged DEX obfuscation 1%.
+  Keep rules in `android/app/proguard-rules.pro` keep the Capacitor bridge + every plugin package
+  (found by name/reflection). Shrunk build device-tested: contact picker, PDF→WhatsApp, print, Drive,
+  fingerprint, sync, POS scan ✅. A new plugin = add its package to the keep rules + retest.
+- Edge-to-edge (Android 15) warning left for later.
+
+## Status — BUILT (Phase 42: phone verification, invoice quick-add, welcome) (2026-11-20)
+Branch `verify-welcome-invoice`. Server migration **022**. Server 215/215, app 140/140. **Not deployed, not device-tested.**
+- **Phone verification.** New accounts start unverified (`users.phone_verified_at` NULL); every account
+  older than 022 is backfilled as verified. Watcher → «إرسال رمز التحقق» on the card (or «المزيد» →
+  «رمز التحقق») → `POST /admin/users/:id/verification-code` → server makes a 6-digit code
+  (`crypto.randomInt`), stores only `sha256(userId:code)`, 10 min, 5 wrong tries spend it
+  (`server/src/account/phoneVerification.ts`). The Watcher shows it ONCE (`VerificationModal`) and opens
+  WhatsApp / SMS on the developer's phone pre-filled (wording approved 2026-11-20, `watcher/src/lib/verification.ts`;
+  the Watcher got its own trimmed `OutboundPlugin.java` + `<queries>`). The user types it: Home banner /
+  Settings «الحساب» → `VerifyPhoneModal` → `POST /account/verify-phone`. Live events: `registered` +
+  `verified` → Watcher toast + reload.
+- **Only server sync waits for it** (owner's choice): the book works as before. `status: active` (either
+  app) → **409 'phone not verified'**, checked before the authenticator code. «تفعيل مباشر» (`direct`)
+  skips it — the Play app ≤2.2 has no code screen. Activate/suspend = the existing card buttons.
+- **«+ صنف جديد» inside the invoice** (`QuickAddItem`): header «+», or «إضافة «…» كصنف» when a search
+  finds nothing. Saves to the price list and adds qty 1; the basket stays. Currency locked to the
+  invoice's once it has lines.
+- **Welcome on Home** (`WelcomeCard`, `data/welcome.ts`): always on, nothing to set (owner, 2026-11-20):
+  badge with the initial + «صباح/مساء الخير، <name> 👋» + store-name pill. CSS class `.greet` — NOT
+  `.welcome`, which is the sign-in page (the clash broke that page once).
+- **Account activation, separate from sync (migration 023, owner's choice B):** `users.activated_at` —
+  the developer approves the account (`POST /admin/users/:id/activation {active, code}`, needs a verified
+  number; off also stops sync in both apps + resets consent). New accounts start NULL; all older ones were
+  backfilled. Order to sync: verified (022) → activated (023) → user's yes → sync on; `status: active`
+  answers 409 'phone not verified' / 'account not activated'. «تفعيل مباشر» skips all and stamps activation.
+  `/me` + `/admin/users` carry `activated`.
+- **Watcher card:** icons — ✓ green «مفعّل» / grey ○ «غير مفعّل» / ⦸ red «موقوف» / amber shield =
+  unverified. Filters + counts the same three. Main button: «تفعيل» (code first if unverified) · «مفعّل»
+  (tap = suspend) · «موقوف · سماح». «المزيد»: sync row (refused until activated), «إلغاء التفعيل»,
+  «إيقاف الحساب» for a not-activated one.
+  The code goes by SMS in the SAME full wording as WhatsApp (owner found the short SMS too terse).
+- **Shop logo (migration 024):** `users.brand_logo` (small data URL) + `brand_logo_at`. Watcher «المزيد» →
+  «شعار المتجر» (`LogoModal`: pick → shrunk to ≤256 px JPEG in the Watcher → preview → code) →
+  `POST /admin/users/:id/logo {logo|null, code}` (PNG/JPEG/WebP data URL ≤300 KB). `/me` carries only
+  `brand_logo_at`; the app fetches `GET /account/logo` when it changes and caches it in localStorage
+  (`src/lib/brandLogo.ts`, cleared on sign-out). Home's `WelcomeCard` shows it instead of the letter.
+  First use: «أضواء العالم» for 771436613 (cropped file `~/Downloads/logo-adwaa-alalam.png`).
+- **Intro picture after sign-in (migration 025):** `users.brand_intro` + `brand_intro_at`, a second
+  slot («صورة الترحيب», ≤720 px, ≤800 KB) on the same endpoint with `kind: 'intro'`
+  (`GET /account/logo?kind=intro`). `BrandIntro` plays it full-screen ONCE after `login()` (a
+  sessionStorage mark, valid 8 s while the picture downloads; no intro picture → plays the logo; a picture BUILT INTO the app per phone wins (`FIXED_INTROS` in `src/config.ts`, assets in `public/brand/`; 771436613 = أضواء العالم); exactly 3 s on screen counted from when it appears (fade 2.6→3.0 s); waits for the fingerprint lock to lift (accounts without the lock: right after sign-in). A fixed-intro account already signed in at update time sees it ONCE on the first open (`daftar.fixed-intro-seen`, per phone) (it once played hidden behind it, `lib/gateState.ts`); never on app restart — owner: it would
+  waste time): grows in + pulse, light sweep, greeting rises, fades out by 2.5 s; tap skips. Approved from
+  the artifact preview 2026-11-20 with the shop's WHOLE card; the small logo stays beside the greeting.
+- **Watcher:** tap a status icon → a toast with its name.
+- ⚠️ **MIGRATIONS 022–025 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+  `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
+- Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).

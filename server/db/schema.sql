@@ -31,6 +31,15 @@ CREATE TABLE IF NOT EXISTS users (
   pos_report_enabled       TINYINT(1)      NOT NULL DEFAULT 0,       -- تقرير الموظفين لصاحب المتجر: يفعّله المطوّر (018)
   pos_manager_pin          VARCHAR(160)    NULL,                     -- «رمز المدير» للتراجع عن بيع: s1:salt:sha256 (020)
   multi_device             TINYINT(1)      NOT NULL DEFAULT 0,       -- «عدة أجهزة»: كل حركة تحمل اسم من سجّلها (021)
+  phone_verified_at        DATETIME        NULL,                     -- تحقق رقم الهاتف برمز يرسله المطوّر (022)
+  verify_code_hash         CHAR(64)        NULL,                     -- sha256 للرمز الحالي، لا يُحفظ الرمز نفسه
+  verify_code_expires_at   DATETIME        NULL,
+  verify_attempts          TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  activated_at             DATETIME        NULL,                     -- «مفعّل»: وافق عليه المطوّر، منفصل عن المزامنة (023)
+  brand_logo               MEDIUMTEXT      NULL,                     -- شعار المتجر (data URL صغير) يضعه المطوّر (024)
+  brand_logo_at            DATETIME(3)     NULL,
+  brand_intro              MEDIUMTEXT      NULL,                     -- صورة الترحيب بعد الدخول (025)
+  brand_intro_at           DATETIME(3)     NULL,
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,

@@ -1,3 +1,5 @@
+import { syncBrandLogo, clearBrandLogo, markIntroPending } from './brandLogo';
+
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
@@ -9,6 +11,21 @@ import {
 import { ensureLocalOwner } from '../data/owner';
 import { isOwnerPhone } from '../config';
 import { openLive } from './live';
+
+/** Resolve when `p` does, or after `ms` — whichever is first. Never rejects. */
+function withTimeout(p: Promise<unknown>, ms: number): Promise<void> {
+  return Promise.race([p.then(() => undefined, () => undefined), new Promise<void>((r) => setTimeout(r, ms))]);
+}
+
+/** The account's pictures (logo + intro), straight after sign-in. */
+async function prefetchBrand(): Promise<void> {
+  const res = await api.me();
+  await Promise.all([
+    syncBrandLogo(res.user.brand_logo_at, 'logo'),
+    syncBrandLogo(res.user.brand_intro_at, 'intro'),
+  ]);
+}
+
 
 /** Fired when the Watcher sends a sync request (SyncConsentPrompt listens). */
 export const SYNC_REQUEST_EVENT = 'daftar:sync-request';
@@ -46,6 +63,11 @@ interface AuthState {
   /** The shopkeeper's answer to the server-sync request (owner only; null
    *  until the server has said). 'pending' = ask him. */
   syncConsent: 'none' | 'pending' | 'approved' | 'rejected' | null;
+  /** The number was confirmed with a code. Null = not known yet (offline, or
+   *  an older server) — show nothing rather than a wrong prompt. */
+  phoneVerified: boolean | null;
+  /** Send the code the developer gave; true once the server confirmed it. */
+  verifyPhone: (code: string) => Promise<void>;
   /** Record his answer on the server; resolves once it is stored there. */
   answerSyncConsent: (approve: boolean) => Promise<void>;
   /** Re-read what this account may do (pull-to-refresh calls it). */
@@ -71,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [staff, setStaffState] = useState<StoredStaff | null>(getStaff);
   const [posNotesAllowed, setPosNotesAllowedState] = useState<boolean>(getPosNotesAllowed);
   const [syncConsent, setSyncConsent] = useState<AuthState['syncConsent']>(null);
+  const [phoneVerified, setPhoneVerified] = useState<boolean | null>(null);
   const rememberNotes = (on: boolean) => {
     setPosNotesAllowed(on);
     setPosNotesAllowedState(on);
@@ -89,6 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Wipe any previous grocer's local data on a user switch BEFORE we flip to
     // authenticated, so AutoSync pulls the new user into a clean store.
     await ensureLocalOwner(res.user.id);
+    // The shop's intro picture, if it has one, must be on the phone BEFORE the
+    // book opens — fetched first, so the intro covers the screen instead of
+    // appearing over a Home already shown (owner, 2026-11-20). Capped: a slow
+    // link opens the book anyway, without the intro.
+    await withTimeout(prefetchBrand(), 5000);
+    markIntroPending();
     setAuthed(true);
   }, []);
 
@@ -132,6 +161,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStaffState(null);
     setPosNotesAllowedState(false);
     setSyncConsent(null);
+    setPhoneVerified(null);
+    clearBrandLogo();
     setUser(null);
     setAuthed(false);
   }, []);
@@ -178,6 +209,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMultiDeviceState(res.user.multi_device === true);
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
+      setPhoneVerified(typeof res.user.phone_verified === 'boolean' ? res.user.phone_verified : null);
+      void syncBrandLogo(res.user.brand_logo_at, 'logo');
+      void syncBrandLogo(res.user.brand_intro_at, 'intro');
     } catch { /* offline: the last answer stands */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);
@@ -206,6 +240,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(minute); };
   }, [authed, refreshAccess]);
 
+  const verifyPhone = useCallback(async (code: string) => {
+    await api.verifyPhone(code);
+    setPhoneVerified(true);
+  }, []);
+
   const answerSyncConsent = useCallback(async (approve: boolean) => {
     const res = await api.answerSyncConsent(approve);
     setSyncConsent(res.sync_consent as AuthState['syncConsent']);
@@ -225,7 +264,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         staff: authed ? staff : null,
         posNotesAllowed: authed && posNotesAllowed,
         syncConsent: authed && !staff ? syncConsent : null,
-        answerSyncConsent, refreshAccess,
+        phoneVerified: authed && !staff ? phoneVerified : null,
+        verifyPhone, answerSyncConsent, refreshAccess,
         login, staffLogin, register, logout,
       }}
     >

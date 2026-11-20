@@ -10,8 +10,9 @@ import {
 } from '@ionic/react';
 import {
   addCircle, removeCircle, printOutline, trashOutline, bookmarksOutline,
-  bookmarkOutline, closeCircleOutline,
+  bookmarkOutline, closeCircleOutline, addOutline,
 } from 'ionicons/icons';
+import QuickAddItem from '../components/QuickAddItem';
 import { getCustomer, type Customer } from '../data/customers';
 import { listItems, type Item } from '../data/items';
 import {
@@ -121,6 +122,7 @@ const Invoice: React.FC = () => {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [step, setStep] = useState<'review' | 'confirm'>('review');
   const [groupsOpen, setGroupsOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [c, list, savedGroups, currentRates] = await Promise.all([
@@ -418,6 +420,17 @@ const Invoice: React.FC = () => {
     }
   };
 
+  // «+ صنف جديد»: the new item joins the price list AND the basket (qty 1);
+  // everything already picked stays where it was.
+  const onItemAdded = (item: Item) => {
+    setQuickAddOpen(false);
+    setItems((list) => [...list, item].sort((a, b) => a.name.localeCompare(b.name, 'ar')));
+    setQty((q) => ({ ...q, [item.id]: (q[item.id] ?? 0) + 1 }));
+    setSearch('');
+    void runSync();
+    void presentToast({ message: `أُضيف «${item.name}» إلى الفاتورة`, duration: 1600, color: 'success' });
+  };
+
   const openReview = () => {
     setStep('review');
     setReviewOpen(true);
@@ -436,6 +449,9 @@ const Invoice: React.FC = () => {
           </IonButtons>
           <IonTitle>فاتورة {customer?.name ?? ''}</IonTitle>
           <IonButtons slot="end">
+            <IonButton onClick={() => setQuickAddOpen(true)} aria-label="صنف جديد">
+              <IonIcon slot="icon-only" icon={addOutline} />
+            </IonButton>
             <IonButton onClick={() => setGroupsOpen(true)} aria-label="المجموعات">
               <IonIcon slot="icon-only" icon={bookmarksOutline} />
             </IonButton>
@@ -474,15 +490,20 @@ const Invoice: React.FC = () => {
               لا توجد أصناف مسجّلة لهذه الجهة.
             </p>
             <div className="ion-padding">
-              <IonButton expand="block" fill="outline" routerLink={`/customers/${customerId}/items`}>
-                إضافة الأصناف
+              <IonButton expand="block" onClick={() => setQuickAddOpen(true)}>
+                <IonIcon slot="start" icon={addOutline} />
+                صنف جديد
               </IonButton>
             </div>
           </IonText>
         ) : visible.length === 0 ? (
-          <IonText color="medium">
-            <p className="ion-text-center ion-padding">الصنف غير مسجل</p>
-          </IonText>
+          <div className="quick-add__empty">
+            <IonText color="medium"><p>الصنف غير مسجل</p></IonText>
+            <IonButton onClick={() => setQuickAddOpen(true)}>
+              <IonIcon slot="start" icon={addOutline} />
+              إضافة «{search.trim()}» كصنف
+            </IonButton>
+          </div>
         ) : (
           <>
           <IonList>
@@ -500,6 +521,16 @@ const Invoice: React.FC = () => {
         )}
 
         <IonLoading isOpen={busy !== null} message={busy ?? ''} />
+
+        <QuickAddItem
+          open={quickAddOpen}
+          customerId={customerId}
+          initialName={search}
+          lockedCurrency={lines.length > 0 ? invoiceCurrency : null}
+          defaultCurrency={BASE_CURRENCY}
+          onClose={() => setQuickAddOpen(false)}
+          onAdded={onItemAdded}
+        />
 
         {/* ---- Review, then confirm ---- */}
         <IonModal isOpen={reviewOpen} onDidDismiss={() => setReviewOpen(false)}>

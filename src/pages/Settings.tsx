@@ -6,7 +6,7 @@ import {
   useIonToast, useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { checkmarkCircle, phonePortraitOutline } from 'ionicons/icons';
+import { checkmarkCircle, phonePortraitOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import {
   getSettings, saveSettings, messageSender, type Settings as AppSettings,
 } from '../data/settings';
@@ -44,6 +44,7 @@ import {
   BiometricCancelled,
 } from '../lib/biometric';
 import { FLAVOR } from '../flavors';
+import { openVerifyPhone } from '../components/VerifyPhone';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -69,7 +70,7 @@ const Settings: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
   const [version, setVersion] = useState<string | null>(null);
-  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice } = useAuth();
+  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice, phoneVerified } = useAuth();
   // «عدة أجهزة»: who uses THIS phone («أحمد · 727»), shown + editable here.
   const [deviceUser, setDeviceUserLabel] = useState<string | null>(null);
   useEffect(() => {
@@ -568,6 +569,20 @@ const Settings: React.FC = () => {
                   إشعار الجهات (SMS وواتساب)
                 </IonToggle>
               </IonItem>
+              {phoneVerified === false && (
+                <IonItem button detail onClick={openVerifyPhone}>
+                  <IonIcon icon={shieldCheckmarkOutline} slot="start" color="warning" aria-hidden="true" />
+                  <IonLabel>تأكيد رقم الهاتف</IonLabel>
+                  <IonNote slot="end" color="warning">غير متحقق</IonNote>
+                </IonItem>
+              )}
+              {phoneVerified === true && (
+                <IonItem>
+                  <IonIcon icon={shieldCheckmarkOutline} slot="start" color="success" aria-hidden="true" />
+                  <IonLabel>رقم الهاتف</IonLabel>
+                  <IonNote slot="end" color="success">متحقق ✓</IonNote>
+                </IonItem>
+              )}
               {multiDevice && (
                 <IonItem button detail onClick={() => window.dispatchEvent(new Event(EDIT_DEVICE_USER_EVENT))}>
                   <IonIcon icon={phonePortraitOutline} slot="start" aria-hidden="true" />

@@ -22,10 +22,9 @@ export const SUPPORT_EMAIL = 'q.fives.app@gmail.com';
 /**
  * Shown in Settings to an account without server sync.
  *
- * Written in both languages on purpose: the owner reads the Arabic, and a Play
- * reviewer who does not read Arabic must still see what it says. It names no
+ * Short (owner, 2026-11-20). Both languages on purpose: a Play reviewer who
+ * does not read Arabic must still see what it says. It names no
  * price, no currency, no plan and no term, and does not use the word اشتراك.
  */
 export const INACTIVE_MESSAGE =
-  `دفترك محفوظ على هذا الجهاز. المزامنة مع الخادم غير مفعّلة لحسابك — لتفعيلها تواصل معنا:\n${SUPPORT_EMAIL}\n\n` +
-  `Your book is saved on this phone. Server sync is not enabled for your account — to enable it, contact us:\n${SUPPORT_EMAIL}`;
+  'المزامنة غير مفعّلة · دفترك محفوظ على جهازك\nSync is off · your book is saved on this phone';

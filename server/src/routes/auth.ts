@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { normalizePhone } from '../auth/phone';
+import { publish } from '../live/hub';
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.post(
       [id, normPhone, passwordHash, store_name ?? null, now, now]
     );
 
+    publish('admin', 'registered', { id }); // the Watcher shows the new account at once
     const token = signToken(id);
     return res.status(201).json({
       token,

@@ -4,27 +4,34 @@ import {
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
   IonSpinner, IonModal, IonList, IonListHeader, IonItem, IonNote, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
-import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
+import {
+  logOutOutline, refreshOutline, ellipsisVertical, checkmarkCircle, banOutline, shieldOutline, ellipseOutline,
+} from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
-  deleteAccount, setStoreName, setPassword,
+  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation, setLogo,
 } from '../lib/api';
+import VerificationModal from '../components/VerificationModal';
+import LogoModal, { type BrandKind } from '../components/LogoModal';
 import FeatureIcons from '../components/FeatureIcons';
 import { openLive } from '../lib/live';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
 import { useAdminCode } from '../lib/useAdminCode';
 
-type Filter = 'all' | 'allowed' | 'suspended' | 'sync';
+type Filter = 'all' | 'active' | 'inactive' | 'suspended';
 
-// What the owner sees first: may this account USE the app? Only 'suspended'
-// says no. Server sync is a separate permission (in «المزيد»).
-const STATUS_AR: Record<Status, string> = {
-  none: 'مفعّل',
-  active: 'مفعّل',
-  expired: 'مفعّل',
-  suspended: 'موقوف',
-};
+// What the owner sees first, and what the card's main button does:
+//   activated = he approved the account (verified number first) — 023
+//   inactive  = new, not approved yet (the app still works on its phone)
+//   suspended = locked out of the app
+// Server sync is separate (in «المزيد») and needs «activated».
+type CardState = 'activated' | 'inactive' | 'suspended';
+const CARD_AR: Record<CardState, string> = { activated: 'مفعّل', inactive: 'غير مفعّل', suspended: 'موقوف' };
+function cardState(a: Account): CardState {
+  if (a.subscription_status === 'suspended') return 'suspended';
+  return a.activated === false ? 'inactive' : 'activated';
+}
 
 // 'active' with a past expiry date is refused by the server — show it as
 // what it is, not as what the column says.
@@ -51,6 +58,8 @@ function day(iso: string | null): string {
 /** The server's refusals the owner can act on, in Arabic. */
 function arabicAdminError(err: ApiError): string {
   if (err.message.includes('not agreed')) return 'لم يوافق المستخدم على المزامنة بعد. أرسل له طلباً.';
+  if (err.message.includes('not verified')) return '🛡️ الرقم غير متحقق';
+  if (err.message.includes('not activated')) return 'فعّل الحساب أولاً';
   return err.message;
 }
 
@@ -88,6 +97,10 @@ const Accounts: React.FC = () => {
   const [presentToast] = useIonToast();
   const router = useIonRouter();
   const { ask, modal } = useAdminCode();
+  // The code just issued, shown once in VerificationModal.
+  const [issued, setIssued] = useState<(VerificationCode & { name: string; id: string }) | null>(null);
+  // The account whose logo sheet is open.
+  const [logoFor, setLogoFor] = useState<{ id: string; name: string; hasLogo: boolean; kind: BrandKind } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -103,9 +116,20 @@ const Accounts: React.FC = () => {
   // A user's answer to a sync request arrives at once on the live line.
   const accountsRef = useRef<Account[] | null>(null);
   accountsRef.current = accounts;
-  useEffect(() => openLive((_event, data) => {
+  useEffect(() => openLive((event, data) => {
     const who = accountsRef.current?.find((x) => x.id === data.id);
     const name = who ? (who.store_name || who.phone) : '';
+    if (event === 'registered') {
+      void presentToast({ message: '🆕 حساب جديد — بانتظار التحقق', duration: 2500, position: 'top', color: 'primary' });
+      void load();
+      return;
+    }
+    if (event === 'verified') {
+      void presentToast({ message: `✓ ${name} تحقق من رقمه`, duration: 2500, position: 'top', color: 'success' });
+      setIssued((cur) => (cur && cur.id === data.id ? null : cur)); // its job is done
+      void load();
+      return;
+    }
     const yes = data.sync_consent === 'approved';
     void presentToast({
       message: `${yes ? '✓' : '✕'} ${name} ${yes ? 'وافق على المزامنة' : 'رفض المزامنة'}`,
@@ -115,12 +139,13 @@ const Accounts: React.FC = () => {
   }), [load, presentToast]);
 
   const counts = useMemo(() => {
-    const c = { all: 0, allowed: 0, suspended: 0, sync: 0 };
+    const c = { all: 0, active: 0, inactive: 0, suspended: 0 };
     for (const a of accounts ?? []) {
       c.all++;
-      const s = effectiveStatus(a);
-      if (s === 'suspended') c.suspended++; else c.allowed++;
-      if (s === 'active') c.sync++;
+      const s = cardState(a);
+      if (s === 'suspended') c.suspended++;
+      else if (s === 'activated') c.active++;
+      else c.inactive++;
     }
     return c;
   }, [accounts]);
@@ -129,10 +154,10 @@ const Accounts: React.FC = () => {
     const q = query.trim().toLowerCase();
     const qDigits = digitsOnly(q);
     return (accounts ?? []).filter((a) => {
-      const s = effectiveStatus(a);
-      if (filter === 'allowed' && s === 'suspended') return false;
+      const s = cardState(a);
+      if (filter === 'active' && s !== 'activated') return false;
+      if (filter === 'inactive' && s !== 'inactive') return false;
       if (filter === 'suspended' && s !== 'suspended') return false;
-      if (filter === 'sync' && s !== 'active') return false;
       if (!q) return true;
       return (
         (a.store_name ?? '').toLowerCase().includes(q) ||
@@ -597,8 +622,100 @@ const Accounts: React.FC = () => {
       ],
     });
   };
-  /** The sync row's action when sync is OFF: ask first, switch on once agreed. */
-  const syncOn = (a: Account) => (a.sync_consent === 'approved' ? change(a, 'active') : sendRequest(a));
+  // Phone verification: a fresh code, shown once, sent from this phone.
+  const sendCode = async (a: Account) => {
+    setBusyId(a.id);
+    try {
+      const code = await issueVerificationCode(a.id);
+      setIssued({ ...code, id: a.id, name: a.store_name || 'بدون اسم' });
+    } catch (err) {
+      void presentToast({ message: err instanceof ApiError ? err.message : 'تعذّر إنشاء الرمز', duration: 2500, color: 'danger' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** The sync row's action when sync is OFF: verify the number, ask, then switch on. */
+  const syncOn = (a: Account) => {
+    if (a.phone_verified === false) {
+      void presentToast({ message: '🛡️ أرسل رمز التحقق أولاً', duration: 1800, color: 'warning' });
+      void sendCode(a);
+      return;
+    }
+    if (a.activated === false) {
+      void presentToast({ message: 'فعّل الحساب أولاً', duration: 1800, color: 'warning' });
+      return;
+    }
+    if (a.sync_consent === 'approved') change(a, 'active'); else sendRequest(a);
+  };
+
+  // «شعار المتجر»: the sheet picks + previews; saving needs a fresh code.
+  const saveLogo = (logo: string | null) => {
+    const target = logoFor;
+    setLogoFor(null);
+    if (!target) return;
+    setTimeout(() => {
+      const what = target.kind === 'intro' ? 'صورة الترحيب' : 'الشعار';
+      void ask(logo ? `حفظ ${what}` : `إزالة ${what}`).then(async (code) => {
+        if (!code) return;
+        setBusyId(target.id);
+        try {
+          await setLogo(target.id, logo, code, target.kind);
+          void presentToast({ message: logo ? `تم حفظ ${what} ✓` : `أُزيل ${what}`, duration: 1800, color: 'success' });
+          await load();
+        } catch (err) {
+          void presentToast({ message: err instanceof ApiError ? err.message : 'تعذّر الحفظ', duration: 2500, color: 'danger' });
+        } finally {
+          setBusyId(null);
+        }
+      });
+    }, 350);
+  };
+
+  /** Tap a status icon → its name, since icons alone can be ambiguous. */
+  const sayIcon = (text: string) =>
+    void presentToast({ message: text, duration: 1400, position: 'top', color: 'dark' });
+
+  // «تفعيل» — approve the account (023). Server sync stays a separate switch.
+  const doActivation = async (a: Account, active: boolean, code: string) => {
+    setBusyId(a.id);
+    try {
+      await setActivation(a.id, active, code);
+      void presentToast({ message: active ? 'تم التفعيل ✓' : 'أُلغي التفعيل', duration: 1800, color: active ? 'success' : 'medium' });
+      await load();
+    } catch (err) {
+      void presentToast({ message: err instanceof ApiError ? arabicAdminError(err) : 'تعذّر التنفيذ', duration: 2500, color: 'danger' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const activate = (a: Account) => {
+    if (a.phone_verified === false) { void sendCode(a); return; } // the number first
+    presentAlert({
+      header: 'تفعيل الحساب',
+      message: `تفعيل «${a.store_name || a.phone}»؟`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'تفعيل', role: 'confirm',
+          handler: () => { setTimeout(() => { void ask('تفعيل الحساب').then((c) => { if (c) void doActivation(a, true, c); }); }, 350); },
+        },
+      ],
+    });
+  };
+  const deactivate = (a: Account) => {
+    presentAlert({
+      header: 'إلغاء التفعيل',
+      message: `إلغاء تفعيل «${a.store_name || a.phone}»؟ تتوقف المزامنة.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'إلغاء التفعيل', role: 'destructive',
+          handler: () => { setTimeout(() => { void ask('إلغاء التفعيل').then((c) => { if (c) void doActivation(a, false, c); }); }, 350); },
+        },
+      ],
+    });
+  };
 
   // «تفعيل مباشر»: no request — for users on the old Play app, which cannot answer one.
   const directOn = (a: Account) => {
@@ -736,10 +853,34 @@ const Accounts: React.FC = () => {
             )}
 
             <IonListHeader><IonLabel>الحساب</IonLabel></IonListHeader>
+            <IonItem button detail onClick={() => pick((a) => void sendCode(a))}>
+              <IonLabel>رمز التحقق</IonLabel>
+              <IonNote slot="end" color={managed.phone_verified === false ? 'warning' : 'success'}>
+                {managed.phone_verified === false ? 'غير متحقق' : 'متحقق ✓'}
+              </IonNote>
+            </IonItem>
+            <IonItem button detail onClick={() => pick((a) => setLogoFor({ id: a.id, name: a.store_name || a.phone, hasLogo: a.has_logo === true, kind: 'logo' }))}>
+              <IonLabel>شعار المتجر</IonLabel>
+              <IonNote slot="end">{managed.has_logo ? 'موجود' : 'لا يوجد'}</IonNote>
+            </IonItem>
+            <IonItem button detail onClick={() => pick((a) => setLogoFor({ id: a.id, name: a.store_name || a.phone, hasLogo: a.has_intro === true, kind: 'intro' }))}>
+              <IonLabel>صورة الترحيب</IonLabel>
+              <IonNote slot="end">{managed.has_intro ? 'موجودة' : 'لا توجد'}</IonNote>
+            </IonItem>
             <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
             <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>
 
             <IonListHeader><IonLabel>منطقة الخطر</IonLabel></IonListHeader>
+            {cardState(managed) === 'activated' && (
+              <IonItem button detail={false} onClick={() => pick(deactivate)}>
+                <IonLabel color="danger">إلغاء التفعيل</IonLabel>
+              </IonItem>
+            )}
+            {cardState(managed) === 'inactive' && (
+              <IonItem button detail={false} onClick={() => pick((a) => change(a, 'suspended'))}>
+                <IonLabel color="danger">إيقاف الحساب</IonLabel>
+              </IonItem>
+            )}
             <IonItem button detail={false} onClick={() => pick(remove)}>
               <IonLabel color="danger">حذف الحساب نهائياً</IonLabel>
             </IonItem>
@@ -766,9 +907,9 @@ const Accounts: React.FC = () => {
         <IonToolbar>
           <IonSegment value={filter} onIonChange={(e) => setFilter(e.detail.value as Filter)}>
             <IonSegmentButton value="all"><IonLabel>الكل</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="allowed"><IonLabel>مفعّل</IonLabel></IonSegmentButton>
+            <IonSegmentButton value="active"><IonLabel>مفعّل</IonLabel></IonSegmentButton>
+            <IonSegmentButton value="inactive"><IonLabel>غير مفعّل</IonLabel></IonSegmentButton>
             <IonSegmentButton value="suspended"><IonLabel>موقوف</IonLabel></IonSegmentButton>
-            <IonSegmentButton value="sync"><IonLabel>بمزامنة</IonLabel></IonSegmentButton>
           </IonSegment>
         </IonToolbar>
       </IonHeader>
@@ -779,9 +920,9 @@ const Accounts: React.FC = () => {
 
         <div className="summary">
           <div className="summary__chip"><div className="summary__num">{counts.all}</div><div className="summary__label">كل الحسابات</div></div>
-          <div className="summary__chip"><div className="summary__num">{counts.allowed}</div><div className="summary__label">مفعّل</div></div>
+          <div className="summary__chip"><div className="summary__num">{counts.active}</div><div className="summary__label">مفعّل</div></div>
+          <div className="summary__chip"><div className="summary__num">{counts.inactive}</div><div className="summary__label">غير مفعّل</div></div>
           <div className="summary__chip"><div className="summary__num">{counts.suspended}</div><div className="summary__label">موقوف</div></div>
-          <div className="summary__chip"><div className="summary__num">{counts.sync}</div><div className="summary__label">بمزامنة</div></div>
         </div>
 
         <IonSearchbar
@@ -795,7 +936,7 @@ const Accounts: React.FC = () => {
         {accounts && shown.length === 0 && <div className="empty">لا توجد حسابات</div>}
 
         {shown.map((a) => {
-          const s = effectiveStatus(a);
+          const s = cardState(a);
           return (
             <div key={a.id} className="acct">
               <div className="acct__top">
@@ -805,7 +946,19 @@ const Accounts: React.FC = () => {
                   <div className="acct__phone">{a.phone}</div>
                 </div>
                 <div className="acct__badges">
-                  <span className={`badge badge--${s === 'suspended' ? 'suspended' : 'active'}`}>{STATUS_AR[s]}</span>
+                  {/* Icons, not words: allowed ✓ / suspended ⦸, and a shield while the number is unverified. */}
+                  <IonIcon
+                    className={`status-ic status-ic--${s === 'activated' ? 'active' : s}`}
+                    icon={s === 'suspended' ? banOutline : s === 'activated' ? checkmarkCircle : ellipseOutline}
+                    aria-label={CARD_AR[s]} title={CARD_AR[s]} role="button"
+                    onClick={() => sayIcon(CARD_AR[s])}
+                  />
+                  {a.phone_verified === false && (
+                    <IonIcon
+                      className="status-ic status-ic--unverified" icon={shieldOutline} aria-label="غير متحقق" title="غير متحقق"
+                      role="button" onClick={() => sayIcon('الرقم غير متحقق')}
+                    />
+                  )}
                 </div>
               </div>
               {s !== 'suspended' && <FeatureIcons account={a} />}
@@ -819,16 +972,18 @@ const Accounts: React.FC = () => {
                 <IonButton size="small" fill="outline" onClick={() => router.push(`/accounts/${a.id}`)}>
                   فتح الدفتر
                 </IonButton>
-                {/* The one switch that matters most: may this account use the app? */}
-                <IonButton
-                  size="small"
-                  fill={s === 'suspended' ? 'outline' : 'solid'}
-                  color={s === 'suspended' ? 'danger' : 'primary'}
-                  disabled={busyId === a.id}
-                  onClick={() => (s === 'suspended' ? allowUse(a) : change(a, 'suspended'))}
-                >
-                  {s === 'suspended' ? 'موقوف · تفعيل' : 'مفعّل'}
-                </IonButton>
+                {/* The one switch that matters most. Not activated → «تفعيل» (code first
+                    if the number is unverified); activated → tap to suspend;
+                    suspended → tap to allow again. Sync is in «المزيد». */}
+                {s === 'activated' ? (
+                  <IonButton size="small" disabled={busyId === a.id} onClick={() => change(a, 'suspended')}>مفعّل</IonButton>
+                ) : s === 'suspended' ? (
+                  <IonButton size="small" fill="outline" color="danger" disabled={busyId === a.id} onClick={() => allowUse(a)}>
+                    موقوف · سماح
+                  </IonButton>
+                ) : (
+                  <IonButton size="small" color="warning" disabled={busyId === a.id} onClick={() => activate(a)}>تفعيل</IonButton>
+                )}
                 <IonButton size="small" fill="outline" onClick={() => setManageId(a.id)}>
                   <IonIcon slot="start" icon={ellipsisVertical} />
                   المزيد
@@ -840,6 +995,15 @@ const Accounts: React.FC = () => {
       </IonContent>
       {manageSheet}
       {modal}
+      <LogoModal account={logoFor} onClose={() => setLogoFor(null)} onSave={saveLogo} />
+      <VerificationModal
+        issued={issued}
+        onClose={() => setIssued(null)}
+        onNewCode={() => {
+          const a = accounts?.find((x) => x.id === issued?.id);
+          if (a) void sendCode(a);
+        }}
+      />
     </IonPage>
   );
 };

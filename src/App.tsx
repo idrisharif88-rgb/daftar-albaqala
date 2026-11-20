@@ -19,6 +19,8 @@ import StaffAccountPage from './features/pos/StaffAccountPage';
 import NotesPage from './features/pos/NotesPage';
 import SyncConsentPrompt from './components/SyncConsentPrompt';
 import DeviceUserPrompt from './components/DeviceUserPrompt';
+import { VerifyPhoneModal } from './components/VerifyPhone';
+import BrandIntro from './components/BrandIntro';
 import { firstPosTab, usePosTabs } from './features/pos/PosFooter';
 import Invoice from './pages/Invoice';
 import Settings from './pages/Settings';
@@ -291,6 +293,8 @@ const App: React.FC = () => (
         <Routes />
         <SyncConsentPrompt />
         <DeviceUserPrompt />
+        <VerifyPhoneModal />
+        <BrandIntro />
         <BiometricGate />
         <SplashIntro />
       </AuthProvider>

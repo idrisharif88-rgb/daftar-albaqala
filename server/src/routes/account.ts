@@ -4,6 +4,8 @@ import { AuthedRequest } from '../middleware/auth';
 import { eraseAccount } from '../account/erase';
 import { publish } from '../live/hub';
 import { pool } from '../db';
+import { verifyCode } from '../account/phoneVerification';
+import { brandKind, BRAND_COLUMNS } from '../account/brandLogo';
 
 const router = Router();
 
@@ -59,6 +61,50 @@ router.post(
     }
     publish('admin', 'consent', { id: req.userId, sync_consent: consent }); // the Watcher sees the answer at once
     return res.json({ sync_consent: consent });
+  })
+);
+
+// GET /account/logo?kind=logo|intro → { logo: data URL | null, at }
+// The shop's own pictures (set in the Watcher). /me carries only when each
+// last changed, so the app downloads a picture only when it changed.
+router.get(
+  '/logo',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const kind = brandKind(req.query.kind);
+    if (!kind) return res.status(400).json({ error: "kind must be 'logo' or 'intro'" });
+    const col = BRAND_COLUMNS[kind];
+    const [rows] = await pool.query(`SELECT ${col.data} AS logo, ${col.at} AS at FROM users WHERE id = ?`, [req.userId]);
+    const row = (rows as Array<{ logo: string | null; at: Date | null }>)[0];
+    if (!row) return res.status(404).json({ error: 'user not found' });
+    return res.json({ logo: row.logo, at: row.at });
+  })
+);
+
+// POST /account/verify-phone  { code }
+// The user types the code the developer sent to their number. Behind
+// requireAuth only (not requireSubscription): an unverified account is exactly
+// the one that has no sync yet.
+//   200 { verified: true }                 — done (the Watcher hears at once)
+//   400 { error: 'wrong code', attempts_left }
+//   410 { error: 'code expired' | 'too many attempts' } — ask for a new code
+//   404 { error: 'no code' }               — none was issued
+//   409 { error: 'already verified' }
+router.post(
+  '/verify-phone',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const r = await verifyCode(String(req.userId), req.body?.code);
+    if (r.ok) {
+      publish('admin', 'verified', { id: req.userId });
+      publish(`user:${req.userId}`, 'access');
+      return res.json({ verified: true });
+    }
+    switch (r.reason) {
+      case 'wrong': return res.status(400).json({ error: 'wrong code', attempts_left: r.attempts_left });
+      case 'expired': return res.status(410).json({ error: 'code expired' });
+      case 'locked': return res.status(410).json({ error: 'too many attempts' });
+      case 'already': return res.status(409).json({ error: 'already verified' });
+      default: return res.status(404).json({ error: 'no code' });
+    }
   })
 );
 

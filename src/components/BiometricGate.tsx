@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { setGateLocked } from '../lib/gateState';
 import { IonButton, IonIcon } from '@ionic/react';
 import { fingerPrint, keypadOutline } from 'ionicons/icons';
 import { App as CapacitorApp } from '@capacitor/app';
@@ -85,6 +86,9 @@ const BiometricGate: React.FC = () => {
     if (!isAuthenticated) { setLocked(false); return; }
     if (biometricEnabled()) setLocked(true);
   }, [isAuthenticated]);
+
+  // Tell the rest of the app (the shop intro waits for the lock to lift).
+  useEffect(() => { setGateLocked(locked); }, [locked]);
 
   // As soon as the lock shows, offer the fingerprint sheet over it — the
   // quickest way in. Cancelling it leaves this page with both buttons.

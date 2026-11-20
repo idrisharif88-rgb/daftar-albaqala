@@ -103,6 +103,12 @@ export interface Me {
   /** The shopkeeper's answer to «keep my book on the server?». 'pending' =
    *  the developer switched sync on and the app must ask. */
   sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
+  /** The number was confirmed with the developer's code (022). Absent on an older server. */
+  phone_verified?: boolean;
+  /** When the shop's own logo last changed (024); null = none. Absent on an older server. */
+  brand_logo_at?: string | null;
+  /** When the full-screen intro picture last changed (025); null = none. */
+  brand_intro_at?: string | null;
 }
 
 export function me(): Promise<{ user: Me }> {
@@ -213,6 +219,17 @@ export function updateStaff(id: string, body: {
 }
 
 // ---- Account ----
+
+/** The shop's own logo (a data URL), set by the developer in the Watcher. */
+export function accountLogo(kind: 'logo' | 'intro' = 'logo'): Promise<{ logo: string | null }> {
+  return request(`/account/logo?kind=${kind}`);
+}
+
+/** Confirm this account's number with the code the developer sent.
+ *  Errors: 400 wrong (body.attempts_left), 410 expired / too many, 404 none issued. */
+export function verifyPhone(code: string): Promise<{ verified: boolean }> {
+  return request('/account/verify-phone', { method: 'POST', body: JSON.stringify({ code }) });
+}
 
 /** The shopkeeper's answer to the sync request (or a withdrawal later). */
 export function answerSyncConsent(approve: boolean): Promise<{ sync_consent: string }> {

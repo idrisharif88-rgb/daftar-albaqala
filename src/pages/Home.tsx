@@ -24,6 +24,8 @@ import { FLAVOR } from '../flavors';
 import { GOOGLE_ENABLED } from '../lib/googleDrive';
 import { useDriveBackup } from '../lib/useDriveBackup';
 import { isAccountActive } from '../data/account';
+import WelcomeCard from '../components/WelcomeCard';
+import { VerifyPhoneBanner } from '../components/VerifyPhone';
 
 // A contact plus its locally-computed running balances (one per currency).
 interface Row {
@@ -55,6 +57,7 @@ const Home: React.FC = () => {
   // Store name for the header — read from persisted settings (app_meta), not the
   // in-memory auth user, which is null after an app restart.
   const [storeName, setStoreName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
 
   // add-customer modal state
   const modal = useRef<HTMLIonModalElement>(null);
@@ -79,6 +82,7 @@ const Home: React.FC = () => {
     setServerSync(await isAccountActive());
     setRows(customers.map((c) => ({ customer: c, balances: balancesByCustomer.get(c.id) ?? [] })));
     setStoreName(settings.storeName?.trim() ?? '');
+    setOwnerName(settings.ownerName?.trim() ?? '');
     setRates(currentRates);
     setSyncProblem(needsAttention(health) ? health.status : null);
     setLoading(false);
@@ -236,6 +240,8 @@ const Home: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <VerifyPhoneBanner />
+        {!search && <WelcomeCard name={ownerName} storeName={storeName} />}
         {loading ? (
           <div className="ion-text-center ion-padding">
             <IonSpinner name="crescent" />

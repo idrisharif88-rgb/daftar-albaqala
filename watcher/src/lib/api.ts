@@ -86,6 +86,14 @@ export interface Account {
   pos_notes_enabled?: boolean;
   /** «عدة أجهزة» — one account on several phones; entries say who recorded them. */
   multi_device?: boolean;
+  /** The number was confirmed with a code (every account older than 022 counts as confirmed). */
+  phone_verified?: boolean;
+  /** Approved by the developer (023). Separate from server sync, which needs it. */
+  activated?: boolean;
+  /** The shop has its own logo on Home (024). */
+  has_logo?: boolean;
+  /** …and a full-screen intro picture after sign-in (025). */
+  has_intro?: boolean;
   /** The shop owner may see the report per staff member (the developer always can). */
   pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
@@ -122,6 +130,30 @@ export function setContractorStatus(id: string, active: boolean, code: string): 
 /** A one-time ticket for the live line (GET /events?ticket=…). */
 export function liveTicket(): Promise<{ ticket: string }> {
   return request('/admin/events/ticket', { method: 'POST' });
+}
+
+export interface VerificationCode { code: string; phone: string; expires_at: string }
+/** A fresh 6-digit code for this account (an older one stops working). Shown once. */
+export function issueVerificationCode(id: string): Promise<VerificationCode> {
+  return request(`/admin/users/${encodeURIComponent(id)}/verification-code`, { method: 'POST' });
+}
+
+/** The shop's own logo on Home: a ≤256 px image data URL, or null to remove. */
+export function setLogo(
+  id: string, logo: string | null, code: string, kind: 'logo' | 'intro' = 'logo',
+): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/logo`, {
+    method: 'POST',
+    body: JSON.stringify({ logo, code, kind }),
+  });
+}
+
+/** «تفعيل» / «إلغاء التفعيل» — approve the account. Off also stops server sync. */
+export function setActivation(id: string, active: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/activation`, {
+    method: 'POST',
+    body: JSON.stringify({ active, code }),
+  });
 }
 
 /** Ask the user to agree to server sync (their app shows ✓ / ✗). No code needed. */

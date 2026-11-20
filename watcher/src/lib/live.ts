@@ -22,11 +22,15 @@ export function openLive(onEvent: (event: string, data: Record<string, unknown>)
     try { ticket = (await liveTicket()).ticket; } catch { retry(); return; }
     if (stopped) return;
     source = new EventSource(`${API_BASE}/events?ticket=${encodeURIComponent(ticket)}`);
-    source.addEventListener('consent', (e) => {
-      let data: Record<string, unknown> = {};
-      try { data = JSON.parse((e as MessageEvent).data) as Record<string, unknown>; } catch { /* keep {} */ }
-      onEvent('consent', data);
-    });
+    // consent: an answer to a sync request · verified: a number confirmed its
+    // code · registered: a new account.
+    for (const name of ['consent', 'verified', 'registered']) {
+      source.addEventListener(name, (e) => {
+        let data: Record<string, unknown> = {};
+        try { data = JSON.parse((e as MessageEvent).data) as Record<string, unknown>; } catch { /* keep {} */ }
+        onEvent(name, data);
+      });
+    }
     source.onerror = retry;
   };
   void connect();
