@@ -1640,3 +1640,9 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 215/215, app 1
 - ⚠️ **MIGRATIONS 022–025 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
 - Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).
+
+## Status — RELEASE 2.3 (code 14) for Google Play (2026-11-20)
+- Carries Phase 42 (PR #59): phone verification, account activation separate from sync, invoice
+  quick-add, welcome greeting, shop logo + intro, fixed intro for 771436613. Built with
+  `VITE_POS=1 npm run android:grocery` + `bundleGroceryRelease`, signed with the upload key.
+- Droplet: migrations 022–025 applied; runs `master`.
