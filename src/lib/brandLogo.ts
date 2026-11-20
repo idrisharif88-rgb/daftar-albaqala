@@ -64,11 +64,17 @@ export function useBrandLogo(kind: BrandKind = 'logo'): string | null {
 // lapses quietly — an account without an intro never notices. sessionStorage:
 // an app restart must NOT replay it (owner: every open would waste time).
 const INTRO_PENDING = 'daftar.brand-intro-pending';
-const INTRO_WAIT_MS = 8000;
+// Long enough for the picture to download AND for a fingerprint unlock.
+const INTRO_WAIT_MS = 60_000;
 export function markIntroPending(): void {
   try { sessionStorage.setItem(INTRO_PENDING, String(Date.now())); } catch { /* no intro then */ }
   window.dispatchEvent(new Event(BRAND_LOGO_EVENT)); // BrandIntro looks now, before the book renders
 }
+/** When this sign-in was marked (0 = none). */
+export function introMarkedAt(): number {
+  try { return Number(sessionStorage.getItem(INTRO_PENDING)) || 0; } catch { return 0; }
+}
+
 export function introPending(now = Date.now()): boolean {
   try {
     const at = Number(sessionStorage.getItem(INTRO_PENDING));

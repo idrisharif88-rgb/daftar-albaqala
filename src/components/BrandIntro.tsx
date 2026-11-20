@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { BRAND_LOGO_EVENT, clearIntroPending, introPending, useBrandLogo } from '../lib/brandLogo';
+import { BRAND_LOGO_EVENT, clearIntroPending, introMarkedAt, introPending, useBrandLogo } from '../lib/brandLogo';
 import { getSettings } from '../data/settings';
 import { greeting } from '../data/welcome';
+import { GATE_EVENT, gateUnlockedAt, isGateLocked } from '../lib/gateState';
+import { biometricEnabled } from '../lib/biometric';
 
 // The shop's intro picture (its whole card), full-screen ONCE after sign-in:
 // it grows in with a pulse, a light passes over it, the greeting rises, and
@@ -30,6 +32,9 @@ const BrandIntro: React.FC = () => {
   useEffect(() => {
     const check = () => {
       if (!introPending() || !intro || show) return;
+      // With the fingerprint lock on, sign-in raises it: play only once it has
+      // lifted AFTER this sign-in, or the intro runs hidden behind it.
+      if (isGateLocked() || (biometricEnabled() && gateUnlockedAt() < introMarkedAt())) return;
       clearIntroPending(); // once per sign-in, even if the app is closed mid-way
       void getSettings().then((s) => setName(s.ownerName.trim() || s.storeName.trim()));
       setReady(false);
@@ -37,7 +42,11 @@ const BrandIntro: React.FC = () => {
     };
     check();
     window.addEventListener(BRAND_LOGO_EVENT, check);
-    return () => window.removeEventListener(BRAND_LOGO_EVENT, check);
+    window.addEventListener(GATE_EVENT, check);
+    return () => {
+      window.removeEventListener(BRAND_LOGO_EVENT, check);
+      window.removeEventListener(GATE_EVENT, check);
+    };
   }, [intro, show]);
 
   useEffect(() => {
