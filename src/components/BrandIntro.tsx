@@ -54,11 +54,14 @@ const BrandIntro: React.FC = () => {
     };
   }, [intro, show]);
 
+  // Exactly PLAY_MS on screen, counted from the moment it appears — which is
+  // right after sign-in, or right after the fingerprint unlock when the lock
+  // is on. The CSS fade ends at the same moment (variables.css, 2.6 s + 0.4 s).
   useEffect(() => {
-    if (!show || !ready) return undefined;
+    if (!show) return undefined;
     timer.current = setTimeout(() => setShow(false), PLAY_MS);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [show, ready]);
+  }, [show]);
 
   if (!show || !intro) return null;
   return (

@@ -1633,7 +1633,7 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 215/215, app 1
 - **Intro picture after sign-in (migration 025):** `users.brand_intro` + `brand_intro_at`, a second
   slot («صورة الترحيب», ≤720 px, ≤800 KB) on the same endpoint with `kind: 'intro'`
   (`GET /account/logo?kind=intro`). `BrandIntro` plays it full-screen ONCE after `login()` (a
-  sessionStorage mark, valid 8 s while the picture downloads; no intro picture → plays the logo; a picture BUILT INTO the app per phone wins (`FIXED_INTROS` in `src/config.ts`, assets in `public/brand/`; 771436613 = أضواء العالم, plus 781215102 TEST ONLY — remove before release); 3 s; waits for the fingerprint lock to lift (it once played hidden behind it, `lib/gateState.ts`); never on app restart — owner: it would
+  sessionStorage mark, valid 8 s while the picture downloads; no intro picture → plays the logo; a picture BUILT INTO the app per phone wins (`FIXED_INTROS` in `src/config.ts`, assets in `public/brand/`; 771436613 = أضواء العالم, plus 781215102 TEST ONLY — remove before release); exactly 3 s on screen counted from when it appears (fade 2.6→3.0 s); waits for the fingerprint lock to lift (accounts without the lock: right after sign-in) (it once played hidden behind it, `lib/gateState.ts`); never on app restart — owner: it would
   waste time): grows in + pulse, light sweep, greeting rises, fades out by 2.5 s; tap skips. Approved from
   the artifact preview 2026-11-20 with the shop's WHOLE card; the small logo stays beside the greeting.
 - **Watcher:** tap a status icon → a toast with its name.
