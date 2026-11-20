@@ -6,6 +6,7 @@ import * as api from './api';
 import {
   getToken, setToken, clearToken, getPhone, setPhone, getDriveAllowed, setDriveAllowed,
   getPosAllowed, setPosAllowed, getPosStaffAllowed, setPosStaffAllowed, getStaff, setStaff, getPosNotesAllowed, setPosNotesAllowed, getMultiDevice, setMultiDevice,
+  getAccountType, setAccountType, type AccountType,
   type StoredStaff,
 } from './storage';
 import { ensureLocalOwner } from '../data/owner';
@@ -17,9 +18,10 @@ function withTimeout(p: Promise<unknown>, ms: number): Promise<void> {
   return Promise.race([p.then(() => undefined, () => undefined), new Promise<void>((r) => setTimeout(r, ms))]);
 }
 
-/** The account's pictures (logo + intro), straight after sign-in. */
-async function prefetchBrand(): Promise<void> {
+/** The account's pictures (logo + intro) and its section, straight after sign-in. */
+async function prefetchBrand(onType: (t: AccountType) => void): Promise<void> {
   const res = await api.me();
+  if (res.user.account_type) onType(res.user.account_type === 'club' ? 'club' : 'grocery');
   await Promise.all([
     syncBrandLogo(res.user.brand_logo_at, 'logo'),
     syncBrandLogo(res.user.brand_intro_at, 'intro'),
@@ -55,6 +57,8 @@ interface AuthState {
   posStaffAllowed: boolean;
   /** «عدة أجهزة»: several phones on this account; each asks who uses it. */
   multiDevice: boolean;
+  /** «دفتر النادي» (Phase 43): this account opens the club section, not the grocery book. */
+  isClub: boolean;
   /** Set when a STAFF member is signed in (not the owner): who, and what they
    *  may do. Null for the owner. */
   staff: StoredStaff | null;
@@ -90,6 +94,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [posAllowed, setPosAllowedState] = useState<boolean>(getPosAllowed);
   const [posStaffAllowed, setPosStaffAllowedState] = useState<boolean>(getPosStaffAllowed);
   const [multiDevice, setMultiDeviceState] = useState<boolean>(getMultiDevice);
+  const [accountType, setAccountTypeState] = useState<AccountType>(getAccountType);
+  const rememberType = (t: AccountType) => { setAccountType(t); setAccountTypeState(t); };
   const [staff, setStaffState] = useState<StoredStaff | null>(getStaff);
   const [posNotesAllowed, setPosNotesAllowedState] = useState<boolean>(getPosNotesAllowed);
   const [syncConsent, setSyncConsent] = useState<AuthState['syncConsent']>(null);
@@ -116,7 +122,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // book opens — fetched first, so the intro covers the screen instead of
     // appearing over a Home already shown (owner, 2026-11-20). Capped: a slow
     // link opens the book anyway, without the intro.
-    await withTimeout(prefetchBrand(), 5000);
+    await withTimeout(prefetchBrand(rememberType), 5000);
     markIntroPending();
     setAuthed(true);
   }, []);
@@ -158,6 +164,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPosStaffAllowedState(false);
     setMultiDevice(false);
     setMultiDeviceState(false);
+    setAccountType('grocery');
+    setAccountTypeState('grocery');
     setStaffState(null);
     setPosNotesAllowedState(false);
     setSyncConsent(null);
@@ -207,6 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPosStaffAllowedState(res.user.pos_staff_enabled === true);
       setMultiDevice(res.user.multi_device === true);
       setMultiDeviceState(res.user.multi_device === true);
+      if (res.user.account_type) rememberType(res.user.account_type === 'club' ? 'club' : 'grocery');
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
       setPhoneVerified(typeof res.user.phone_verified === 'boolean' ? res.user.phone_verified : null);
@@ -261,6 +270,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         posAllowed: authed && (staff !== null || posAllowed),
         posStaffAllowed: authed && !staff && posStaffAllowed,
         multiDevice: authed && !staff && multiDevice,
+        isClub: authed && !staff && accountType === 'club',
         staff: authed ? staff : null,
         posNotesAllowed: authed && posNotesAllowed,
         syncConsent: authed && !staff ? syncConsent : null,

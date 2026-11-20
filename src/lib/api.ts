@@ -109,6 +109,8 @@ export interface Me {
   brand_logo_at?: string | null;
   /** When the full-screen intro picture last changed (025); null = none. */
   brand_intro_at?: string | null;
+  /** Which section the app opens (Phase 43); absent on an older server = grocery. */
+  account_type?: 'grocery' | 'club';
 }
 
 export function me(): Promise<{ user: Me }> {

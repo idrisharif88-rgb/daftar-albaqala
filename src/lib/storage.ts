@@ -61,6 +61,22 @@ export function setMultiDevice(on: boolean): void {
   if (on) localStorage.setItem(MULTI_DEVICE_KEY, '1'); else localStorage.removeItem(MULTI_DEVICE_KEY);
 }
 
+// Which section this account opens: the grocery book or «دفتر النادي» (Phase
+// 43). The server decides (GET /me → account_type, set in the Watcher); kept
+// here so the right first page shows before /me answers.
+export type AccountType = 'grocery' | 'club';
+const ACCOUNT_TYPE_KEY = 'daftar.account-type';
+
+export function getAccountType(): AccountType {
+  try { return localStorage.getItem(ACCOUNT_TYPE_KEY) === 'club' ? 'club' : 'grocery'; } catch { return 'grocery'; }
+}
+
+export function setAccountType(type: AccountType): void {
+  try {
+    if (type === 'club') localStorage.setItem(ACCOUNT_TYPE_KEY, 'club'); else localStorage.removeItem(ACCOUNT_TYPE_KEY);
+  } catch { /* storage blocked: falls back to the grocery book */ }
+}
+
 // The signed-in phone. The token carries only the user id, and the app needs
 // the phone to know whether this is the owner's own account (see isOwner).
 const PHONE_KEY = 'daftar.phone';
