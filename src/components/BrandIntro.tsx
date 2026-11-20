@@ -22,6 +22,9 @@ const BrandIntro: React.FC = () => {
   const intro = ownIntro ?? logo;
   const [show, setShow] = useState(false);
   const [name, setName] = useState('');
+  // The animation starts only once the picture is decoded, so a slow decode
+  // never eats into the 3 s (it once looked like it 'played for under a second').
+  const [ready, setReady] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -29,22 +32,26 @@ const BrandIntro: React.FC = () => {
       if (!introPending() || !intro || show) return;
       clearIntroPending(); // once per sign-in, even if the app is closed mid-way
       void getSettings().then((s) => setName(s.ownerName.trim() || s.storeName.trim()));
+      setReady(false);
       setShow(true);
-      timer.current = setTimeout(() => setShow(false), PLAY_MS);
     };
     check();
     window.addEventListener(BRAND_LOGO_EVENT, check);
     return () => window.removeEventListener(BRAND_LOGO_EVENT, check);
   }, [intro, show]);
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(() => {
+    if (!show || !ready) return undefined;
+    timer.current = setTimeout(() => setShow(false), PLAY_MS);
+    return () => { if (timer.current) clearTimeout(timer.current); };
+  }, [show, ready]);
 
   if (!show || !intro) return null;
   return (
-    <div className="brand-intro" role="presentation" onClick={() => setShow(false)}>
+    <div className={`brand-intro${ready ? ' brand-intro--play' : ''}`} role="presentation" onClick={() => setShow(false)}>
       <div className="brand-intro__ring" />
       <div className="brand-intro__card">
-        <img src={intro} alt="" />
+        <img src={intro} alt="" onLoad={() => setReady(true)} onError={() => setShow(false)} />
         <div className="brand-intro__shine" />
       </div>
       <div className="brand-intro__hello">{greeting()}{name ? `، ${name}` : ''} 👋</div>

@@ -948,27 +948,28 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
   position: fixed; inset: 0; z-index: 100000; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 22px;
   background: radial-gradient(120% 80% at 50% 40%, #ffffff 0%, #eef4f0 70%, #e2ece5 100%);
-  animation: brand-leave 0.45s ease-in 2.6s forwards;
 }
+.brand-intro--play { animation: brand-leave 0.45s ease-in 2.6s forwards; }
 .brand-intro__ring {
-  position: absolute; width: min(86vw, 420px); aspect-ratio: 1; border-radius: 50%;
-  border: 2px solid rgba(27, 94, 32, 0.25); opacity: 0; animation: brand-pulse 1.2s ease-out 0.45s forwards;
+  position: absolute; width: min(100vw, 500px); aspect-ratio: 1; border-radius: 50%;
+  border: 2px solid rgba(27, 94, 32, 0.25); opacity: 0;
 }
+.brand-intro--play .brand-intro__ring { animation: brand-pulse 1.2s ease-out 0.45s forwards; }
 .brand-intro__card {
-  position: relative; width: min(78vw, 380px); border-radius: 24px; overflow: hidden;
+  position: relative; width: min(90vw, 440px); border-radius: 24px; overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); opacity: 0; transform: scale(0.6);
-  animation: brand-pop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) 0.15s forwards;
 }
+.brand-intro--play .brand-intro__card { animation: brand-pop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) 0.15s forwards; }
 .brand-intro__card img { display: block; width: 100%; }
 .brand-intro__shine {
   position: absolute; inset: 0; transform: translateX(120%);
   background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.85) 50%, transparent 65%);
-  animation: brand-sweep 0.8s ease-in-out 0.8s forwards;
 }
+.brand-intro--play .brand-intro__shine { animation: brand-sweep 0.8s ease-in-out 0.8s forwards; }
 .brand-intro__hello {
   font-weight: 800; font-size: 1.25rem; color: #17231b; opacity: 0; transform: translateY(12px);
-  animation: brand-up 0.5s ease-out 1.05s forwards;
 }
+.brand-intro--play .brand-intro__hello { animation: brand-up 0.5s ease-out 1.05s forwards; }
 @keyframes brand-pop { to { opacity: 1; transform: scale(1); } }
 @keyframes brand-pulse { 0% { opacity: 0.9; transform: scale(0.7); } 100% { opacity: 0; transform: scale(1.45); } }
 @keyframes brand-sweep { to { transform: translateX(-120%); } }
@@ -976,5 +977,5 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 @keyframes brand-leave { to { opacity: 0; transform: scale(1.06); } }
 @media (prefers-reduced-motion: reduce) {
   .brand-intro, .brand-intro * { animation-duration: 0.01s !important; animation-delay: 0s !important; }
-  .brand-intro { animation-delay: 2.6s !important; }
+  .brand-intro--play { animation-delay: 2.6s !important; }
 }
