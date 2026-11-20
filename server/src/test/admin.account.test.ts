@@ -186,6 +186,30 @@ describe('/admin — delete account + rename store', () => {
     // a shopkeeper cannot grant it to himself, and a bad body is refused
     assert.equal((await request(app).post(`/admin/users/${a}/pos`).set(shopA).send({ enabled: true })).status, 401);
   });
+  test('account type: grocery by default, the owner switches it per account, /me + list report it', async () => {
+    const a = await seedUser();
+    const b = await seedUser();
+    const shopA = { Authorization: `Bearer ${tokenFor(a)}` };
+    assert.equal((await request(app).get('/me').set(shopA)).body.user.account_type, 'grocery');
+
+    const res = await request(app).post(`/admin/users/${a}/account-type`).set(auth())
+      .send({ type: 'club', code: codeNow(1) });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal((await request(app).get('/me').set(shopA)).body.user.account_type, 'club');
+    // only that account
+    const shopB = { Authorization: `Bearer ${tokenFor(b)}` };
+    assert.equal((await request(app).get('/me').set(shopB)).body.user.account_type, 'grocery');
+    const list = await request(app).get('/admin/users').set(auth());
+    assert.equal(list.body.users.find((u: { id: string }) => u.id === a).account_type, 'club');
+    // a shopkeeper cannot change it himself
+    assert.equal((await request(app).post(`/admin/users/${a}/account-type`).set(shopA)
+      .send({ type: 'grocery' })).status, 401);
+  });
+  test('account type: an unknown type is refused', async () => {
+    const a = await seedUser();
+    assert.equal((await request(app).post(`/admin/users/${a}/account-type`).set(auth())
+      .send({ type: 'gym', code: codeNow(1) })).status, 400);
+  });
   test('POS access: a bad body is refused', async () => {
     const a = await seedUser();
     // One authenticator code per change — each request below gets its own test run.

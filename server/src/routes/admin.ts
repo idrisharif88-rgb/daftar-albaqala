@@ -93,7 +93,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.brand_logo_at, u.brand_intro_at, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.brand_logo_at, u.brand_intro_at, u.account_type, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -143,6 +143,34 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, drive_backup: enabled });
+  })
+);
+
+// POST /admin/users/:id/account-type  { type: 'grocery' | 'club', code }
+// Which section the app opens for this account («دفتر النادي», Phase 43). Only
+// the developer changes it; every account starts as 'grocery'.
+export const ACCOUNT_TYPES = ['grocery', 'club'] as const;
+router.post(
+  '/users/:id/account-type',
+  // Checked before the authenticator code, so a bad type does not spend it.
+  (req, res, next) => {
+    if (!ACCOUNT_TYPES.includes(req.body?.type)) {
+      return res.status(400).json({ error: `type must be one of: ${ACCOUNT_TYPES.join(', ')}` });
+    }
+    return next();
+  },
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const type = req.body.type;
+    const [result] = await pool.query(
+      'UPDATE users SET account_type = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [type, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    publish(`user:${req.params.id}`, 'access'); // the app re-reads /me and opens the right section
+    return res.json({ id: req.params.id, account_type: type });
   })
 );
 

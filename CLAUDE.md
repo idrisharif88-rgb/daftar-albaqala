@@ -1649,3 +1649,49 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 215/215, app 1
 - Code 15: Play flagged `android.hardware.screen.portrait` as required (ML Kit's scanner activity is
   portrait-only) → declared `required="false"` in the app manifest. Signed AABs land in
   `~/Documents/99-Inbox/From-Downloads/` (Downloads is auto-tidied).
+
+## Status — PLANNED (Phase 43: «دفتر النادي» — gym-club section) (decided 2026-11-17, saved 2026-11-20)
+Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothing starts before the owner says «ابدأ».**
+- **Idea.** A PAID section inside this app (like POS, Phase 32 — not a flavor). Subscriber = a contact
+  with role «مشترك». Package = price list. Subscription = a debt entry. Payment (full / partial / daily /
+  weekly) = a payment entry. Remaining = the balance. Notices, PDF and Excel are reused.
+  New: start + end date, package type (monthly / weekly / daily), list of expired + about-to-expire,
+  «تجديد» button with a confirm dialog (NO automatic renewal).
+- **Account type** (grocery / club) lives on the server; default «بقالة» for every existing account;
+  only the owner changes it, from the Watcher. A club owner does NOT see the grocery book or POS unless
+  the owner enables them. Existing grocery users see no change.
+- **Sign-up.** Welcome screen + «حساب جديد» unchanged; under them a small link «هل تدير ناديًا رياضيًا؟»
+  opens the club path: phone + password + club name + owner name → «حسابك بانتظار التفعيل» (no prices,
+  no payment pointer). Blocking applies to clubs only; grocery stays free (Phase 27).
+  Number check + activation = **reuse Phase 42** (verification code + `activated_at`), do not rebuild.
+  Watcher: account-type badge + change type + POS control. Route each user to their section by the
+  server's account type.
+- **Distribution + subscription cards.** Play promo codes are capped (~500 / 3 months, shared) → normal
+  Play link + manual activation. Cards: a code for a fixed period (week / month / year), generated in a
+  batch from the Watcher, printed as a card or QR sticker, typed into a neutral «كود اشتراك» screen.
+  Play: no prices, no pointer to paying outside; «App access» says honestly the developer activates
+  accounts; a demo account is supplied; neutral waiting text with no contact number.
+- **Identity.** Own colours, icon, opening scene, «مرحبًا كابتن <الاسم>» then the club name. First logo
+  draft (hexagon + dumbbell) REJECTED — redo bolder. Logo = ONE replaceable file.
+- **Review notes (2026-11-20):**
+  - Keep subscription periods in their OWN table (`club_subscriptions`: contact, package, start, end,
+    linked debt entry id) — don't add date columns to the shared ledger.
+  - Account type = `users.account_type` VARCHAR default 'grocery' (server migration 026), carried by
+    `/me` + `/admin/users`, like `pos_enabled`. Every query filters by `user_id`.
+  - Card codes: store only a hash (like Phase 42), single use, expiry, wrong-try limit, rate limit.
+  - ⚠️ Play risk: a code that unlocks a paid in-app feature bought outside Play may fall under Play's
+    payments policy — check before release.
+  - The 1–2 day estimate is optimistic; plan for small verified slices.
+- **Build order (small slices, each verified before the next):**
+  1. Account type: migration 026 + `/me` → Watcher badge + change type → app routes by type.
+  2. Club sign-up path: welcome link → club form → waiting screen (reuses Phase 42 activation).
+  3. Subscribers + packages: role «مشترك» → packages (monthly/weekly/daily) → subscription with dates.
+  4. Payments + renewal: payments on a subscription → expired / about-to-expire list → «تجديد» + confirm.
+  5. Subscription cards: batch generate in the Watcher → print card / QR → «كود اشتراك» redeem.
+  6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
+- Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
+- **Progress (2026-11-20):** Step 1a (server) DONE + committed on `club-step1` (server 217/217); local daftar_db rebuilt from schema.sql. Original note:
+  tests NOT run: migration `026_account_type.sql` (+ schema.sql), `POST /admin/users/:id/account-type
+  {type, code}` (`ACCOUNT_TYPES` in `routes/admin.ts`), `account_type` in `/me` + `/admin/users`, 2 tests in
+  `admin.account.test.ts`. `tsc` passes. Next: owner applies 026 to local `daftar_test` + `daftar_db` →
+  `npm test` → Step 1b (Watcher badge + change type) → 1c (app routes by type).

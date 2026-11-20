@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
   brand_logo_at            DATETIME(3)     NULL,
   brand_intro              MEDIUMTEXT      NULL,                     -- صورة الترحيب بعد الدخول (025)
   brand_intro_at           DATETIME(3)     NULL,
+  account_type             VARCHAR(16)     NOT NULL DEFAULT 'grocery', -- نوع الحساب: grocery | club «دفتر النادي» (026)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
