@@ -15,7 +15,11 @@ import { greeting } from '../data/welcome';
 const PLAY_MS = 3100;
 
 const BrandIntro: React.FC = () => {
-  const intro = useBrandLogo('intro');
+  // Its own intro picture, else the shop's logo: one picture is enough to
+  // play it (owner, 2026-11-20 — he set only one and expected the intro).
+  const ownIntro = useBrandLogo('intro');
+  const logo = useBrandLogo('logo');
+  const intro = ownIntro ?? logo;
   const [show, setShow] = useState(false);
   const [name, setName] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
