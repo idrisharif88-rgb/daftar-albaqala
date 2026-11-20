@@ -67,6 +67,7 @@ const INTRO_PENDING = 'daftar.brand-intro-pending';
 const INTRO_WAIT_MS = 8000;
 export function markIntroPending(): void {
   try { sessionStorage.setItem(INTRO_PENDING, String(Date.now())); } catch { /* no intro then */ }
+  window.dispatchEvent(new Event(BRAND_LOGO_EVENT)); // BrandIntro looks now, before the book renders
 }
 export function introPending(now = Date.now()): boolean {
   try {

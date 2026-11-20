@@ -1,4 +1,5 @@
 import { syncBrandLogo, clearBrandLogo, markIntroPending } from './brandLogo';
+
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
@@ -10,6 +11,21 @@ import {
 import { ensureLocalOwner } from '../data/owner';
 import { isOwnerPhone } from '../config';
 import { openLive } from './live';
+
+/** Resolve when `p` does, or after `ms` — whichever is first. Never rejects. */
+function withTimeout(p: Promise<unknown>, ms: number): Promise<void> {
+  return Promise.race([p.then(() => undefined, () => undefined), new Promise<void>((r) => setTimeout(r, ms))]);
+}
+
+/** The account's pictures (logo + intro), straight after sign-in. */
+async function prefetchBrand(): Promise<void> {
+  const res = await api.me();
+  await Promise.all([
+    syncBrandLogo(res.user.brand_logo_at, 'logo'),
+    syncBrandLogo(res.user.brand_intro_at, 'intro'),
+  ]);
+}
+
 
 /** Fired when the Watcher sends a sync request (SyncConsentPrompt listens). */
 export const SYNC_REQUEST_EVENT = 'daftar:sync-request';
@@ -96,7 +112,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Wipe any previous grocer's local data on a user switch BEFORE we flip to
     // authenticated, so AutoSync pulls the new user into a clean store.
     await ensureLocalOwner(res.user.id);
-    markIntroPending(); // the shop's intro picture, if it has one, plays once now
+    // The shop's intro picture, if it has one, must be on the phone BEFORE the
+    // book opens — fetched first, so the intro covers the screen instead of
+    // appearing over a Home already shown (owner, 2026-11-20). Capped: a slow
+    // link opens the book anyway, without the intro.
+    await withTimeout(prefetchBrand(), 5000);
+    markIntroPending();
     setAuthed(true);
   }, []);
 
