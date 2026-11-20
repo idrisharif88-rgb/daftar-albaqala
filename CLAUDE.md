@@ -1695,7 +1695,14 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   verification (Phase 42) and sets the section in the Watcher («نوع الحساب»). The signed-out Welcome
   becomes general; today's grocery Welcome content (cart, tiles) is MOVED, not deleted, into a grocer
   tour shown after sign-in to grocery accounts (club gets its own later).
-- **REMINDER (owner, 2026-11-20): generalise the signed-out Welcome screen** (`src/pages/Welcome.tsx`) —
+- **BUILT (2026-11-20): general Welcome + tour per type** — exactly the approved preview. `Welcome.tsx`:
+  book mark, «دفتر حساباتك مع عملائك…», 3 benefits, sign-in / new account, contact icons (`.wl*` CSS,
+  line icons in `components/LineIcon.tsx`). `features/tour/`: `tours.ts` = ALL words/icons/colours per
+  type (grocery green, club navy + orange), `AppTour.tsx` = full-screen once per account after sign-in,
+  waits for the fingerprint lock, the shop intro (`gateState.setIntroPlaying`) and the first sync; «ابدأ» /
+  «تخطٍّ» set the SYNCED key `ui_tour_<type>` (server allowlist too — deploy server first). Settings →
+  «جولة في التطبيق» replays it.
+- ~~REMINDER: generalise the signed-out Welcome screen~~ (done above) (`src/pages/Welcome.tsx`) —
   today it is all grocery (🛒 cart icon, «سجّل الديون والمدفوعات، واطبع الفواتير», grocery tiles), so a
   club owner reads it as «not for me». Make the icon, tagline and tiles neutral (shops + clubs), then
   the «هل تدير ناديًا رياضيًا؟» link of step 2 sits under it. Discuss wording with the owner first.

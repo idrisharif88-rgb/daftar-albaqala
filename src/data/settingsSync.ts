@@ -31,6 +31,9 @@ export const SYNCABLE_KEYS = [
   'ui_scale',
   'biometric',
   'updates_notebook',
+  // The tour after sign-in was seen, per account type (features/tour).
+  'ui_tour_grocery',
+  'ui_tour_club',
 ] as const;
 
 /** One setting on the wire. `updated_at` is the phone clock that wrote it. */

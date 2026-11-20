@@ -58,6 +58,9 @@ export const SYNCABLE_SETTING_KEYS = new Set([
   'ui_scale',
   'biometric',
   'updates_notebook',
+  // The tour after sign-in was seen, per account type (Phase 43).
+  'ui_tour_grocery',
+  'ui_tour_club',
 ]);
 
 // Matches the VARCHAR(512) the column is declared as — checked here so an

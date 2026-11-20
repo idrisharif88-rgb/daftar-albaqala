@@ -45,6 +45,7 @@ import {
 } from '../lib/biometric';
 import { FLAVOR } from '../flavors';
 import { openVerifyPhone } from '../components/VerifyPhone';
+import { openTour } from '../features/tour/AppTour';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -735,6 +736,9 @@ const Settings: React.FC = () => {
                 the page has to actually exist. */}
             <h2 className="settings-section">حول التطبيق</h2>
             <IonList>
+              <IonItem button detail onClick={openTour}>
+                <IonLabel>جولة في التطبيق</IonLabel>
+              </IonItem>
               <IonItem button detail={false} onClick={() => { void openPrivacyPolicy(); }}>
                 <IonLabel>سياسة الخصوصية</IonLabel>
               </IonItem>

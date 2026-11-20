@@ -21,3 +21,15 @@ export function isGateLocked(): boolean {
 export function gateUnlockedAt(): number {
   return unlockedAt;
 }
+
+// Whether the shop's intro (BrandIntro) is on screen. The tour waits for it,
+// so the two never stack.
+let introPlaying = false;
+export function setIntroPlaying(value: boolean): void {
+  if (introPlaying === value) return;
+  introPlaying = value;
+  window.dispatchEvent(new Event(GATE_EVENT));
+}
+export function isIntroPlaying(): boolean {
+  return introPlaying;
+}
