@@ -979,49 +979,61 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
   .brand-intro--play { animation-delay: 2.6s !important; }
 }
 
-/* ---- «دفتر النادي» (features/club) — navy + orange, approved preview 2026-11-20 ---- */
-.club ion-toolbar { --background: #0b1f3a; --color: #fff; --border-width: 0; }
-.club ion-toolbar ion-segment-button { --color: rgba(255, 255, 255, 0.75); --color-checked: #ff8a1f; --indicator-color: #ff8a1f; font-weight: 800; min-width: 0; }
+/* ---- «دفتر النادي» (features/club) — approved preview 2026-11-21 ----
+   Calm, three colours: the book's dark green (header, buttons, ➕, ▲), white
+   on it, and grey. Every colour is a theme token, so night mode has no white
+   boxes. Status and days are plain text — no pills, no frames. */
+.club ion-toolbar { --background: var(--app-bar); --color: #fff; --border-width: 0; }
+.club ion-toolbar ion-segment-button { --color: rgba(255, 255, 255, 0.72); --color-checked: #fff; --indicator-color: rgba(255, 255, 255, 0.75); font-weight: 800; min-width: 0; }
 .club ion-searchbar { --background: rgba(255, 255, 255, 0.12); --color: #fff; --placeholder-color: rgba(255, 255, 255, 0.7); --icon-color: rgba(255, 255, 255, 0.7); }
-.club-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 12px 4px; }
-.club-kpi { background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 14px; padding: 9px 6px; text-align: center; }
-.club-kpi b { display: block; font-size: 1.15rem; font-weight: 800; color: #16406f; }
+.club-kpis { display: grid; grid-template-columns: repeat(3, 1fr); padding: 12px 16px 6px; }
+.club-kpi { text-align: center; }
+.club-kpi + .club-kpi { border-inline-start: 1px solid var(--app-border); }
+.club-kpi b { display: block; font-size: 1.15rem; font-weight: 800; color: var(--ion-text-color); }
 .club-kpi span { font-size: 0.75rem; color: var(--app-muted); font-weight: 700; }
-.club-kpi--warn b { color: #b26a00; }
-.club-kpi--bad b { color: #b42318; }
-.club-list { display: grid; gap: 8px; padding: 6px 12px 96px; }
-.club-list--top { padding-top: 14px; }
-.club-row { --background: var(--app-surface, #fff); --padding-start: 10px; --inner-padding-end: 10px; border: 1px solid var(--app-border, #e4e9ef); border-radius: 16px; }
-.club-av { width: 40px; height: 40px; border-radius: 50%; background: #e8eef5; color: #16406f; display: grid; place-items: center; font-weight: 800; margin-inline-end: 10px; }
-.club-row__tx { flex: 1; min-width: 0; padding: 8px 0; }
+.club-list { display: grid; padding: 4px 16px 96px; }
+.club-list--top { padding-top: 10px; }
+.club-row { --background: transparent; --padding-start: 0; --inner-padding-end: 0; border-bottom: 1px solid var(--app-border); }
+.club-av { width: 38px; height: 38px; border-radius: 50%; background: var(--app-accent-soft, rgba(0, 0, 0, 0.05)); color: var(--ion-text-color); display: grid; place-items: center; font-weight: 800; margin-inline-end: 10px; }
+.club-row__tx { flex: 1; min-width: 0; padding: 10px 0; }
 .club-row__tx b { display: block; font-weight: 800; }
 .club-row__tx span { display: block; font-size: 0.82rem; color: var(--app-muted); }
-.club-row__tx em { font-style: normal; color: #b42318; font-weight: 700; }
-.club-chip { flex: none; font-size: 0.72rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; }
-.club-chip--active { background: #e6f4ea; color: #1f7a3f; }
-.club-chip--soon { background: #fff4d6; color: #b26a00; }
-.club-chip--expired { background: #fde8e8; color: #b42318; }
-.club-chip--none { background: #eef1f4; color: #5e6b78; }
-.club-price { font-weight: 800; color: #16406f; }
+.club-row__tx em { font-style: normal; }
+.club-chip { flex: none; font-size: 0.78rem; font-weight: 700; color: var(--app-muted); }
+.club-chip--soon { color: var(--ion-text-color); }
+.club-chip--expired { opacity: 0.65; }
+.club-price { font-weight: 800; }
 .club-empty { text-align: center; color: var(--app-muted); padding: 32px 20px; }
-.club-fab { --background: #ff8a1f; --background-activated: #e67600; --color: #1b1206; }
-.club-btn { --background: #ff8a1f; --background-activated: #e67600; --color: #1b1206; font-weight: 800; }
-.club-btn-out { --border-color: #cdd6e0; --color: #16406f; font-weight: 800; }
-.club-err { display: block; padding: 8px 16px 0; font-size: 0.88rem; }
-.club-card { margin: 12px; background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 18px; padding: 14px; display: grid; gap: 10px; }
-.club-card__head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
-.club-dates { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }
-.club-dates b { color: var(--ion-text-color); direction: ltr; unicode-bidi: isolate; margin-inline-start: 4px; }
-.club-prog { height: 8px; border-radius: 4px; background: #e8eef5; overflow: hidden; }
-.club-prog i { display: block; height: 100%; background: linear-gradient(90deg, #ff8a1f, #ffb366); }
-.club-left { text-align: center; font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }
-.club-money { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.92rem; }
-.club-money em { font-style: normal; color: #1f7a3f; font-size: 0.82rem; }
-.club-owed { color: #b42318; }
-.club-paid { color: #1f7a3f; }
-.club-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 12px; }
-.club-hist { display: grid; gap: 6px; padding: 12px 12px 32px; }
-.club-h { display: flex; justify-content: space-between; font-size: 0.85rem; background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 12px; padding: 8px 12px; }
-.club-summary { display: grid; gap: 6px; margin: 12px 4px 0; padding: 10px 12px; border-radius: 14px; background: #fff1e3; }
+.club-fab { --background: var(--app-bar); --color: #fff; }
+.club-btn { --background: var(--app-bar); --color: #fff; font-weight: 800; }
+.club-btn-out { --border-color: var(--app-border); --color: var(--ion-text-color); font-weight: 800; }
+.club-err { display: block; padding: 8px 4px 0; font-size: 0.88rem; }
+.club-card { margin: 6px 16px 12px; padding: 14px 0; border-bottom: 1px solid var(--app-border); display: grid; gap: 10px; }
+.club-card__head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 1.05rem; }
+.club-dates { display: flex; justify-content: space-between; font-weight: 700; }
+.club-dates span { display: inline-flex; align-items: center; gap: 6px; }
+.club-tri { display: inline-block; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; }
+.club-tri--up { border-bottom: 9px solid var(--app-bar); }
+.club-tri--down { border-top: 9px solid var(--app-muted); }
+.ion-palette-dark .club-tri--up { border-bottom-color: var(--ion-color-primary); }
+.club-prog { height: 4px; border-radius: 2px; background: var(--app-border); overflow: hidden; }
+.club-prog i { display: block; height: 100%; background: var(--app-muted); }
+.club-money { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.95rem; }
+.club-money--sub { font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }
+.club-money em { font-style: normal; }
+.club-owed { color: var(--ion-text-color); }
+.club-paid { color: var(--app-muted); }
+.club-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; }
+.club-hist { display: grid; padding: 12px 16px 32px; }
+.club-h { display: flex; justify-content: space-between; font-size: 0.88rem; padding: 10px 0; border-bottom: 1px solid var(--app-border); }
+.club-h span { color: var(--app-muted); }
+.club-summary { display: grid; gap: 6px; margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--app-border); }
 .club-summary div { display: flex; justify-content: space-between; font-size: 0.9rem; }
-.club-summary b { direction: ltr; unicode-bidi: isolate; }
+.club-summary span { display: inline-flex; align-items: center; gap: 6px; color: var(--app-muted); }
+/* Sheets: the page's own surface, not a white slab. */
+.club-sheet { --background: var(--app-surface); }
+.club-sheet ion-content { --background: var(--app-surface); }
+.club-sheet ion-toolbar { --background: var(--app-surface); --color: var(--ion-text-color); }
+.club-sheet ion-list { background: transparent; }
+.club-sheet ion-item { --background: transparent; }
+.club-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

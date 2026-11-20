@@ -2,15 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IonButton, IonButtons, IonContent, IonFab, IonFabButton, IonHeader, IonIcon, IonInput, IonItem,
   IonList, IonModal, IonNote, IonPage, IonSearchbar, IonSegment, IonSegmentButton, IonTitle, IonToolbar,
-  useIonViewWillEnter,
+  useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
-import { add, pricetagsOutline, settingsOutline } from 'ionicons/icons';
+import { add, pricetagsOutline, settingsOutline, personAddOutline } from 'ionicons/icons';
 import { useAuth } from '../../lib/auth';
 import { getSettings } from '../../data/settings';
 import { getBalancesByCustomer } from '../../data/transactions';
 import { formatMinor } from '../../data/money';
 import { onSyncComplete, runSync } from '../../data/sync';
 import { phoneInput } from '../../lib/digits';
+import { pickContact } from '../../lib/contacts';
+import { arabicDate } from './messages';
 import WelcomeCard from '../../components/WelcomeCard';
 import type { Customer } from '../../data/customers';
 import {
@@ -55,6 +57,19 @@ const ClubHome: React.FC = () => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [presentToast] = useIonToast();
+
+  // «جهات الاتصال»: Android's own picker fills in the name and number.
+  const fromContacts = async () => {
+    try {
+      const picked = await pickContact();
+      if (!picked) return;
+      if (picked.name) setName(picked.name);
+      if (picked.phone) setPhone(phoneInput(picked.phone));
+    } catch {
+      void presentToast({ message: 'تعذّر فتح جهات الاتصال', duration: 2000, color: 'medium' });
+    }
+  };
 
   const load = useCallback(async () => {
     const [settings, members, latest, balances] = await Promise.all([
@@ -159,7 +174,7 @@ const ClubHome: React.FC = () => {
                   <b>{r.member.name}</b>
                   <span>
                     {r.latest
-                      ? `${r.latest.package_name} · ${r.status === 'expired' ? 'انتهى' : 'حتى'} ${r.latest.end_date}`
+                      ? `${r.latest.package_name} · ${r.status === 'expired' ? 'انتهى' : 'ينتهي'} ${arabicDate(r.latest.end_date)}`
                       : r.member.phone}
                     {r.owed > 0 && <> · <em>متبقٍّ {formatMinor(r.owed)}</em></>}
                   </span>
@@ -176,7 +191,7 @@ const ClubHome: React.FC = () => {
           </IonFabButton>
         </IonFab>
 
-        <IonModal ref={modal} trigger="club-add-member" initialBreakpoint={0.6} breakpoints={[0, 0.6, 0.9]}>
+        <IonModal className="club-sheet" ref={modal} trigger="club-add-member" initialBreakpoint={0.65} breakpoints={[0, 0.65, 0.9]}>
           <IonHeader>
             <IonToolbar>
               <IonTitle>مشترك جديد</IonTitle>
@@ -184,6 +199,10 @@ const ClubHome: React.FC = () => {
             </IonToolbar>
           </IonHeader>
           <IonContent className="ion-padding">
+            <IonButton expand="block" fill="outline" className="club-btn-out" onClick={() => void fromContacts()}>
+              <IonIcon slot="start" icon={personAddOutline} />
+              جهات الاتصال
+            </IonButton>
             <IonList>
               <IonItem>
                 <IonInput label="الاسم" labelPlacement="stacked" value={name} placeholder="مثال: علي سالم"

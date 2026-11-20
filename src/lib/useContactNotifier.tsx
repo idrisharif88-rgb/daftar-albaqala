@@ -13,7 +13,7 @@ import {
 // The two channels do not carry the same text. WhatsApp takes the full invoice;
 // an SMS is measured in 67-character parts and becomes an MMS past seven of
 // them, so it gets the compact layout (see buildSmsMessage in notify.ts).
-interface Messages {
+export interface Messages {
   whatsapp: string;
   sms: string;
 }
@@ -61,6 +61,12 @@ export interface NotifyInput {
    * (notifications switched off, or a contact with no number).
    */
   commit: () => Promise<void>;
+  /**
+   * Optional: write the message yourself instead of the ledger's standard one
+   * («دفتر النادي» has its own wording). Gets the sender's name and the riyal
+   * balance AFTER this entry, as the standard message would show it.
+   */
+  compose?: (info: { senderName: string; balanceAfter: number }) => Messages;
 }
 
 /** Resolves true when the entry was committed, false when the owner backed
@@ -170,7 +176,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   }, [presentSheet, confirmCancel, presentAlert, presentToast]);
 
   return useCallback(async (
-    { customerId, type, amount, currency, note, invoice, notice, commit }: NotifyInput,
+    { customerId, type, amount, currency, note, invoice, notice, commit, compose }: NotifyInput,
   ): Promise<boolean> => {
     const c = await getCustomer(customerId);
     if (!c) return false;
@@ -203,10 +209,12 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
     };
     // Both are built up front: the channel is chosen after this returns, and
     // the sheet may be reopened, so neither may depend on that choice.
-    const texts: Messages = {
-      whatsapp: buildMessage(input),
-      sms: buildSmsMessage(input),
-    };
+    const texts: Messages = compose
+      ? compose({
+        senderName: input.senderName,
+        balanceAfter: input.balances.find((b) => b.currency === 'YER')?.minor ?? 0,
+      })
+      : { whatsapp: buildMessage(input), sms: buildSmsMessage(input) };
 
     return new Promise<boolean>((resolve) => {
       presentSendSheet(c.phone, texts, commit, resolve);

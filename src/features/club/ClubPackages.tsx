@@ -91,7 +91,7 @@ const ClubPackages: React.FC = () => {
           </IonFabButton>
         </IonFab>
 
-        <IonModal isOpen={open} onDidDismiss={() => setOpen(false)} initialBreakpoint={0.7} breakpoints={[0, 0.7, 1]}>
+        <IonModal className="club-sheet" isOpen={open} onDidDismiss={() => setOpen(false)} initialBreakpoint={0.6} breakpoints={[0, 0.6, 1]}>
           <IonHeader>
             <IonToolbar>
               <IonTitle>{editId ? 'تعديل الباقة' : 'باقة جديدة'}</IonTitle>
@@ -104,14 +104,16 @@ const ClubPackages: React.FC = () => {
                 <IonInput label="الاسم" labelPlacement="stacked" value={name} placeholder="مثال: شهري"
                   onIonInput={(e) => setName(e.detail.value ?? '')} />
               </IonItem>
-              <IonItem>
+              <div className="club-two">
+                <IonItem>
                 <IonInput label="عدد الأيام" labelPlacement="stacked" type="text" inputmode="numeric" value={days}
                   placeholder="30" onIonInput={(e) => setDays(numericInput(e.detail.value ?? '').replace('.', ''))} />
-              </IonItem>
-              <IonItem>
+                </IonItem>
+                <IonItem>
                 <IonInput label="السعر (ر.ي)" labelPlacement="stacked" type="text" inputmode="decimal" value={price}
                   placeholder="10000" onIonInput={(e) => setPrice(numericInput(e.detail.value ?? ''))} />
-              </IonItem>
+                </IonItem>
+              </div>
             </IonList>
             {error && <IonNote color="danger" className="club-err">{error}</IonNote>}
             <IonButton expand="block" className="club-btn ion-margin-top"

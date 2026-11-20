@@ -16,6 +16,7 @@ import {
 } from './subscriptions';
 import { chipText } from './ClubHome';
 import { useContactNotifier } from '../../lib/useContactNotifier';
+import { arabicDate, paymentMessage, subscriptionMessage } from './messages';
 
 // A subscriber's card (Phase 43, step 3): the current subscription with its
 // dates and days left, what is still owed, «اشتراك جديد» and «تسجيل دفعة»,
@@ -93,10 +94,14 @@ const ClubMember: React.FC = () => {
       };
       const commit = async () => { await createSubscription(input); };
       // A free subscription has no amount to announce: record it directly.
+      const endDate = addDays(start, pkg.days - 1);
       const recorded = priceMinor > 0
         ? await notifyContact({
           customerId: id, type: 'debt', amount: priceMinor, currency: 'YER',
           note: subscriptionNote(input), commit,
+          compose: ({ senderName, balanceAfter }) => subscriptionMessage({
+            club: senderName, packageName: pkg.name, price: priceMinor, listPrice: pkg.price, endDate, balanceAfter,
+          }),
         })
         : (await commit(), true);
       if (!recorded) return; // the notice was cancelled — nothing recorded
@@ -120,6 +125,9 @@ const ClubMember: React.FC = () => {
       const recorded = await notifyContact({
         customerId: id, type: 'payment', amount: minor, currency: 'YER', note: 'دفعة اشتراك',
         commit: async () => { await addTransaction({ customerId: id, type: 'payment', amount: minor, note: 'دفعة اشتراك' }); },
+        compose: ({ senderName, balanceAfter }) => paymentMessage({
+          club: senderName, amount: minor, balanceAfter, endDate: current?.end_date ?? null,
+        }),
       });
       if (!recorded) return;
       setPayOpen(false);
@@ -148,23 +156,21 @@ const ClubMember: React.FC = () => {
       <IonContent>
         <div className="club-card">
           <div className="club-card__head">
-            <span>{current ? `الاشتراك الحالي · ${current.package_name}` : 'لا يوجد اشتراك'}</span>
+            <span>{current ? current.package_name : 'لا يوجد اشتراك'}</span>
             {current && <span className={`club-chip club-chip--${status}`}>{chipText(status, left)}</span>}
           </div>
           {current && (
             <>
               <div className="club-dates">
-                <span>من <b>{current.start_date}</b></span>
-                <span>حتى <b>{current.end_date}</b></span>
+                <span><i className="club-tri club-tri--up" aria-label="البداية" />{arabicDate(current.start_date)}</span>
+                <span><i className="club-tri club-tri--down" aria-label="النهاية" />{arabicDate(current.end_date)}</span>
               </div>
               <div className="club-prog" aria-hidden="true"><i style={{ width: `${total ? (100 * used) / total : 0}%` }} /></div>
-              <div className="club-left">
-                {status === 'expired' ? `انتهى منذ ${-left} يوم` : `باقي ${left} يوم من ${total}`}
-              </div>
-              <div className="club-money">
+              <div className="club-money club-money--sub">
+                <span>{status === 'expired' ? `انتهى منذ ${-left} يوم` : `اليوم ${used} من ${total}`}</span>
                 <span>
-                  قيمة الاشتراك {formatMinor(current.price)}
-                  {current.price < current.list_price && <em> (خصم {formatMinor(current.list_price - current.price)})</em>}
+                  {formatMinor(current.price)} ر.ي
+                  {current.price < current.list_price && <em> · خصم {formatMinor(current.list_price - current.price)}</em>}
                 </span>
               </div>
             </>
@@ -187,14 +193,14 @@ const ClubMember: React.FC = () => {
         <div className="club-hist">
           {txns.map((t) => (
             <div key={t.id} className="club-h">
-              <span>{t.created_at.slice(0, 10)} · {t.type === 'debt' ? 'اشتراك' : 'دفعة'}</span>
-              <b className={t.type === 'debt' ? 'club-owed' : 'club-paid'}>{formatMinor(t.amount)}</b>
+              <span>{t.type === 'debt' ? 'اشتراك' : 'دفعة'} · {arabicDate(t.created_at.slice(0, 10))}</span>
+              <b>{formatMinor(t.amount)}</b>
             </div>
           ))}
         </div>
 
         {/* ---- اشتراك جديد ---- */}
-        <IonModal isOpen={subOpen} onDidDismiss={() => setSubOpen(false)} initialBreakpoint={0.8} breakpoints={[0, 0.8, 1]}>
+        <IonModal className="club-sheet" isOpen={subOpen} onDidDismiss={() => setSubOpen(false)} initialBreakpoint={0.75} breakpoints={[0, 0.75, 1]}>
           <IonHeader>
             <IonToolbar>
               <IonTitle>اشتراك جديد</IonTitle>
@@ -218,6 +224,7 @@ const ClubMember: React.FC = () => {
                       ))}
                     </IonSelect>
                   </IonItem>
+                  <div className="club-two">
                   <IonItem>
                     <IonInput label="سعر هذا المشترك" labelPlacement="stacked" type="text" inputmode="decimal" value={price}
                       onIonInput={(e) => setPrice(numericInput(e.detail.value ?? ''))} />
@@ -226,17 +233,18 @@ const ClubMember: React.FC = () => {
                     <IonInput label="يبدأ في" labelPlacement="stacked" type="date" value={start}
                       onIonChange={(e) => setStart(String(e.detail.value || today()))} />
                   </IonItem>
+                  </div>
                 </IonList>
                 {pkg && (
                   <div className="club-summary">
-                    <div><span>ينتهي</span><b>{addDays(start, pkg.days - 1)}</b></div>
+                    <div><span><i className="club-tri club-tri--down" aria-hidden="true" />ينتهي</span><b>{arabicDate(addDays(start, pkg.days - 1))}</b></div>
                     {discount > 0 && <div><span>خصم</span><b>{formatMinor(discount)} ر.ي</b></div>}
                     <div><span>يُسجَّل دين</span><b>{Number.isFinite(priceMinor) ? formatMinor(priceMinor) : '—'} ر.ي</b></div>
                   </div>
                 )}
                 {subErr && <IonNote color="danger" className="club-err">{subErr}</IonNote>}
                 <IonButton expand="block" className="club-btn ion-margin-top" disabled={!pkg || busy} onClick={() => void sell()}>
-                  تسجيل الاشتراك
+                  تسجيل الاشتراك وإرسال الإشعار
                 </IonButton>
               </>
             )}
@@ -244,7 +252,7 @@ const ClubMember: React.FC = () => {
         </IonModal>
 
         {/* ---- تسجيل دفعة ---- */}
-        <IonModal isOpen={payOpen} onDidDismiss={() => setPayOpen(false)} initialBreakpoint={0.5} breakpoints={[0, 0.5, 0.8]}>
+        <IonModal className="club-sheet" isOpen={payOpen} onDidDismiss={() => setPayOpen(false)} initialBreakpoint={0.5} breakpoints={[0, 0.5, 0.8]}>
           <IonHeader>
             <IonToolbar>
               <IonTitle>تسجيل دفعة</IonTitle>

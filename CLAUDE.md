@@ -1700,7 +1700,12 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
   ≤3 days. Subscription + payment go through `useContactNotifier` (WhatsApp/SMS, «no notice, no entry»; the
   message note = `subscriptionNote()`, same words as the ledger entry). Dates shown as one plain line.
-  - TODO (owner): «مشترك جديد» needs the «جهات الاتصال» picker (`pickContact`, as on Home).
+  - DONE 2026-11-21: «جهات الاتصال» in «مشترك جديد»; club's OWN messages (`features/club/messages.ts`,
+    approved wording: «اشتراكك ساري حتى …» / «دفعت … المتبقي … ينتهي اشتراكك في …», SMS = same without
+    emoji) via `useContactNotifier`'s new `compose` hook; calm design from the approved preview — the
+    book's dark green (`--app-bar`) for header/buttons/➕/▲, grey ▼, status + days as plain text, rows with
+    dividers, dates «20 ديسمبر 2026» (`arabicDate`), every colour a theme token (night mode), sheets
+    `.club-sheet` on the page surface (no white slab).
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
 - **DECIDED (owner, 2026-11-20, replaces the club link of step 2):** sign-up is ONE general path for
   everyone — no «هل تدير ناديًا رياضيًا؟» link. The developer asks each new user who they are during
