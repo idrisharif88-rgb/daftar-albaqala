@@ -217,3 +217,14 @@ ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 70
 .status-ic--suspended { color: #c62828; }
 .status-ic--inactive { color: #90a4ae; }
 .status-ic--unverified { color: #b07800; }
+
+/* Shop logo (LogoModal) */
+.logo-pick { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.logo-pick__who { font-weight: 800; font-size: 1.1rem; }
+.logo-pick__img, .logo-pick__empty {
+  width: 128px; height: 128px; border-radius: 22px; object-fit: contain; background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); padding: 6px;
+}
+.logo-pick__empty { display: grid; place-items: center; color: var(--ion-color-medium); font-size: 48px; }
+.logo-pick ion-button { width: 100%; }
+.status-ic { cursor: pointer; }

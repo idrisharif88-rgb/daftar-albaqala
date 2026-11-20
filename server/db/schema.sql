@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS users (
   verify_code_expires_at   DATETIME        NULL,
   verify_attempts          TINYINT UNSIGNED NOT NULL DEFAULT 0,
   activated_at             DATETIME        NULL,                     -- «مفعّل»: وافق عليه المطوّر، منفصل عن المزامنة (023)
+  brand_logo               MEDIUMTEXT      NULL,                     -- شعار المتجر (data URL صغير) يضعه المطوّر (024)
+  brand_logo_at            DATETIME(3)     NULL,
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,

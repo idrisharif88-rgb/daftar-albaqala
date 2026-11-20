@@ -1,3 +1,4 @@
+import { syncBrandLogo, clearBrandLogo } from './brandLogo';
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
@@ -139,6 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPosNotesAllowedState(false);
     setSyncConsent(null);
     setPhoneVerified(null);
+    clearBrandLogo();
     setUser(null);
     setAuthed(false);
   }, []);
@@ -186,6 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
       setPhoneVerified(typeof res.user.phone_verified === 'boolean' ? res.user.phone_verified : null);
+      void syncBrandLogo(res.user.brand_logo_at);
     } catch { /* offline: the last answer stands */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);

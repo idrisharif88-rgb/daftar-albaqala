@@ -9,9 +9,10 @@ import {
 } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
-  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation,
+  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation, setLogo,
 } from '../lib/api';
 import VerificationModal from '../components/VerificationModal';
+import LogoModal from '../components/LogoModal';
 import FeatureIcons from '../components/FeatureIcons';
 import { openLive } from '../lib/live';
 import { useAuth } from '../lib/auth';
@@ -98,6 +99,8 @@ const Accounts: React.FC = () => {
   const { ask, modal } = useAdminCode();
   // The code just issued, shown once in VerificationModal.
   const [issued, setIssued] = useState<(VerificationCode & { name: string; id: string }) | null>(null);
+  // The account whose logo sheet is open.
+  const [logoFor, setLogoFor] = useState<{ id: string; name: string; hasLogo: boolean } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -646,6 +649,32 @@ const Accounts: React.FC = () => {
     if (a.sync_consent === 'approved') change(a, 'active'); else sendRequest(a);
   };
 
+  // «شعار المتجر»: the sheet picks + previews; saving needs a fresh code.
+  const saveLogo = (logo: string | null) => {
+    const target = logoFor;
+    setLogoFor(null);
+    if (!target) return;
+    setTimeout(() => {
+      void ask(logo ? 'حفظ الشعار' : 'إزالة الشعار').then(async (code) => {
+        if (!code) return;
+        setBusyId(target.id);
+        try {
+          await setLogo(target.id, logo, code);
+          void presentToast({ message: logo ? 'تم حفظ الشعار ✓' : 'أُزيل الشعار', duration: 1800, color: 'success' });
+          await load();
+        } catch (err) {
+          void presentToast({ message: err instanceof ApiError ? err.message : 'تعذّر الحفظ', duration: 2500, color: 'danger' });
+        } finally {
+          setBusyId(null);
+        }
+      });
+    }, 350);
+  };
+
+  /** Tap a status icon → its name, since icons alone can be ambiguous. */
+  const sayIcon = (text: string) =>
+    void presentToast({ message: text, duration: 1400, position: 'top', color: 'dark' });
+
   // «تفعيل» — approve the account (023). Server sync stays a separate switch.
   const doActivation = async (a: Account, active: boolean, code: string) => {
     setBusyId(a.id);
@@ -829,6 +858,10 @@ const Accounts: React.FC = () => {
                 {managed.phone_verified === false ? 'غير متحقق' : 'متحقق ✓'}
               </IonNote>
             </IonItem>
+            <IonItem button detail onClick={() => pick((a) => setLogoFor({ id: a.id, name: a.store_name || a.phone, hasLogo: a.has_logo === true }))}>
+              <IonLabel>شعار المتجر</IonLabel>
+              <IonNote slot="end">{managed.has_logo ? 'موجود' : 'لا يوجد'}</IonNote>
+            </IonItem>
             <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
             <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>
 
@@ -912,10 +945,14 @@ const Accounts: React.FC = () => {
                   <IonIcon
                     className={`status-ic status-ic--${s === 'activated' ? 'active' : s}`}
                     icon={s === 'suspended' ? banOutline : s === 'activated' ? checkmarkCircle : ellipseOutline}
-                    aria-label={CARD_AR[s]} title={CARD_AR[s]}
+                    aria-label={CARD_AR[s]} title={CARD_AR[s]} role="button"
+                    onClick={() => sayIcon(CARD_AR[s])}
                   />
                   {a.phone_verified === false && (
-                    <IonIcon className="status-ic status-ic--unverified" icon={shieldOutline} aria-label="غير متحقق" title="غير متحقق" />
+                    <IonIcon
+                      className="status-ic status-ic--unverified" icon={shieldOutline} aria-label="غير متحقق" title="غير متحقق"
+                      role="button" onClick={() => sayIcon('الرقم غير متحقق')}
+                    />
                   )}
                 </div>
               </div>
@@ -953,6 +990,7 @@ const Accounts: React.FC = () => {
       </IonContent>
       {manageSheet}
       {modal}
+      <LogoModal account={logoFor} onClose={() => setLogoFor(null)} onSave={saveLogo} />
       <VerificationModal
         issued={issued}
         onClose={() => setIssued(null)}

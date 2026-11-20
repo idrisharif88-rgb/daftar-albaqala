@@ -63,6 +63,19 @@ router.post(
   })
 );
 
+// GET /account/logo → { logo: data URL | null, at }
+// The shop's own logo (set in the Watcher). /me carries only `brand_logo_at`,
+// so the app downloads the image only when it changed.
+router.get(
+  '/logo',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const [rows] = await pool.query('SELECT brand_logo, brand_logo_at FROM users WHERE id = ?', [req.userId]);
+    const row = (rows as Array<{ brand_logo: string | null; brand_logo_at: Date | null }>)[0];
+    if (!row) return res.status(404).json({ error: 'user not found' });
+    return res.json({ logo: row.brand_logo, at: row.brand_logo_at });
+  })
+);
+
 // POST /account/verify-phone  { code }
 // The user types the code the developer sent to their number. Behind
 // requireAuth only (not requireSubscription): an unverified account is exactly

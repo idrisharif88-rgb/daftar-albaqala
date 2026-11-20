@@ -105,6 +105,8 @@ export interface Me {
   sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
   /** The number was confirmed with the developer's code (022). Absent on an older server. */
   phone_verified?: boolean;
+  /** When the shop's own logo last changed (024); null = none. Absent on an older server. */
+  brand_logo_at?: string | null;
 }
 
 export function me(): Promise<{ user: Me }> {
@@ -215,6 +217,11 @@ export function updateStaff(id: string, body: {
 }
 
 // ---- Account ----
+
+/** The shop's own logo (a data URL), set by the developer in the Watcher. */
+export function accountLogo(): Promise<{ logo: string | null }> {
+  return request('/account/logo');
+}
 
 /** Confirm this account's number with the code the developer sent.
  *  Errors: 400 wrong (body.attempts_left), 410 expired / too many, 404 none issued. */

@@ -1624,6 +1624,13 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 211/211, app 1
   (tap = suspend) · «موقوف · سماح». «المزيد»: sync row (refused until activated), «إلغاء التفعيل»,
   «إيقاف الحساب» for a not-activated one.
   The code goes by SMS in the SAME full wording as WhatsApp (owner found the short SMS too terse).
-- ⚠️ **MIGRATIONS 022 + 023 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+- **Shop logo (migration 024):** `users.brand_logo` (small data URL) + `brand_logo_at`. Watcher «المزيد» →
+  «شعار المتجر» (`LogoModal`: pick → shrunk to ≤256 px JPEG in the Watcher → preview → code) →
+  `POST /admin/users/:id/logo {logo|null, code}` (PNG/JPEG/WebP data URL ≤300 KB). `/me` carries only
+  `brand_logo_at`; the app fetches `GET /account/logo` when it changes and caches it in localStorage
+  (`src/lib/brandLogo.ts`, cleared on sign-out). Home's `WelcomeCard` shows it instead of the letter.
+  First use: «أضواء العالم» for 771436613 (cropped file `~/Downloads/logo-adwaa-alalam.png`).
+- **Watcher:** tap a status icon → a toast with its name.
+- ⚠️ **MIGRATIONS 022 + 023 + 024 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
 - Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).

@@ -926,6 +926,11 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
   background: var(--ion-color-primary); color: var(--ion-color-primary-contrast);
   font-size: 1.25rem; font-weight: 800;
 }
+.greet__logo {
+  /* Wide logos (most are) keep their shape: fixed height, width up to ~1.6×. */
+  flex: none; height: 64px; width: auto; max-width: 104px; border-radius: 14px; object-fit: contain;
+  background: #fff; padding: 3px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
 .greet__text { flex: 1; min-width: 0; }
 .greet__hello { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .greet__store {
