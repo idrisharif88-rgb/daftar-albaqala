@@ -1690,6 +1690,10 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   5. Subscription cards: batch generate in the Watcher → print card / QR → «كود اشتراك» redeem.
   6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
+- **REMINDER (owner, 2026-11-20): generalise the signed-out Welcome screen** (`src/pages/Welcome.tsx`) —
+  today it is all grocery (🛒 cart icon, «سجّل الديون والمدفوعات، واطبع الفواتير», grocery tiles), so a
+  club owner reads it as «not for me». Make the icon, tagline and tiles neutral (shops + clubs), then
+  the «هل تدير ناديًا رياضيًا؟» link of step 2 sits under it. Discuss wording with the owner first.
 - **Progress (2026-11-20):** Step 1c DONE: `/me` → `account_type` kept in localStorage (`daftar.account-type`, auth `isClub`); a club account opens `/club` (`features/club/ClubHome.tsx`, placeholder «قريباً») and every grocery route redirects there; Settings shared; router key includes the type (Watcher can switch it live). Not device-tested. Step 1b (Watcher: «نادي» badge + «المزيد» → «نوع الحساب») DONE, not device-tested. Step 1a (server) DONE + committed on `club-step1` (server 217/217); local daftar_db rebuilt from schema.sql. Original note:
   tests NOT run: migration `026_account_type.sql` (+ schema.sql), `POST /admin/users/:id/account-type
   {type, code}` (`ACCOUNT_TYPES` in `routes/admin.ts`), `account_type` in `/me` + `/admin/users`, 2 tests in
