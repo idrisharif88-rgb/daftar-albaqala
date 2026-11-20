@@ -12,7 +12,7 @@ import {
   deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation, setLogo,
 } from '../lib/api';
 import VerificationModal from '../components/VerificationModal';
-import LogoModal from '../components/LogoModal';
+import LogoModal, { type BrandKind } from '../components/LogoModal';
 import FeatureIcons from '../components/FeatureIcons';
 import { openLive } from '../lib/live';
 import { useAuth } from '../lib/auth';
@@ -100,7 +100,7 @@ const Accounts: React.FC = () => {
   // The code just issued, shown once in VerificationModal.
   const [issued, setIssued] = useState<(VerificationCode & { name: string; id: string }) | null>(null);
   // The account whose logo sheet is open.
-  const [logoFor, setLogoFor] = useState<{ id: string; name: string; hasLogo: boolean } | null>(null);
+  const [logoFor, setLogoFor] = useState<{ id: string; name: string; hasLogo: boolean; kind: BrandKind } | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -655,12 +655,13 @@ const Accounts: React.FC = () => {
     setLogoFor(null);
     if (!target) return;
     setTimeout(() => {
-      void ask(logo ? 'حفظ الشعار' : 'إزالة الشعار').then(async (code) => {
+      const what = target.kind === 'intro' ? 'صورة الترحيب' : 'الشعار';
+      void ask(logo ? `حفظ ${what}` : `إزالة ${what}`).then(async (code) => {
         if (!code) return;
         setBusyId(target.id);
         try {
-          await setLogo(target.id, logo, code);
-          void presentToast({ message: logo ? 'تم حفظ الشعار ✓' : 'أُزيل الشعار', duration: 1800, color: 'success' });
+          await setLogo(target.id, logo, code, target.kind);
+          void presentToast({ message: logo ? `تم حفظ ${what} ✓` : `أُزيل ${what}`, duration: 1800, color: 'success' });
           await load();
         } catch (err) {
           void presentToast({ message: err instanceof ApiError ? err.message : 'تعذّر الحفظ', duration: 2500, color: 'danger' });
@@ -858,9 +859,13 @@ const Accounts: React.FC = () => {
                 {managed.phone_verified === false ? 'غير متحقق' : 'متحقق ✓'}
               </IonNote>
             </IonItem>
-            <IonItem button detail onClick={() => pick((a) => setLogoFor({ id: a.id, name: a.store_name || a.phone, hasLogo: a.has_logo === true }))}>
+            <IonItem button detail onClick={() => pick((a) => setLogoFor({ id: a.id, name: a.store_name || a.phone, hasLogo: a.has_logo === true, kind: 'logo' }))}>
               <IonLabel>شعار المتجر</IonLabel>
               <IonNote slot="end">{managed.has_logo ? 'موجود' : 'لا يوجد'}</IonNote>
+            </IonItem>
+            <IonItem button detail onClick={() => pick((a) => setLogoFor({ id: a.id, name: a.store_name || a.phone, hasLogo: a.has_intro === true, kind: 'intro' }))}>
+              <IonLabel>صورة الترحيب</IonLabel>
+              <IonNote slot="end">{managed.has_intro ? 'موجودة' : 'لا توجد'}</IonNote>
             </IonItem>
             <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
             <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>

@@ -1630,7 +1630,13 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 214/214, app 1
   `brand_logo_at`; the app fetches `GET /account/logo` when it changes and caches it in localStorage
   (`src/lib/brandLogo.ts`, cleared on sign-out). Home's `WelcomeCard` shows it instead of the letter.
   First use: «أضواء العالم» for 771436613 (cropped file `~/Downloads/logo-adwaa-alalam.png`).
+- **Intro picture after sign-in (migration 025):** `users.brand_intro` + `brand_intro_at`, a second
+  slot («صورة الترحيب», ≤720 px, ≤800 KB) on the same endpoint with `kind: 'intro'`
+  (`GET /account/logo?kind=intro`). `BrandIntro` plays it full-screen ONCE after `login()` (a
+  sessionStorage mark, valid 8 s while the picture downloads; never on app restart — owner: it would
+  waste time): grows in + pulse, light sweep, greeting rises, fades after ~3 s; tap skips. Approved from
+  the artifact preview 2026-11-20 with the shop's WHOLE card; the small logo stays beside the greeting.
 - **Watcher:** tap a status icon → a toast with its name.
-- ⚠️ **MIGRATIONS 022 + 023 + 024 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+- ⚠️ **MIGRATIONS 022–025 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
 - Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).

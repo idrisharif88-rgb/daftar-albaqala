@@ -67,6 +67,18 @@ describe('brand logo', () => {
     assert.equal((await setLogo('data:image/png;base64,' + 'A'.repeat(300_001))).status, 400);
   });
 
+  test('the intro picture is its own slot', async () => {
+    const res = await request(app).post(`/admin/users/${user}/logo`).set(AUTH(await adminToken()))
+      .send({ logo: PNG, kind: 'intro', code: codeAt(1) });
+    assert.equal(res.status, 200);
+    const me = await request(app).get('/me').set(AUTH(tokenFor(user)));
+    assert.ok(me.body.user.brand_intro_at);
+    assert.equal(me.body.user.brand_logo_at, null);
+    const got = await request(app).get('/account/logo?kind=intro').set(AUTH(tokenFor(user)));
+    assert.equal(got.body.logo, PNG);
+    assert.equal((await request(app).get('/account/logo?kind=x').set(AUTH(tokenFor(user)))).status, 400);
+  });
+
   test('needs a valid authenticator code', async () => {
     const res = await request(app).post(`/admin/users/${user}/logo`).set(AUTH(await adminToken()))
       .send({ logo: PNG, code: '000000' });

@@ -92,6 +92,8 @@ export interface Account {
   activated?: boolean;
   /** The shop has its own logo on Home (024). */
   has_logo?: boolean;
+  /** …and a full-screen intro picture after sign-in (025). */
+  has_intro?: boolean;
   /** The shop owner may see the report per staff member (the developer always can). */
   pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
@@ -137,10 +139,12 @@ export function issueVerificationCode(id: string): Promise<VerificationCode> {
 }
 
 /** The shop's own logo on Home: a ≤256 px image data URL, or null to remove. */
-export function setLogo(id: string, logo: string | null, code: string): Promise<unknown> {
+export function setLogo(
+  id: string, logo: string | null, code: string, kind: 'logo' | 'intro' = 'logo',
+): Promise<unknown> {
   return request(`/admin/users/${encodeURIComponent(id)}/logo`, {
     method: 'POST',
-    body: JSON.stringify({ logo, code }),
+    body: JSON.stringify({ logo, code, kind }),
   });
 }
 

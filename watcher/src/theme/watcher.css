@@ -225,6 +225,7 @@ ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 70
   width: 128px; height: 128px; border-radius: 22px; object-fit: contain; background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15); padding: 6px;
 }
+.logo-pick__img--intro { width: 220px; height: auto; max-height: 260px; }
 .logo-pick__empty { display: grid; place-items: center; color: var(--ion-color-medium); font-size: 48px; }
 .logo-pick ion-button { width: 100%; }
 .status-ic { cursor: pointer; }

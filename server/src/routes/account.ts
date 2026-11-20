@@ -5,6 +5,7 @@ import { eraseAccount } from '../account/erase';
 import { publish } from '../live/hub';
 import { pool } from '../db';
 import { verifyCode } from '../account/phoneVerification';
+import { brandKind, BRAND_COLUMNS } from '../account/brandLogo';
 
 const router = Router();
 
@@ -63,16 +64,19 @@ router.post(
   })
 );
 
-// GET /account/logo → { logo: data URL | null, at }
-// The shop's own logo (set in the Watcher). /me carries only `brand_logo_at`,
-// so the app downloads the image only when it changed.
+// GET /account/logo?kind=logo|intro → { logo: data URL | null, at }
+// The shop's own pictures (set in the Watcher). /me carries only when each
+// last changed, so the app downloads a picture only when it changed.
 router.get(
   '/logo',
   asyncHandler(async (req: AuthedRequest, res) => {
-    const [rows] = await pool.query('SELECT brand_logo, brand_logo_at FROM users WHERE id = ?', [req.userId]);
-    const row = (rows as Array<{ brand_logo: string | null; brand_logo_at: Date | null }>)[0];
+    const kind = brandKind(req.query.kind);
+    if (!kind) return res.status(400).json({ error: "kind must be 'logo' or 'intro'" });
+    const col = BRAND_COLUMNS[kind];
+    const [rows] = await pool.query(`SELECT ${col.data} AS logo, ${col.at} AS at FROM users WHERE id = ?`, [req.userId]);
+    const row = (rows as Array<{ logo: string | null; at: Date | null }>)[0];
     if (!row) return res.status(404).json({ error: 'user not found' });
-    return res.json({ logo: row.brand_logo, at: row.brand_logo_at });
+    return res.json({ logo: row.logo, at: row.at });
   })
 );
 

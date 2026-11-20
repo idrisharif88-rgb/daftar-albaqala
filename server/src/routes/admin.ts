@@ -14,7 +14,7 @@ import { eraseAccount } from '../account/erase';
 import { buildStaffReport, validRange } from '../pos/staffReport';
 import { issueTicket, publish } from '../live/hub';
 import { issueCode } from '../account/phoneVerification';
-import { validLogo } from '../account/brandLogo';
+import { validLogo, brandKind, BRAND_COLUMNS } from '../account/brandLogo';
 
 // The Watcher app's API: the owner's view over EVERY account.
 //
@@ -93,7 +93,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.brand_logo_at, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.brand_logo_at, u.brand_intro_at, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -118,6 +118,7 @@ router.get(
       phone_verified: r.phone_verified_at != null,
       activated: r.activated_at != null,
       has_logo: r.brand_logo_at != null,
+      has_intro: r.brand_intro_at != null,
     }));
     return res.json({ users });
   })
@@ -375,30 +376,35 @@ router.post(
   }),
 );
 
-// POST /admin/users/:id/logo  { code, logo: '<data:image/…;base64,…>' | null }
-// The shop's own logo, shown on its Home in place of the letter badge.
-// null removes it. Validated before the authenticator code, so a bad file does
-// not spend the code.
+// POST /admin/users/:id/logo  { code, logo: '<data:image/…;base64,…>' | null, kind?: 'logo' | 'intro' }
+// The shop's own pictures: 'logo' (default) = the badge beside the greeting on
+// Home; 'intro' = the full-screen picture played once after sign-in. null
+// removes it. Validated before the authenticator code, so a bad file does not
+// spend the code.
 router.post(
   '/users/:id/logo',
   (req, res, next) => {
+    const kind = brandKind(req.body?.kind);
+    if (!kind) return res.status(400).json({ error: "kind must be 'logo' or 'intro'" });
     const logo = req.body?.logo;
-    if (logo !== null && validLogo(logo) === null) {
-      return res.status(400).json({ error: 'logo must be a PNG/JPEG/WebP data URL under 300 KB' });
+    if (logo !== null && validLogo(logo, kind) === null) {
+      return res.status(400).json({ error: 'logo must be a PNG/JPEG/WebP data URL within the size limit' });
     }
     return next();
   },
   requireAdminCode,
   asyncHandler(async (req, res) => {
-    const logo = req.body.logo === null ? null : validLogo(req.body.logo);
+    const kind = brandKind(req.body.kind) as 'logo' | 'intro';
+    const col = BRAND_COLUMNS[kind];
+    const logo = req.body.logo === null ? null : validLogo(req.body.logo, kind);
     const [r] = await pool.query(
-      `UPDATE users SET brand_logo = ?, brand_logo_at = CASE WHEN ? IS NULL THEN NULL ELSE UTC_TIMESTAMP(3) END
+      `UPDATE users SET ${col.data} = ?, ${col.at} = CASE WHEN ? IS NULL THEN NULL ELSE UTC_TIMESTAMP(3) END
         WHERE id = ?`,
       [logo, logo, req.params.id],
     );
     if ((r as { affectedRows: number }).affectedRows === 0) return res.status(404).json({ error: 'user not found' });
     publish(`user:${req.params.id}`, 'access'); // the shop's app fetches it at once
-    return res.json({ id: req.params.id, has_logo: logo !== null });
+    return res.json({ id: req.params.id, kind, has_logo: logo !== null });
   }),
 );
 

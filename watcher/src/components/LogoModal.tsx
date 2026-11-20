@@ -4,14 +4,21 @@ import {
 } from '@ionic/react';
 import { imageOutline, trashOutline } from 'ionicons/icons';
 
-// «شعار المتجر»: pick an image, see it as the shop will (a rounded tile on
-// Home), then save. The image is shrunk HERE to ≤ 256 px before it is sent —
-// the server keeps it in one column and refuses anything over ~300 KB.
+// The shop's two pictures: «شعار المتجر» (the small badge beside the greeting
+// on Home) and «صورة الترحيب» (the whole card, played full-screen once after
+// sign-in). Pick → preview → save. Shrunk HERE before sending — the server
+// keeps each in one column and refuses anything over its limit.
 
-const MAX_SIDE = 256;
+export type BrandKind = 'logo' | 'intro';
+const MAX_SIDE: Record<BrandKind, number> = { logo: 256, intro: 720 };
+const TITLE: Record<BrandKind, string> = { logo: 'شعار المتجر', intro: 'صورة الترحيب' };
+const HINT: Record<BrandKind, string> = {
+  logo: 'يظهر بجانب التحية في الصفحة الرئيسية.',
+  intro: 'تظهر كاملة بحركة لمرة واحدة بعد تسجيل الدخول.',
+};
 
-/** Image file → JPEG data URL, longest side ≤ MAX_SIDE, on white. */
-async function shrink(file: File): Promise<string> {
+/** Image file → JPEG data URL, longest side ≤ maxSide, on white. */
+async function shrink(file: File, maxSide: number): Promise<string> {
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -20,7 +27,7 @@ async function shrink(file: File): Promise<string> {
       el.onerror = () => reject(new Error('not an image'));
       el.src = url;
     });
-    const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
     const w = Math.max(1, Math.round(img.width * scale));
     const h = Math.max(1, Math.round(img.height * scale));
     const canvas = document.createElement('canvas');
@@ -39,7 +46,7 @@ async function shrink(file: File): Promise<string> {
 
 interface Props {
   /** The account being edited, or null when closed. */
-  account: { id: string; name: string; hasLogo: boolean } | null;
+  account: { id: string; name: string; hasLogo: boolean; kind: BrandKind } | null;
   onClose: () => void;
   /** Save (data URL) or remove (null). Resolves when done. */
   onSave: (logo: string | null) => void;
@@ -55,14 +62,14 @@ const LogoModal: React.FC<Props> = ({ account, onClose, onSave }) => {
   const pick = async (file: File | undefined) => {
     if (!file) return;
     setError(null);
-    try { setPreview(await shrink(file)); } catch { setError('تعذّر فتح الصورة'); }
+    try { setPreview(await shrink(file, MAX_SIDE[account?.kind ?? 'logo'])); } catch { setError('تعذّر فتح الصورة'); }
   };
 
   return (
     <IonModal isOpen={account !== null} onDidDismiss={onClose} initialBreakpoint={0.7} breakpoints={[0, 0.7, 1]}>
       <IonHeader>
         <IonToolbar>
-          <IonTitle>شعار المتجر</IonTitle>
+          <IonTitle>{TITLE[account?.kind ?? 'logo']}</IonTitle>
           <IonButtons slot="end"><IonButton onClick={onClose}>إغلاق</IonButton></IonButtons>
         </IonToolbar>
       </IonHeader>
@@ -71,11 +78,11 @@ const LogoModal: React.FC<Props> = ({ account, onClose, onSave }) => {
           <div className="logo-pick">
             <div className="logo-pick__who">{account.name}</div>
             {preview ? (
-              <img className="logo-pick__img" src={preview} alt="الشعار" />
+              <img className={`logo-pick__img logo-pick__img--${account.kind}`} src={preview} alt={TITLE[account.kind]} />
             ) : (
               <div className="logo-pick__empty"><IonIcon icon={imageOutline} /></div>
             )}
-            <IonNote>يظهر في أعلى الصفحة الرئيسية لهذا الحساب فقط.</IonNote>
+            <IonNote>{HINT[account.kind]} لهذا الحساب فقط.</IonNote>
             {error && <IonNote color="danger">{error}</IonNote>}
             <input
               ref={input} type="file" accept="image/*" hidden
@@ -89,7 +96,7 @@ const LogoModal: React.FC<Props> = ({ account, onClose, onSave }) => {
             {account.hasLogo && (
               <IonButton expand="block" fill="clear" color="danger" onClick={() => onSave(null)}>
                 <IonIcon slot="start" icon={trashOutline} />
-                إزالة الشعار
+                إزالة {TITLE[account.kind]}
               </IonButton>
             )}
           </div>

@@ -107,6 +107,8 @@ export interface Me {
   phone_verified?: boolean;
   /** When the shop's own logo last changed (024); null = none. Absent on an older server. */
   brand_logo_at?: string | null;
+  /** When the full-screen intro picture last changed (025); null = none. */
+  brand_intro_at?: string | null;
 }
 
 export function me(): Promise<{ user: Me }> {
@@ -219,8 +221,8 @@ export function updateStaff(id: string, body: {
 // ---- Account ----
 
 /** The shop's own logo (a data URL), set by the developer in the Watcher. */
-export function accountLogo(): Promise<{ logo: string | null }> {
-  return request('/account/logo');
+export function accountLogo(kind: 'logo' | 'intro' = 'logo'): Promise<{ logo: string | null }> {
+  return request(`/account/logo?kind=${kind}`);
 }
 
 /** Confirm this account's number with the code the developer sent.

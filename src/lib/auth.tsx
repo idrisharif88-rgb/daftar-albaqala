@@ -1,4 +1,4 @@
-import { syncBrandLogo, clearBrandLogo } from './brandLogo';
+import { syncBrandLogo, clearBrandLogo, markIntroPending } from './brandLogo';
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { forgetDriveBackup } from '../data/driveBackup';
 import * as api from './api';
@@ -96,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Wipe any previous grocer's local data on a user switch BEFORE we flip to
     // authenticated, so AutoSync pulls the new user into a clean store.
     await ensureLocalOwner(res.user.id);
+    markIntroPending(); // the shop's intro picture, if it has one, plays once now
     setAuthed(true);
   }, []);
 
@@ -188,7 +189,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
       setPhoneVerified(typeof res.user.phone_verified === 'boolean' ? res.user.phone_verified : null);
-      void syncBrandLogo(res.user.brand_logo_at);
+      void syncBrandLogo(res.user.brand_logo_at, 'logo');
+      void syncBrandLogo(res.user.brand_intro_at, 'intro');
     } catch { /* offline: the last answer stands */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);
