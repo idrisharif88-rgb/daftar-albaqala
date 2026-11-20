@@ -60,7 +60,6 @@ export const PRIVACY_URL = 'https://idrisharif88-rgb.github.io/daftar-albaqala/p
 // change who gets one — the owner names the accounts.
 export const FIXED_INTROS: Record<string, string> = {
   '771436613': '/brand/adwaa-alalam-intro.jpg', // مؤسسة أضواء العالم للكهرباء والطاقة الشمسية
-  '781215102': '/brand/adwaa-alalam-intro.jpg', // TEST ONLY — the owner's own number; remove before release
 };
 
 /** The fixed intro for this phone, or null. */
