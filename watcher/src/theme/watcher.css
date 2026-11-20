@@ -215,4 +215,5 @@ ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 70
 .status-ic { font-size: 26px; }
 .status-ic--active { color: #1b5e20; }
 .status-ic--suspended { color: #c62828; }
+.status-ic--inactive { color: #90a4ae; }
 .status-ic--unverified { color: #b07800; }

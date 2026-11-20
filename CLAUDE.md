@@ -1613,7 +1613,10 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 208/208, app 1
 - **Welcome on Home** (`WelcomeCard`, `data/welcome.ts`): always on, nothing to set (owner, 2026-11-20):
   badge with the initial + «صباح/مساء الخير، <name> 👋» + store-name pill. CSS class `.greet` — NOT
   `.welcome`, which is the sign-in page (the clash broke that page once).
-- **Watcher card:** icons instead of words — ✓ allowed / ⦸ suspended / amber shield = unverified.
+- **Watcher card:** icons instead of words — ✓ green «مفعّل» (= sync on) / grey ○ «غير مفعّل» (new
+  accounts start here) / ⦸ red «موقوف» / amber shield = unverified. Filters + counts: مفعّل / غير مفعّل /
+  موقوف. Main button: «تفعيل» (code → user's yes → switch on) · «مفعّل» (tap = suspend) · «موقوف · سماح».
+  Suspending a not-activated account: «المزيد» → «إيقاف الحساب».
   The code goes by SMS in the SAME full wording as WhatsApp (owner found the short SMS too terse).
 - ⚠️ **MIGRATION 022 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).

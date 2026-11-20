@@ -87,7 +87,7 @@ const VerificationModal: React.FC<Props> = ({ issued, onClose, onNewCode }) => {
                 إنشاء رمز جديد
               </IonButton>
             )}
-            <p className="verify__hint">يكتب المستخدم الرمز في التطبيق: الإعدادات ← تأكيد رقم الهاتف.</p>
+            <p className="verify__hint">يُدخله المستخدم في التطبيق.</p>
           </div>
         </IonContent>
       )}
