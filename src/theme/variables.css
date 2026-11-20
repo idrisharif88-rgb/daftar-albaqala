@@ -983,6 +983,7 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
    Calm, three colours: the book's dark green (header, buttons, ➕, ▲), white
    on it, and grey. Every colour is a theme token, so night mode has no white
    boxes. Status and days are plain text — no pills, no frames. */
+.club { --club-space: 20px; } /* one spacing unit for the club pages (doubled 2026-11-21: «crowded») */
 .club ion-toolbar { --background: var(--app-bar); --color: #fff; --border-width: 0; }
 .club ion-toolbar ion-segment-button { --color: rgba(255, 255, 255, 0.72); --color-checked: #fff; --indicator-color: rgba(255, 255, 255, 0.75); font-weight: 800; min-width: 0; }
 .club ion-searchbar { --background: rgba(255, 255, 255, 0.12); --color: #fff; --placeholder-color: rgba(255, 255, 255, 0.7); --icon-color: rgba(255, 255, 255, 0.7); }
@@ -1008,7 +1009,7 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 .club-btn { --background: var(--app-bar); --color: #fff; font-weight: 800; }
 .club-btn-out { --border-color: var(--app-border); --color: var(--ion-text-color); font-weight: 800; }
 .club-err { display: block; padding: 8px 4px 0; font-size: 0.88rem; }
-.club-card { margin: 6px 16px 12px; padding: 14px 0; border-bottom: 1px solid var(--app-border); display: grid; gap: 10px; }
+.club-card { margin: 8px 16px var(--club-space); padding: var(--club-space) 0; border-bottom: 1px solid var(--app-border); display: grid; gap: var(--club-space); line-height: 1.6; }
 .club-card__head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; font-size: 1.05rem; }
 .club-dates { display: flex; justify-content: space-between; font-weight: 700; }
 .club-dates span { display: inline-flex; align-items: center; gap: 6px; }
@@ -1016,18 +1017,18 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 .club-tri--up { border-bottom: 9px solid var(--app-bar); }
 .club-tri--down { border-top: 9px solid var(--app-muted); }
 .ion-palette-dark .club-tri--up { border-bottom-color: var(--ion-color-primary); }
-.club-prog { height: 4px; border-radius: 2px; background: var(--app-border); overflow: hidden; }
+.club-prog { margin-block: 2px; height: 4px; border-radius: 2px; background: var(--app-border); overflow: hidden; }
 .club-prog i { display: block; height: 100%; background: var(--app-muted); }
 .club-money { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.95rem; }
 .club-money--sub { font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }
 .club-money em { font-style: normal; }
 .club-owed { color: var(--ion-text-color); }
 .club-paid { color: var(--app-muted); }
-.club-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px; }
-.club-hist { display: grid; padding: 12px 16px 32px; }
-.club-h { display: flex; justify-content: space-between; font-size: 0.88rem; padding: 10px 0; border-bottom: 1px solid var(--app-border); }
+.club-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 16px var(--club-space); }
+.club-hist { display: grid; padding: 8px 16px 40px; }
+.club-h { display: flex; justify-content: space-between; font-size: 0.9rem; padding: 16px 0; border-bottom: 1px solid var(--app-border); }
 .club-h span { color: var(--app-muted); }
-.club-summary { display: grid; gap: 6px; margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--app-border); }
+.club-summary { display: grid; gap: 12px; margin: var(--club-space) 0 0; padding-top: var(--club-space); border-top: 1px dashed var(--app-border); }
 .club-summary div { display: flex; justify-content: space-between; font-size: 0.9rem; }
 .club-summary span { display: inline-flex; align-items: center; gap: 6px; color: var(--app-muted); }
 /* Sheets: the page's own surface, not a white slab. */
