@@ -1687,7 +1687,7 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   2. Club sign-up path: welcome link → club form → waiting screen (reuses Phase 42 activation).
   3. Subscribers + packages: role «مشترك» → packages (monthly/weekly/daily) → subscription with dates.
   4. Payments + renewal: payments on a subscription → expired / about-to-expire list → «تجديد» + confirm.
-  5. Subscription cards: batch generate in the Watcher → print card / QR → «كود اشتراك» redeem.
+  5. ~~Subscription cards~~ — DROPPED by the owner (2026-11-21): not needed.
   6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
 - **Step 3 BUILT (2026-11-20, migration 027 + local migration 16):** subscriber = contact role `member`
   (known everywhere via `CLUB_ROLES` in roles.ts, offered by no build's picker; server VALID_ROLES too).
