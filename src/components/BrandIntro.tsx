@@ -5,14 +5,14 @@ import { greeting } from '../data/welcome';
 
 // The shop's intro picture (its whole card), full-screen ONCE after sign-in:
 // it grows in with a pulse, a light passes over it, the greeting rises, and
-// after ~3 s it fades into the book. One tap skips it. Only accounts the
+// after 2.5 s it is gone. One tap skips it. Only accounts the
 // developer gave an intro picture (Watcher) ever see this — approved by the
 // owner from the preview on 2026-11-20.
 //
 // The picture may arrive a moment AFTER sign-in (/me → download); the
 // pending mark lasts a few seconds for it (lib/brandLogo.ts).
 
-const PLAY_MS = 3100;
+const PLAY_MS = 2500;
 
 const BrandIntro: React.FC = () => {
   // Its own intro picture, else the shop's logo: one picture is enough to

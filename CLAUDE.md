@@ -1634,7 +1634,7 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 215/215, app 1
   slot («صورة الترحيب», ≤720 px, ≤800 KB) on the same endpoint with `kind: 'intro'`
   (`GET /account/logo?kind=intro`). `BrandIntro` plays it full-screen ONCE after `login()` (a
   sessionStorage mark, valid 8 s while the picture downloads; no intro picture → plays the logo; never on app restart — owner: it would
-  waste time): grows in + pulse, light sweep, greeting rises, fades after ~3 s; tap skips. Approved from
+  waste time): grows in + pulse, light sweep, greeting rises, fades out by 2.5 s; tap skips. Approved from
   the artifact preview 2026-11-20 with the shop's WHOLE card; the small logo stays beside the greeting.
 - **Watcher:** tap a status icon → a toast with its name.
 - ⚠️ **MIGRATIONS 022–025 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
