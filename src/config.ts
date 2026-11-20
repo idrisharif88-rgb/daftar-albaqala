@@ -52,3 +52,19 @@ export const FEATURES = {
  * how it travels, which is what a reader actually needs.
  */
 export const PRIVACY_URL = 'https://idrisharif88-rgb.github.io/daftar-albaqala/privacy.html';
+
+// ---- Fixed intro pictures, per account (owner's call, 2026-11-20) ----
+// The shop's card, built into the app and played full-screen once after
+// sign-in. Keyed by the account's phone (last 9 digits). A phone listed here
+// wins over any intro picture set in the Watcher. Add / remove a line to
+// change who gets one — the owner names the accounts.
+export const FIXED_INTROS: Record<string, string> = {
+  '771436613': '/brand/adwaa-alalam-intro.jpg', // مؤسسة أضواء العالم للكهرباء والطاقة الشمسية
+  '781215102': '/brand/adwaa-alalam-intro.jpg', // TEST ONLY — the owner's own number; remove before release
+};
+
+/** The fixed intro for this phone, or null. */
+export function fixedIntroFor(phone: string | null | undefined): string | null {
+  const key = String(phone ?? '').replace(/\D/g, '').slice(-9);
+  return FIXED_INTROS[key] ?? null;
+}

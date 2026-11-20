@@ -4,24 +4,29 @@ import { getSettings } from '../data/settings';
 import { greeting } from '../data/welcome';
 import { GATE_EVENT, gateUnlockedAt, isGateLocked } from '../lib/gateState';
 import { biometricEnabled } from '../lib/biometric';
+import { fixedIntroFor } from '../config';
+import { getPhone } from '../lib/storage';
 
 // The shop's intro picture (its whole card), full-screen ONCE after sign-in:
 // it grows in with a pulse, a light passes over it, the greeting rises, and
-// after 2.5 s it is gone. One tap skips it. Only accounts the
+// after 3 s it is gone. One tap skips it. Only accounts the
 // developer gave an intro picture (Watcher) ever see this — approved by the
 // owner from the preview on 2026-11-20.
 //
 // The picture may arrive a moment AFTER sign-in (/me → download); the
 // pending mark lasts a few seconds for it (lib/brandLogo.ts).
 
-const PLAY_MS = 2500;
+const PLAY_MS = 3000;
 
 const BrandIntro: React.FC = () => {
   // Its own intro picture, else the shop's logo: one picture is enough to
   // play it (owner, 2026-11-20 — he set only one and expected the intro).
+  // A picture built into the app for this account (config.ts) comes first,
+  // then the Watcher's intro picture, then the shop's logo.
   const ownIntro = useBrandLogo('intro');
   const logo = useBrandLogo('logo');
-  const intro = ownIntro ?? logo;
+  const fixed = fixedIntroFor(getPhone());
+  const intro = fixed ?? ownIntro ?? logo;
   const [show, setShow] = useState(false);
   const [name, setName] = useState('');
   // The animation starts only once the picture is decoded, so a slow decode
