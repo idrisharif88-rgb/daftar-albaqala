@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app icon (ic_launcher background + foreground) as ONE drawable, cropped
+     to the circle Android 12's splash shows (the centre 2/3 of the 108 grid).
+     Used by the launch window, the system splash and NativeSplash, so the
+     opening screen shows exactly the icon the user tapped (owner's choice,
+     2026-11-20 — big-company practice). Keep in step with
+     drawable/ic_launcher_background.xml + drawable-v24/ic_launcher_foreground.xml
+     and with the inline copy in index.html. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="160dp"
+    android:height="160dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <group android:translateX="-18" android:translateY="-18">
+        <clip-path android:pathData="M18,54 a36,36 0 1,0 72,0 a36,36 0 1,0 -72,0 Z" />
+        <path android:fillColor="#2E7D32" android:pathData="M0,0h108v108h-108z" />
+        <path android:fillColor="#37903C" android:pathData="M8,54 a46,46 0 1,0 92,0 a46,46 0 1,0 -92,0 Z" />
+        <path android:fillColor="#FBF3E3"
+            android:pathData="M39,31 H69 A5,5 0 0 1 74,36 V72 A5,5 0 0 1 69,77 H39 A5,5 0 0 1 34,72 V36 A5,5 0 0 1 39,31 Z" />
+        <path android:strokeColor="#E24C4B" android:strokeWidth="2.5"
+            android:strokeLineCap="round" android:pathData="M41,38 L41,70" />
+        <path android:strokeColor="#9DB6C7" android:strokeWidth="2.8"
+            android:strokeLineCap="round" android:pathData="M46,44 L68,44" />
+        <path android:strokeColor="#9DB6C7" android:strokeWidth="2.8"
+            android:strokeLineCap="round" android:pathData="M46,54 L68,54" />
+        <path android:strokeColor="#9DB6C7" android:strokeWidth="2.8"
+            android:strokeLineCap="round" android:pathData="M46,64 L56,64" />
+        <path android:fillColor="#F6C445"
+            android:pathData="M58,68 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0 Z" />
+        <path android:strokeColor="#DBA400" android:strokeWidth="2"
+            android:pathData="M61.5,68 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0 Z" />
+    </group>
+</vector>

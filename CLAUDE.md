@@ -1702,7 +1702,13 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   waits for the fingerprint lock, the shop intro (`gateState.setIntroPlaying`) and the first sync; «ابدأ» /
   «تخطٍّ» set the SYNCED key `ui_tour_<type>` (server allowlist too — deploy server first). Settings →
   «جولة في التطبيق» replays it.
-- ~~REMINDER: generalise the signed-out Welcome screen~~ (done above) (`src/pages/Welcome.tsx`) —
+- ~~REMINDER: generalise the signed-out Welcome screen~~ (done above)
+- **Opening screen = the app icon (owner's choice, 2026-11-20; device-verified):** the 🛒 basket and its
+  3.6 s animation are gone. `drawable/splash_app_icon.xml` (launcher icon cropped to Android 12's splash
+  circle, 160dp) is used by `launch_green.xml`, the system splash (`windowSplashScreenAnimatedIcon`) and
+  `NativeSplash.build()` (icon + «فليكتب | Shopbook» at the bottom, SHOW_MS 600, leaves once the page
+  painted); browser copy in `SplashIntro.tsx` + `index.html`. Contractor keeps its scene (its own
+  transparent `splash_app_icon`). `vite.config.ts` regex for the contractor boot placeholder updated. (`src/pages/Welcome.tsx`) —
   today it is all grocery (🛒 cart icon, «سجّل الديون والمدفوعات، واطبع الفواتير», grocery tiles), so a
   club owner reads it as «not for me». Make the icon, tagline and tiles neutral (shops + clubs), then
   the «هل تدير ناديًا رياضيًا؟» link of step 2 sits under it. Discuss wording with the owner first.

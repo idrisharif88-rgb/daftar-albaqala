@@ -25,17 +25,23 @@
   </head>
   <body>
     <!-- The opening screen's first picture, painted before any script runs:
-         the same green and the same basket, in the same spot, as Android's
-         launch window (launch_green.xml) and SplashIntro.tsx, which removes
-         this the moment it mounts. Inline on purpose — no stylesheet has
-         loaded yet. -->
+         the APP ICON on brand green, same size and spot as Android's launch
+         window (launch_green.xml / splash_app_icon.xml) and SplashIntro.tsx,
+         which removes this the moment it mounts. Inline on purpose — no
+         stylesheet has loaded yet. -->
     <div id="boot-splash" style="position:fixed;inset:0;z-index:300000;background:#1b5e20">
-      <div style="position:absolute;top:50%;left:50%;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:26px;background:rgba(255,255,255,.14);display:grid;place-items:center">
-        <svg viewBox="0 0 64 64" fill="none" width="56" height="56">
-          <path d="M8 12h7l6 28h28l6-20H18" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="25" cy="50" r="4.5" fill="#fff"/><circle cx="45" cy="50" r="4.5" fill="#fff"/>
-        </svg>
-      </div>
+      <svg viewBox="18 18 72 72" width="160" height="160" style="position:absolute;top:50%;left:50%;margin:-80px 0 0 -80px">
+          <clipPath id="spl-c"><circle cx="54" cy="54" r="36"/></clipPath>
+          <g clip-path="url(#spl-c)">
+            <rect width="108" height="108" fill="#2E7D32"/>
+            <circle cx="54" cy="54" r="46" fill="#37903C"/>
+            <path fill="#FBF3E3" d="M39,31 H69 A5,5 0 0 1 74,36 V72 A5,5 0 0 1 69,77 H39 A5,5 0 0 1 34,72 V36 A5,5 0 0 1 39,31 Z"/>
+            <path stroke="#E24C4B" stroke-width="2.5" stroke-linecap="round" d="M41,38 L41,70"/>
+            <path stroke="#9DB6C7" stroke-width="2.8" stroke-linecap="round" d="M46,44 L68,44 M46,54 L68,54 M46,64 L56,64"/>
+            <circle cx="68" cy="68" r="10" fill="#F6C445"/>
+            <circle cx="68" cy="68" r="6.5" fill="none" stroke="#DBA400" stroke-width="2"/>
+          </g>
+      </svg>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
