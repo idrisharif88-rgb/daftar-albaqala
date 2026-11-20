@@ -31,9 +31,6 @@ export const SYNCABLE_KEYS = [
   'ui_scale',
   'biometric',
   'updates_notebook',
-  // The welcome on Home (data/welcome.ts): shown or not, and its own line.
-  'ui_welcome_show',
-  'ui_welcome_text',
 ] as const;
 
 /** One setting on the wire. `updated_at` is the phone clock that wrote it. */

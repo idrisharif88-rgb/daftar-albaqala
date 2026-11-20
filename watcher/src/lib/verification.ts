@@ -1,8 +1,9 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // The verification code message — the wording approved by the owner
-// (2026-11-20). Two forms: WhatsApp has no length limit; the SMS must stay
-// short (Arabic SMS = 70 characters per part, 67 once chained).
+// (2026-11-20). The SAME full text goes by WhatsApp and by SMS (owner's
+// choice: the short SMS read as too terse). By SMS it is ~4 parts; only
+// WhatsApp gets the *bold* marks, which an SMS would show as stars.
 
 export const APP_NAME = 'فليكتب';
 
@@ -11,12 +12,12 @@ export function spacedCode(code: string): string {
   return `${code.slice(0, 3)} ${code.slice(3)}`;
 }
 
-export function whatsappMessage(code: string): string {
+function fullMessage(code: string, bold: (t: string) => string): string {
   return [
-    `*${APP_NAME} | Shopbook*`,
+    bold(`${APP_NAME} | Shopbook`),
     'رمز التحقق الخاص بك هو:',
     '',
-    `*${spacedCode(code)}*`,
+    bold(spacedCode(code)),
     '',
     'أدخل هذا الرمز في التطبيق لتأكيد رقم هاتفك.',
     'صالح لمدة 10 دقائق.',
@@ -27,9 +28,8 @@ export function whatsappMessage(code: string): string {
   ].join('\n');
 }
 
-export function smsMessage(code: string): string {
-  return `${APP_NAME}: رمز التحقق ${code}\nصالح 10 دقائق. لا تشاركه مع أحد، فريق ${APP_NAME} لن يطلبه منك أبداً.`;
-}
+export const whatsappMessage = (code: string): string => fullMessage(code, (t) => `*${t}*`);
+export const smsMessage = (code: string): string => fullMessage(code, (t) => t);
 
 /** Local number → international digits (Yemen 967), as WhatsApp expects. */
 export function intlDigits(phone: string): string {

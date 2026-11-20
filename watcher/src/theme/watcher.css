@@ -212,4 +212,7 @@ ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 70
 .verify__code--dead { color: var(--ion-color-medium); text-decoration: line-through; }
 .verify__send { width: 100%; display: grid; gap: 6px; margin-top: 10px; }
 .verify__hint { color: var(--ion-color-medium); font-size: 0.85rem; margin: 6px 0 0; }
-.badge--unverified { background: #fff4d6; color: #7a5a00; }
+.status-ic { font-size: 26px; }
+.status-ic--active { color: #1b5e20; }
+.status-ic--suspended { color: #c62828; }
+.status-ic--unverified { color: #b07800; }

@@ -1,30 +1,6 @@
-import { getManyMeta, setManyMeta } from './meta';
-
-// The welcome at the top of Home: a badge with the owner's initial and name,
-// a greeting for the time of day, and an optional line of their own. Synced
-// with the account (settingsSync.ts), so a second phone greets the same way.
-
-export interface Welcome {
-  /** Off = no welcome at all (default on). */
-  show: boolean;
-  /** The owner's own second line; '' = the default one. */
-  text: string;
-}
-
-export const WELCOME_TEXT_MAX = 80;
-const KEYS = { show: 'ui_welcome_show', text: 'ui_welcome_text' } as const;
-
-export async function getWelcome(): Promise<Welcome> {
-  const m = await getManyMeta([KEYS.show, KEYS.text]);
-  return { show: m[KEYS.show] !== '0', text: (m[KEYS.text] ?? '').trim() };
-}
-
-export async function saveWelcome(w: Welcome): Promise<void> {
-  await setManyMeta({
-    [KEYS.show]: w.show ? '1' : '0',
-    [KEYS.text]: w.text.trim().slice(0, WELCOME_TEXT_MAX),
-  });
-}
+// The welcome at the top of Home: a round badge with the owner's initial and
+// «صباح الخير / مساء الخير، <name> 👋». Always on, nothing to set (owner's
+// decision, 2026-11-20: the greeting by time of day is enough).
 
 /** «صباح الخير» before noon, «مساء الخير» after — on the phone's own clock. */
 export function greeting(now = new Date()): string {

@@ -4,7 +4,9 @@ import {
   IonSearchbar, IonSegment, IonSegmentButton, IonLabel, IonRefresher, IonRefresherContent,
   IonSpinner, IonModal, IonList, IonListHeader, IonItem, IonNote, useIonAlert, useIonToast, useIonRouter,
 } from '@ionic/react';
-import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
+import {
+  logOutOutline, refreshOutline, ellipsisVertical, checkmarkCircle, banOutline, shieldOutline,
+} from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
   deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode,
@@ -846,8 +848,15 @@ const Accounts: React.FC = () => {
                   <div className="acct__phone">{a.phone}</div>
                 </div>
                 <div className="acct__badges">
-                  <span className={`badge badge--${s === 'suspended' ? 'suspended' : 'active'}`}>{STATUS_AR[s]}</span>
-                  {a.phone_verified === false && <span className="badge badge--unverified">غير متحقق</span>}
+                  {/* Icons, not words: allowed ✓ / suspended ⦸, and a shield while the number is unverified. */}
+                  <IonIcon
+                    className={`status-ic status-ic--${s === 'suspended' ? 'suspended' : 'active'}`}
+                    icon={s === 'suspended' ? banOutline : checkmarkCircle}
+                    aria-label={STATUS_AR[s]} title={STATUS_AR[s]}
+                  />
+                  {a.phone_verified === false && (
+                    <IonIcon className="status-ic status-ic--unverified" icon={shieldOutline} aria-label="غير متحقق" title="غير متحقق" />
+                  )}
                 </div>
               </div>
               {s !== 'suspended' && <FeatureIcons account={a} />}

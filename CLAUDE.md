@@ -1610,9 +1610,11 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 208/208, app 1
 - **«+ صنف جديد» inside the invoice** (`QuickAddItem`): header «+», or «إضافة «…» كصنف» when a search
   finds nothing. Saves to the price list and adds qty 1; the basket stays. Currency locked to the
   invoice's once it has lines.
-- **Welcome on Home** (`WelcomeCard`, `data/welcome.ts`): badge with the initial, «صباح/مساء الخير،
-  <name> 👋», today's date or the owner's own line, store-name pill. Settings «المظهر والأمان»: on/off +
-  text. Synced keys `ui_welcome_show` / `ui_welcome_text` (server allowlist too — **deploy server first**).
+- **Welcome on Home** (`WelcomeCard`, `data/welcome.ts`): always on, nothing to set (owner, 2026-11-20):
+  badge with the initial + «صباح/مساء الخير، <name> 👋» + store-name pill. CSS class `.greet` — NOT
+  `.welcome`, which is the sign-in page (the clash broke that page once).
+- **Watcher card:** icons instead of words — ✓ allowed / ⦸ suspended / amber shield = unverified.
+  The code goes by SMS in the SAME full wording as WhatsApp (owner found the short SMS too terse).
 - ⚠️ **MIGRATION 022 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
 - Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).
