@@ -916,20 +916,20 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 }
 .verify-banner ion-icon { font-size: 20px; flex: none; }
 
-/* ---- Welcome on Home (components/WelcomeCard.tsx) ---- */
-.welcome {
+/* ---- Welcome on Home (components/WelcomeCard.tsx) — NOT .welcome: that is the sign-in page ---- */
+.greet {
   display: flex; align-items: center; gap: 12px; margin: 10px 12px 2px; padding: 12px 14px;
   border-radius: 16px; background: rgba(var(--ion-color-primary-rgb), 0.08);
 }
-.welcome__badge {
+.greet__badge {
   flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
   background: var(--ion-color-primary); color: var(--ion-color-primary-contrast);
   font-size: 1.25rem; font-weight: 800;
 }
-.welcome__text { flex: 1; min-width: 0; }
-.welcome__hello { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.welcome__line { color: var(--ion-color-medium-shade); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.welcome__store {
+.greet__text { flex: 1; min-width: 0; }
+.greet__hello { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.greet__line { color: var(--ion-color-medium-shade); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.greet__store {
   flex: none; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px;
   background: var(--ion-color-primary); color: var(--ion-color-primary-contrast);

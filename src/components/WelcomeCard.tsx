@@ -20,15 +20,15 @@ const WelcomeCard: React.FC<Props> = ({ welcome, name, storeName }) => {
   if (!welcome.show) return null;
   const who = name || storeName;
   return (
-    <div className="welcome" role="status">
-      <div className="welcome__badge" aria-hidden="true">{initialOf(who)}</div>
-      <div className="welcome__text">
-        <div className="welcome__hello">
+    <div className="greet" role="status">
+      <div className="greet__badge" aria-hidden="true">{initialOf(who)}</div>
+      <div className="greet__text">
+        <div className="greet__hello">
           {greeting()}{who ? `، ${who}` : ''} 👋
         </div>
-        <div className="welcome__line">{welcome.text || today()}</div>
+        <div className="greet__line">{welcome.text || today()}</div>
       </div>
-      {storeName && name && <span className="welcome__store">{storeName}</span>}
+      {storeName && name && <span className="greet__store">{storeName}</span>}
     </div>
   );
 };
