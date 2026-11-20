@@ -13,6 +13,7 @@ import { onSyncComplete, runSync } from '../../data/sync';
 import { phoneInput } from '../../lib/digits';
 import { pickContact } from '../../lib/contacts';
 import { arabicDate } from './messages';
+import { useClubActions } from './useClubActions';
 import WelcomeCard from '../../components/WelcomeCard';
 import type { Customer } from '../../data/customers';
 import {
@@ -86,6 +87,7 @@ const ClubHome: React.FC = () => {
   }, []);
 
   useIonViewWillEnter(() => { void load(); });
+  const { renew, remind } = useClubActions(() => { void load(); });
   useEffect(() => onSyncComplete(() => { void load(); }), [load]);
 
   const counts = useMemo(() => {
@@ -168,7 +170,8 @@ const ClubHome: React.FC = () => {
         ) : (
           <div className="club-list">
             {shown.map((r) => (
-              <IonItem key={r.member.id} button detail={false} lines="none" className="club-row" routerLink={`/club/members/${r.member.id}`}>
+              <div key={r.member.id} className="club-entry">
+              <IonItem button detail={false} lines="none" className="club-row" routerLink={`/club/members/${r.member.id}`}>
                 <div className="club-av" slot="start" aria-hidden="true">{Array.from(r.member.name.trim())[0] ?? '؟'}</div>
                 <div className="club-row__tx">
                   <b>{r.member.name}</b>
@@ -181,6 +184,14 @@ const ClubHome: React.FC = () => {
                 </div>
                 <span slot="end" className={`club-chip club-chip--${r.status}`}>{chipText(r.status, r.left)}</span>
               </IonItem>
+              {/* About to end or lapsed: renew or remind, right from the list. */}
+              {r.latest && (r.status === 'soon' || r.status === 'expired') && (
+                <div className="club-acts-row">
+                  <IonButton size="small" className="club-btn" onClick={() => renew(r.member, r.latest!)}>تجديد</IonButton>
+                  <IonButton size="small" fill="outline" className="club-btn-out" onClick={() => remind(r.member, r.latest!)}>تذكير</IonButton>
+                </div>
+              )}
+              </div>
             ))}
           </div>
         )}

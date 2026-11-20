@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import {
   IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonInput, IonItem, IonLabel, IonList,
   IonModal, IonNote, IonPage, IonSelect, IonSelectOption, IonTitle, IonToolbar, useIonToast, useIonViewWillEnter,
@@ -17,6 +17,7 @@ import {
 import { chipText } from './ClubHome';
 import { useContactNotifier } from '../../lib/useContactNotifier';
 import { arabicDate, paymentMessage, subscriptionMessage } from './messages';
+import { useClubActions } from './useClubActions';
 
 // A subscriber's card (Phase 43, step 3): the current subscription with its
 // dates and days left, what is still owed, «اشتراك جديد» and «تسجيل دفعة»,
@@ -60,6 +61,18 @@ const ClubMember: React.FC = () => {
   }, [id]);
 
   useIonViewWillEnter(() => { void load(); });
+  const { remind } = useClubActions(() => { void load(); });
+
+  // «تعديل السعر» from a renewal confirm lands here with ?renew=1: open the
+  // subscription form once the packages are loaded.
+  const location = useLocation();
+  const renewOpened = useRef(false);
+  useEffect(() => {
+    if (renewOpened.current || !location.search.includes('renew=1') || packages.length === 0) return;
+    renewOpened.current = true;
+    openSub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, packages]);
 
   const current = subs[0] ?? null;
   const { status, left } = statusOf(current);
@@ -188,6 +201,11 @@ const ClubMember: React.FC = () => {
           <IonButton fill="outline" className="club-btn-out" onClick={() => { setAmount(owed > 0 ? String(owed / 100) : ''); setPayErr(null); setPayOpen(true); }}>
             تسجيل دفعة
           </IonButton>
+          {current && member && (status === 'soon' || status === 'expired') && (
+            <IonButton fill="clear" className="club-btn-out club-acts__wide" onClick={() => remind(member, current)}>
+              إرسال تذكير
+            </IonButton>
+          )}
         </div>
 
         <div className="club-hist">

@@ -1038,3 +1038,9 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 .club-sheet ion-list { background: transparent; }
 .club-sheet ion-item { --background: transparent; }
 .club-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.club-entry { border-bottom: 1px solid var(--app-border); }
+.club-entry .club-row { border-bottom: 0; }
+.club-acts-row { display: flex; gap: 8px; padding: 0 48px 12px 0; }
+.club-acts-row ion-button { margin: 0; --padding-start: 16px; --padding-end: 16px; }
+.club-acts__wide { grid-column: 1 / -1; }
+.club-alert .alert-message { white-space: pre-line; line-height: 1.9; }

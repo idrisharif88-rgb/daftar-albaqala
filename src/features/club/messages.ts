@@ -58,3 +58,10 @@ export function paymentMessage(o: {
     'شكراً لك',
   ]);
 }
+
+/** A reminder only — nothing is recorded (approved wording, 2026-11-21). */
+export function reminderMessage(o: { club: string; endDate: string; expired: boolean }): { whatsapp: string; sms: string } {
+  return pack(o.expired
+    ? [`🏋️ ${o.club}`, '', `انتهى اشتراكك في: ${arabicDate(o.endDate)}`, 'يسعدنا تجديده لتعود معنا 💪']
+    : [`🏋️ ${o.club}`, '', `اشتراكك ينتهي في: ${arabicDate(o.endDate)}`, 'نتمنى تجديده لتستمر معنا 💪']);
+}

@@ -23,3 +23,13 @@ describe('club messages', () => {
     expect(paymentMessage({ club: 'ن', amount: 1, balanceAfter: 0, endDate: null }).whatsapp).toContain('تم سداد المبلغ كاملاً');
   });
 });
+
+describe('club reminder', () => {
+  it('before and after the end date', async () => {
+    const { reminderMessage } = await import('./messages');
+    expect(reminderMessage({ club: 'نادي', endDate: '2026-11-23', expired: false }).whatsapp)
+      .toBe('🏋️ نادي\n\nاشتراكك ينتهي في: 23 نوفمبر 2026\nنتمنى تجديده لتستمر معنا 💪');
+    expect(reminderMessage({ club: 'نادي', endDate: '2026-11-18', expired: true }).sms)
+      .toBe('نادي\n\nانتهى اشتراكك في: 18 نوفمبر 2026\nيسعدنا تجديده لتعود معنا');
+  });
+});
