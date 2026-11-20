@@ -1699,6 +1699,7 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   dates, days-left bar, owed, «اشتراك جديد» with editable price + discount line, «تسجيل دفعة» partial
   allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
   ≤3 days. No notices yet (step 4).
+  - TODO (owner): «مشترك جديد» needs the «جهات الاتصال» picker (`pickContact`, as on Home).
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
 - **DECIDED (owner, 2026-11-20, replaces the club link of step 2):** sign-up is ONE general path for
   everyone — no «هل تدير ناديًا رياضيًا؟» link. The developer asks each new user who they are during
