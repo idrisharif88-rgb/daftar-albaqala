@@ -88,6 +88,8 @@ export interface Account {
   multi_device?: boolean;
   /** The number was confirmed with a code (every account older than 022 counts as confirmed). */
   phone_verified?: boolean;
+  /** Approved by the developer (023). Separate from server sync, which needs it. */
+  activated?: boolean;
   /** The shop owner may see the report per staff member (the developer always can). */
   pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
@@ -130,6 +132,14 @@ export interface VerificationCode { code: string; phone: string; expires_at: str
 /** A fresh 6-digit code for this account (an older one stops working). Shown once. */
 export function issueVerificationCode(id: string): Promise<VerificationCode> {
   return request(`/admin/users/${encodeURIComponent(id)}/verification-code`, { method: 'POST' });
+}
+
+/** «تفعيل» / «إلغاء التفعيل» — approve the account. Off also stops server sync. */
+export function setActivation(id: string, active: boolean, code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/activation`, {
+    method: 'POST',
+    body: JSON.stringify({ active, code }),
+  });
 }
 
 /** Ask the user to agree to server sync (their app shows ✓ / ✗). No code needed. */

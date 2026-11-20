@@ -51,12 +51,12 @@ export async function seedUser(
     sub.expiresAt === undefined ? null : sub.expiresAt ? mysqlDate(sub.expiresAt) : null;
   await pool.query(
     `INSERT INTO users
-       (id, phone, password_hash, subscription_status, subscription_expires_at, sync_consent, phone_verified_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, phone, password_hash, subscription_status, subscription_expires_at, sync_consent, phone_verified_at, activated_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     // An active test tenant has also APPROVED sync (migration 016) — the consent
     // gate is tested on its own in syncConsent.test.ts. Every seeded tenant is
-    // a verified number (022), like every account that existed before it.
-    [id, phone, 'x', status, expiresAt, status === 'active' ? 'approved' : 'none', now, now, now]
+    // a verified, activated account (022/023), like every account before them.
+    [id, phone, 'x', status, expiresAt, status === 'active' ? 'approved' : 'none', now, now, now, now]
   );
   return id;
 }

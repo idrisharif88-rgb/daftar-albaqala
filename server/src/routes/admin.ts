@@ -92,7 +92,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -115,6 +115,7 @@ router.get(
       pos_report_enabled: Number(r.pos_report_enabled) === 1,
       multi_device: Number(r.multi_device) === 1,
       phone_verified: r.phone_verified_at != null,
+      activated: r.activated_at != null,
     }));
     return res.json({ users });
   })
@@ -316,13 +317,14 @@ const SETTABLE = new Set(['active', 'none', 'suspended']);
 const consentOnOff = (other: 'contractor_status' | 'subscription_status') =>
   `sync_consent = CASE WHEN ? = 'none' AND ${other} <> 'active' THEN 'none' ELSE sync_consent END`;
 
-/** Refuse switching sync on (either app) until the number is verified.
- *  «تفعيل مباشر» (direct) skips both checks: the Play app ≤2.2 has neither
- *  the consent prompt nor the code screen, so there the developer decides. */
-async function phoneVerified(id: string): Promise<boolean | null> {
-  const [rows] = await pool.query('SELECT phone_verified_at FROM users WHERE id = ?', [id]);
+/** Where an account stands before sync may be switched on: the number
+ *  verified (022), then the account activated by the developer (023).
+ *  «تفعيل مباشر» (direct) skips all of it: the Play app ≤2.2 has no code
+ *  screen and no consent prompt, so there the developer decides alone. */
+async function accountGate(id: string): Promise<{ verified: boolean; activated: boolean } | null> {
+  const [rows] = await pool.query('SELECT phone_verified_at, activated_at FROM users WHERE id = ?', [id]);
   const row = (rows as Array<Record<string, unknown>>)[0];
-  return row ? row.phone_verified_at != null : null;
+  return row ? { verified: row.phone_verified_at != null, activated: row.activated_at != null } : null;
 }
 
 /** Refuse switching sync on (either app) until the user agreed. */
@@ -371,6 +373,41 @@ router.post(
   }),
 );
 
+// POST /admin/users/:id/activation  { active: boolean, code }
+// «تفعيل» — the developer approves the account. Separate from server sync,
+// which can only be switched on afterwards. Needs a verified number (checked
+// before the authenticator code, so a refusal does not spend it).
+// Deactivating also switches server sync off in both apps: an account that is
+// not approved must not keep writing to the server.
+router.post(
+  '/users/:id/activation',
+  asyncHandler(async (req, res, next) => {
+    const active = req.body?.active;
+    if (typeof active !== 'boolean') return res.status(400).json({ error: 'active must be true or false' });
+    if (!active) return next();
+    const gate = await accountGate(req.params.id);
+    if (gate === null) return res.status(404).json({ error: 'user not found' });
+    if (!gate.verified) return res.status(409).json({ error: 'phone not verified' });
+    return next();
+  }),
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const active = req.body.active === true;
+    const [r] = await pool.query(
+      active
+        ? `UPDATE users SET activated_at = COALESCE(activated_at, UTC_TIMESTAMP()), updated_at = UTC_TIMESTAMP() WHERE id = ?`
+        : `UPDATE users SET activated_at = NULL,
+                  subscription_status = CASE WHEN subscription_status = 'active' THEN 'none' ELSE subscription_status END,
+                  contractor_status = 'none', sync_consent = 'none', updated_at = UTC_TIMESTAMP()
+            WHERE id = ?`,
+      [req.params.id],
+    );
+    if ((r as { affectedRows: number }).affectedRows === 0) return res.status(404).json({ error: 'user not found' });
+    publish(`user:${req.params.id}`, 'access');
+    return res.json({ id: req.params.id, activated: active });
+  }),
+);
+
 // POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended', direct?: true }
 //                               { app: 'contractor', status: 'active' | 'none' }
 // Without `app` it is the account (and the grocery app). With app=contractor it
@@ -382,9 +419,10 @@ router.post(
   asyncHandler(async (req, res, next) => {
     if (String(req.body?.status ?? '') !== 'active') return next();
     if (req.body?.direct === true) return next(); // owner switches it on without asking (old apps)
-    const verified = await phoneVerified(req.params.id);
-    if (verified === null) return res.status(404).json({ error: 'user not found' });
-    if (!verified) return res.status(409).json({ error: 'phone not verified' });
+    const gate = await accountGate(req.params.id);
+    if (gate === null) return res.status(404).json({ error: 'user not found' });
+    if (!gate.verified) return res.status(409).json({ error: 'phone not verified' });
+    if (!gate.activated) return res.status(409).json({ error: 'account not activated' });
     const agreed = await userAgreed(req.params.id);
     if (agreed === null) return res.status(404).json({ error: 'user not found' });
     if (!agreed) return res.status(409).json({ error: 'user has not agreed to sync' });
@@ -397,7 +435,11 @@ router.post(
     // never be answered there. The owner switches sync on as before and records
     // the consent as given, so a newer app will not ask afterwards either.
     if (status === 'active' && req.body?.direct === true) {
-      await pool.query(`UPDATE users SET sync_consent = 'approved' WHERE id = ?`, [req.params.id]);
+      // Direct also activates the account: the developer has decided for it.
+      await pool.query(
+        `UPDATE users SET sync_consent = 'approved', activated_at = COALESCE(activated_at, UTC_TIMESTAMP()) WHERE id = ?`,
+        [req.params.id],
+      );
     }
     if (req.body?.app === 'contractor') {
       if (status !== 'active' && status !== 'none') {

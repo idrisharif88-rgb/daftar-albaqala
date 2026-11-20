@@ -145,12 +145,12 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled, pos_notes_enabled, sync_consent, multi_device, phone_verified_at FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled, pos_notes_enabled, sync_consent, multi_device, phone_verified_at, activated_at FROM users WHERE id = ?',
       [req.userId]
     );
     const row = (rows as Array<Record<string, unknown>>)[0];
     if (!row) return res.status(404).json({ error: 'user not found' });
-    const { contractor_status: contractorStatus, phone_verified_at: verifiedAt, ...user } = row;
+    const { contractor_status: contractorStatus, phone_verified_at: verifiedAt, activated_at: activatedAt, ...user } = row;
     // Drive backup: granted per account by the owner — and always on for a book
     // WITHOUT server sync, which would otherwise live on one phone with no copy
     // anywhere. Each app has its own sync switch, so ask about the app calling.
@@ -165,6 +165,7 @@ app.get(
         pos_notes_enabled: Number(user.pos_notes_enabled) === 1,
         multi_device: Number(user.multi_device) === 1,
         phone_verified: verifiedAt != null,
+        activated: activatedAt != null,
       },
     });
   })

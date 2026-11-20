@@ -9,7 +9,7 @@ import {
 } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
-  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode,
+  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation,
 } from '../lib/api';
 import VerificationModal from '../components/VerificationModal';
 import FeatureIcons from '../components/FeatureIcons';
@@ -20,16 +20,17 @@ import { useAdminCode } from '../lib/useAdminCode';
 
 type Filter = 'all' | 'active' | 'inactive' | 'suspended';
 
-// What the owner sees first. «مفعّل» = the developer activated it (server
-// sync on). A new account starts «غير مفعّل»: it works on its own phone, but
-// nothing reaches the server until he verifies the number and activates it.
-// «موقوف» = locked out of the app.
-const STATUS_AR: Record<Status, string> = {
-  none: 'غير مفعّل',
-  active: 'مفعّل',
-  expired: 'انتهى التفعيل',
-  suspended: 'موقوف',
-};
+// What the owner sees first, and what the card's main button does:
+//   activated = he approved the account (verified number first) — 023
+//   inactive  = new, not approved yet (the app still works on its phone)
+//   suspended = locked out of the app
+// Server sync is separate (in «المزيد») and needs «activated».
+type CardState = 'activated' | 'inactive' | 'suspended';
+const CARD_AR: Record<CardState, string> = { activated: 'مفعّل', inactive: 'غير مفعّل', suspended: 'موقوف' };
+function cardState(a: Account): CardState {
+  if (a.subscription_status === 'suspended') return 'suspended';
+  return a.activated === false ? 'inactive' : 'activated';
+}
 
 // 'active' with a past expiry date is refused by the server — show it as
 // what it is, not as what the column says.
@@ -57,6 +58,7 @@ function day(iso: string | null): string {
 function arabicAdminError(err: ApiError): string {
   if (err.message.includes('not agreed')) return 'لم يوافق المستخدم على المزامنة بعد. أرسل له طلباً.';
   if (err.message.includes('not verified')) return '🛡️ الرقم غير متحقق';
+  if (err.message.includes('not activated')) return 'فعّل الحساب أولاً';
   return err.message;
 }
 
@@ -137,9 +139,9 @@ const Accounts: React.FC = () => {
     const c = { all: 0, active: 0, inactive: 0, suspended: 0 };
     for (const a of accounts ?? []) {
       c.all++;
-      const s = effectiveStatus(a);
+      const s = cardState(a);
       if (s === 'suspended') c.suspended++;
-      else if (s === 'active') c.active++;
+      else if (s === 'activated') c.active++;
       else c.inactive++;
     }
     return c;
@@ -149,9 +151,9 @@ const Accounts: React.FC = () => {
     const q = query.trim().toLowerCase();
     const qDigits = digitsOnly(q);
     return (accounts ?? []).filter((a) => {
-      const s = effectiveStatus(a);
-      if (filter === 'active' && s !== 'active') return false;
-      if (filter === 'inactive' && (s === 'active' || s === 'suspended')) return false;
+      const s = cardState(a);
+      if (filter === 'active' && s !== 'activated') return false;
+      if (filter === 'inactive' && s !== 'inactive') return false;
       if (filter === 'suspended' && s !== 'suspended') return false;
       if (!q) return true;
       return (
@@ -168,7 +170,7 @@ const Accounts: React.FC = () => {
       await setAccountStatus(a.id, status, code, direct);
       presentToast({
         // Switching sync on ASKS the shopkeeper; it starts when he approves.
-        message: activating ? 'تم التفعيل ✓'
+        message: activating ? 'تم تفعيل المزامنة'
           : status === 'none' ? 'تم إيقاف المزامنة' : 'تم الإيقاف',
         duration: 1800,
         color: activating ? 'success' : 'danger',
@@ -637,7 +639,52 @@ const Accounts: React.FC = () => {
       void sendCode(a);
       return;
     }
+    if (a.activated === false) {
+      void presentToast({ message: 'فعّل الحساب أولاً', duration: 1800, color: 'warning' });
+      return;
+    }
     if (a.sync_consent === 'approved') change(a, 'active'); else sendRequest(a);
+  };
+
+  // «تفعيل» — approve the account (023). Server sync stays a separate switch.
+  const doActivation = async (a: Account, active: boolean, code: string) => {
+    setBusyId(a.id);
+    try {
+      await setActivation(a.id, active, code);
+      void presentToast({ message: active ? 'تم التفعيل ✓' : 'أُلغي التفعيل', duration: 1800, color: active ? 'success' : 'medium' });
+      await load();
+    } catch (err) {
+      void presentToast({ message: err instanceof ApiError ? arabicAdminError(err) : 'تعذّر التنفيذ', duration: 2500, color: 'danger' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const activate = (a: Account) => {
+    if (a.phone_verified === false) { void sendCode(a); return; } // the number first
+    presentAlert({
+      header: 'تفعيل الحساب',
+      message: `تفعيل «${a.store_name || a.phone}»؟`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'تفعيل', role: 'confirm',
+          handler: () => { setTimeout(() => { void ask('تفعيل الحساب').then((c) => { if (c) void doActivation(a, true, c); }); }, 350); },
+        },
+      ],
+    });
+  };
+  const deactivate = (a: Account) => {
+    presentAlert({
+      header: 'إلغاء التفعيل',
+      message: `إلغاء تفعيل «${a.store_name || a.phone}»؟ تتوقف المزامنة.`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'إلغاء التفعيل', role: 'destructive',
+          handler: () => { setTimeout(() => { void ask('إلغاء التفعيل').then((c) => { if (c) void doActivation(a, false, c); }); }, 350); },
+        },
+      ],
+    });
   };
 
   // «تفعيل مباشر»: no request — for users on the old Play app, which cannot answer one.
@@ -786,7 +833,12 @@ const Accounts: React.FC = () => {
             <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>
 
             <IonListHeader><IonLabel>منطقة الخطر</IonLabel></IonListHeader>
-            {effectiveStatus(managed) !== 'suspended' && effectiveStatus(managed) !== 'active' && (
+            {cardState(managed) === 'activated' && (
+              <IonItem button detail={false} onClick={() => pick(deactivate)}>
+                <IonLabel color="danger">إلغاء التفعيل</IonLabel>
+              </IonItem>
+            )}
+            {cardState(managed) === 'inactive' && (
               <IonItem button detail={false} onClick={() => pick((a) => change(a, 'suspended'))}>
                 <IonLabel color="danger">إيقاف الحساب</IonLabel>
               </IonItem>
@@ -846,7 +898,7 @@ const Accounts: React.FC = () => {
         {accounts && shown.length === 0 && <div className="empty">لا توجد حسابات</div>}
 
         {shown.map((a) => {
-          const s = effectiveStatus(a);
+          const s = cardState(a);
           return (
             <div key={a.id} className="acct">
               <div className="acct__top">
@@ -858,9 +910,9 @@ const Accounts: React.FC = () => {
                 <div className="acct__badges">
                   {/* Icons, not words: allowed ✓ / suspended ⦸, and a shield while the number is unverified. */}
                   <IonIcon
-                    className={`status-ic status-ic--${s === 'suspended' ? 'suspended' : s === 'active' ? 'active' : 'inactive'}`}
-                    icon={s === 'suspended' ? banOutline : s === 'active' ? checkmarkCircle : ellipseOutline}
-                    aria-label={STATUS_AR[s]} title={STATUS_AR[s]}
+                    className={`status-ic status-ic--${s === 'activated' ? 'active' : s}`}
+                    icon={s === 'suspended' ? banOutline : s === 'activated' ? checkmarkCircle : ellipseOutline}
+                    aria-label={CARD_AR[s]} title={CARD_AR[s]}
                   />
                   {a.phone_verified === false && (
                     <IonIcon className="status-ic status-ic--unverified" icon={shieldOutline} aria-label="غير متحقق" title="غير متحقق" />
@@ -878,17 +930,17 @@ const Accounts: React.FC = () => {
                 <IonButton size="small" fill="outline" onClick={() => router.push(`/accounts/${a.id}`)}>
                   فتح الدفتر
                 </IonButton>
-                {/* The one switch that matters most. Not activated → «تفعيل» walks the
-                    steps (code if unverified → the user's yes → switch on);
-                    activated → tap to suspend; suspended → tap to allow again. */}
-                {s === 'active' ? (
+                {/* The one switch that matters most. Not activated → «تفعيل» (code first
+                    if the number is unverified); activated → tap to suspend;
+                    suspended → tap to allow again. Sync is in «المزيد». */}
+                {s === 'activated' ? (
                   <IonButton size="small" disabled={busyId === a.id} onClick={() => change(a, 'suspended')}>مفعّل</IonButton>
                 ) : s === 'suspended' ? (
                   <IonButton size="small" fill="outline" color="danger" disabled={busyId === a.id} onClick={() => allowUse(a)}>
                     موقوف · سماح
                   </IonButton>
                 ) : (
-                  <IonButton size="small" color="warning" disabled={busyId === a.id} onClick={() => syncOn(a)}>تفعيل</IonButton>
+                  <IonButton size="small" color="warning" disabled={busyId === a.id} onClick={() => activate(a)}>تفعيل</IonButton>
                 )}
                 <IonButton size="small" fill="outline" onClick={() => setManageId(a.id)}>
                   <IonIcon slot="start" icon={ellipsisVertical} />

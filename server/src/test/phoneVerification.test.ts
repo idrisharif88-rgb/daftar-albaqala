@@ -102,24 +102,61 @@ describe('phone verification', () => {
     assert.equal((await verify('123456')).status, 404);
   });
 
-  test('sync cannot be switched on before verification (direct still can)', async () => {
-    await pool.query("UPDATE users SET sync_consent = 'approved' WHERE id = ?", [user]);
-    const admin = await adminToken();
-    const refused = await request(app).post(`/admin/users/${user}/status`).set(AUTH(admin))
-      .send({ status: 'active', code: codeAt(1) });
-    assert.equal(refused.status, 409);
-    assert.equal(refused.body.error, 'phone not verified');
+  const activate = async (active: boolean) =>
+    request(app).post(`/admin/users/${user}/activation`).set(AUTH(await adminToken()))
+      .send({ active, code: codeAt(1) });
+  const syncOn = async (extra: Record<string, unknown> = {}) =>
+    request(app).post(`/admin/users/${user}/status`).set(AUTH(await adminToken()))
+      .send({ status: 'active', code: codeAt(1), ...extra });
+  const activatedAt = async () =>
+    ((await pool.query('SELECT activated_at FROM users WHERE id = ?', [user]))[0] as Array<{ activated_at: Date | null }>)[0].activated_at;
+
+  test('verify → activate → sync: each step refused until the one before it', async () => {
+    await pool.query("UPDATE users SET sync_consent = 'approved', activated_at = NULL WHERE id = ?", [user]);
+    const notVerified = await syncOn();
+    assert.equal(notVerified.status, 409);
+    assert.equal(notVerified.body.error, 'phone not verified');
+    assert.equal((await activate(true)).status, 409);          // activation needs a verified number
 
     const issued = await issue();
     assert.equal((await verify(issued.body.code)).status, 200);
-    const ok = await request(app).post(`/admin/users/${user}/status`).set(AUTH(await adminToken()))
-      .send({ status: 'active', code: codeAt(1) });
+    const notActivated = await syncOn();
+    assert.equal(notActivated.status, 409);
+    assert.equal(notActivated.body.error, 'account not activated');
+
+    assert.equal((await activate(true)).status, 200);
+    assert.equal((await me()).body.user.activated, true);
+    const ok = await syncOn();
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  });
+
+  test('deactivating switches server sync off too', async () => {
+    await pool.query(
+      "UPDATE users SET phone_verified_at = UTC_TIMESTAMP(), activated_at = UTC_TIMESTAMP(), subscription_status = 'active', sync_consent = 'approved' WHERE id = ?",
+      [user],
+    );
+    assert.equal((await activate(false)).status, 200);
+    const [rows] = await pool.query('SELECT subscription_status, sync_consent FROM users WHERE id = ?', [user]);
+    assert.deepEqual({ ...(rows as Array<Record<string, unknown>>)[0] }, { subscription_status: 'none', sync_consent: 'none' });
+    assert.equal(await activatedAt(), null);
+  });
+
+  test('direct sync-on still works for an unverified, unactivated account and activates it', async () => {
+    await pool.query('UPDATE users SET activated_at = NULL WHERE id = ?', [user]);
+    assert.equal((await syncOn({ direct: true })).status, 200);
+    assert.notEqual(await activatedAt(), null);
+  });
+
+  test('a new registration is not activated', async () => {
+    const reg = await request(app).post('/auth/register').send({ phone: '799123457', password: 'secret12' });
+    const res = await request(app).get('/me').set(AUTH(reg.body.token));
+    assert.equal(res.body.user.activated, false);
   });
 
   test('the Watcher list carries phone_verified', async () => {
     const res = await request(app).get('/admin/users').set(AUTH(await adminToken()));
     const row = res.body.users.find((u: { id: string }) => u.id === user);
     assert.equal(row.phone_verified, false);
+    assert.equal(row.activated, true); // seeded = an account from before 023
   });
 });

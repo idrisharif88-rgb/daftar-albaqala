@@ -1613,11 +1613,17 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 208/208, app 1
 - **Welcome on Home** (`WelcomeCard`, `data/welcome.ts`): always on, nothing to set (owner, 2026-11-20):
   badge with the initial + «صباح/مساء الخير، <name> 👋» + store-name pill. CSS class `.greet` — NOT
   `.welcome`, which is the sign-in page (the clash broke that page once).
-- **Watcher card:** icons instead of words — ✓ green «مفعّل» (= sync on) / grey ○ «غير مفعّل» (new
-  accounts start here) / ⦸ red «موقوف» / amber shield = unverified. Filters + counts: مفعّل / غير مفعّل /
-  موقوف. Main button: «تفعيل» (code → user's yes → switch on) · «مفعّل» (tap = suspend) · «موقوف · سماح».
-  Suspending a not-activated account: «المزيد» → «إيقاف الحساب».
+- **Account activation, separate from sync (migration 023, owner's choice B):** `users.activated_at` —
+  the developer approves the account (`POST /admin/users/:id/activation {active, code}`, needs a verified
+  number; off also stops sync in both apps + resets consent). New accounts start NULL; all older ones were
+  backfilled. Order to sync: verified (022) → activated (023) → user's yes → sync on; `status: active`
+  answers 409 'phone not verified' / 'account not activated'. «تفعيل مباشر» skips all and stamps activation.
+  `/me` + `/admin/users` carry `activated`.
+- **Watcher card:** icons — ✓ green «مفعّل» / grey ○ «غير مفعّل» / ⦸ red «موقوف» / amber shield =
+  unverified. Filters + counts the same three. Main button: «تفعيل» (code first if unverified) · «مفعّل»
+  (tap = suspend) · «موقوف · سماح». «المزيد»: sync row (refused until activated), «إلغاء التفعيل»,
+  «إيقاف الحساب» for a not-activated one.
   The code goes by SMS in the SAME full wording as WhatsApp (owner found the short SMS too terse).
-- ⚠️ **MIGRATION 022 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+- ⚠️ **MIGRATIONS 022 + 023 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
 - Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).
