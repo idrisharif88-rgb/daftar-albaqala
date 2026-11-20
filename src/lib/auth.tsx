@@ -46,6 +46,11 @@ interface AuthState {
   /** The shopkeeper's answer to the server-sync request (owner only; null
    *  until the server has said). 'pending' = ask him. */
   syncConsent: 'none' | 'pending' | 'approved' | 'rejected' | null;
+  /** The number was confirmed with a code. Null = not known yet (offline, or
+   *  an older server) — show nothing rather than a wrong prompt. */
+  phoneVerified: boolean | null;
+  /** Send the code the developer gave; true once the server confirmed it. */
+  verifyPhone: (code: string) => Promise<void>;
   /** Record his answer on the server; resolves once it is stored there. */
   answerSyncConsent: (approve: boolean) => Promise<void>;
   /** Re-read what this account may do (pull-to-refresh calls it). */
@@ -71,6 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [staff, setStaffState] = useState<StoredStaff | null>(getStaff);
   const [posNotesAllowed, setPosNotesAllowedState] = useState<boolean>(getPosNotesAllowed);
   const [syncConsent, setSyncConsent] = useState<AuthState['syncConsent']>(null);
+  const [phoneVerified, setPhoneVerified] = useState<boolean | null>(null);
   const rememberNotes = (on: boolean) => {
     setPosNotesAllowed(on);
     setPosNotesAllowedState(on);
@@ -132,6 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStaffState(null);
     setPosNotesAllowedState(false);
     setSyncConsent(null);
+    setPhoneVerified(null);
     setUser(null);
     setAuthed(false);
   }, []);
@@ -178,6 +185,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setMultiDeviceState(res.user.multi_device === true);
       rememberNotes(res.user.pos_notes_enabled === true);
       setSyncConsent(res.user.sync_consent ?? null);
+      setPhoneVerified(typeof res.user.phone_verified === 'boolean' ? res.user.phone_verified : null);
     } catch { /* offline: the last answer stands */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);
@@ -206,6 +214,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(minute); };
   }, [authed, refreshAccess]);
 
+  const verifyPhone = useCallback(async (code: string) => {
+    await api.verifyPhone(code);
+    setPhoneVerified(true);
+  }, []);
+
   const answerSyncConsent = useCallback(async (approve: boolean) => {
     const res = await api.answerSyncConsent(approve);
     setSyncConsent(res.sync_consent as AuthState['syncConsent']);
@@ -225,7 +238,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         staff: authed ? staff : null,
         posNotesAllowed: authed && posNotesAllowed,
         syncConsent: authed && !staff ? syncConsent : null,
-        answerSyncConsent, refreshAccess,
+        phoneVerified: authed && !staff ? phoneVerified : null,
+        verifyPhone, answerSyncConsent, refreshAccess,
         login, staffLogin, register, logout,
       }}
     >

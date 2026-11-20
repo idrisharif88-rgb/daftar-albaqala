@@ -1592,3 +1592,27 @@ PRs #55 + #56. Server migration **021**, local migration 15. Server 200/200, app
   (found by name/reflection). Shrunk build device-tested: contact picker, PDF→WhatsApp, print, Drive,
   fingerprint, sync, POS scan ✅. A new plugin = add its package to the keep rules + retest.
 - Edge-to-edge (Android 15) warning left for later.
+
+## Status — BUILT (Phase 42: phone verification, invoice quick-add, welcome) (2026-11-20)
+Branch `verify-welcome-invoice`. Server migration **022**. App tests 140/140. **Not deployed, not device-tested.**
+- **Phone verification.** New accounts start unverified (`users.phone_verified_at` NULL); every account
+  older than 022 is backfilled as verified. Watcher → «إرسال رمز التحقق» on the card (or «المزيد» →
+  «رمز التحقق») → `POST /admin/users/:id/verification-code` → server makes a 6-digit code
+  (`crypto.randomInt`), stores only `sha256(userId:code)`, 10 min, 5 wrong tries spend it
+  (`server/src/account/phoneVerification.ts`). The Watcher shows it ONCE (`VerificationModal`) and opens
+  WhatsApp / SMS on the developer's phone pre-filled (wording approved 2026-11-20, `watcher/src/lib/verification.ts`;
+  the Watcher got its own trimmed `OutboundPlugin.java` + `<queries>`). The user types it: Home banner /
+  Settings «الحساب» → `VerifyPhoneModal` → `POST /account/verify-phone`. Live events: `registered` +
+  `verified` → Watcher toast + reload.
+- **Only server sync waits for it** (owner's choice): the book works as before. `status: active` (either
+  app) → **409 'phone not verified'**, checked before the authenticator code. «تفعيل مباشر» (`direct`)
+  skips it — the Play app ≤2.2 has no code screen. Activate/suspend = the existing card buttons.
+- **«+ صنف جديد» inside the invoice** (`QuickAddItem`): header «+», or «إضافة «…» كصنف» when a search
+  finds nothing. Saves to the price list and adds qty 1; the basket stays. Currency locked to the
+  invoice's once it has lines.
+- **Welcome on Home** (`WelcomeCard`, `data/welcome.ts`): badge with the initial, «صباح/مساء الخير،
+  <name> 👋», today's date or the owner's own line, store-name pill. Settings «المظهر والأمان»: on/off +
+  text. Synced keys `ui_welcome_show` / `ui_welcome_text` (server allowlist too — **deploy server first**).
+- ⚠️ **MIGRATION 022 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+  `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
+- Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).

@@ -6,7 +6,7 @@ import {
   useIonToast, useIonAlert, useIonActionSheet,
 } from '@ionic/react';
 import { App as CapacitorApp } from '@capacitor/app';
-import { checkmarkCircle, phonePortraitOutline } from 'ionicons/icons';
+import { checkmarkCircle, phonePortraitOutline, shieldCheckmarkOutline } from 'ionicons/icons';
 import {
   getSettings, saveSettings, messageSender, type Settings as AppSettings,
 } from '../data/settings';
@@ -44,6 +44,8 @@ import {
   BiometricCancelled,
 } from '../lib/biometric';
 import { FLAVOR } from '../flavors';
+import { getWelcome, saveWelcome, WELCOME_TEXT_MAX, type Welcome } from '../data/welcome';
+import { openVerifyPhone } from '../components/VerifyPhone';
 
 // The owner's WhatsApp number — activation requests open a chat here. The owner
 // verifies the account by matching this sender's WhatsApp number to the phone
@@ -69,7 +71,8 @@ const Settings: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
   const [version, setVersion] = useState<string | null>(null);
-  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice } = useAuth();
+  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice, phoneVerified } = useAuth();
+  const [welcome, setWelcome] = useState<Welcome>({ show: true, text: '' });
   // «عدة أجهزة»: who uses THIS phone («أحمد · 727»), shown + editable here.
   const [deviceUser, setDeviceUserLabel] = useState<string | null>(null);
   useEffect(() => {
@@ -148,6 +151,7 @@ const Settings: React.FC = () => {
 
   useIonViewWillEnter(() => {
     void getSettings().then((s) => { settingsRef.current = s; setSettings(s); });
+    void getWelcome().then(setWelcome);
     void isAccountActive().then(setActive);
     void getRatesState().then((state) => {
       ratesRef.current = state.rates;
@@ -357,6 +361,13 @@ const Settings: React.FC = () => {
   };
 
   // A toggle takes effect at once; only typing waits for a pause.
+  // The welcome on Home: saved as soon as it changes (the text on leaving the
+  // field), then synced so the owner's other phone greets the same way.
+  const changeWelcome = (next: Welcome) => {
+    setWelcome(next);
+    void saveWelcome(next).then(() => { void runSync(); });
+  };
+
   const toggleNotify = async (enabled: boolean) => {
     update({ notifyCustomers: enabled });
     await flushSaves();
@@ -568,6 +579,20 @@ const Settings: React.FC = () => {
                   إشعار الجهات (SMS وواتساب)
                 </IonToggle>
               </IonItem>
+              {phoneVerified === false && (
+                <IonItem button detail onClick={openVerifyPhone}>
+                  <IonIcon icon={shieldCheckmarkOutline} slot="start" color="warning" aria-hidden="true" />
+                  <IonLabel>تأكيد رقم الهاتف</IonLabel>
+                  <IonNote slot="end" color="warning">غير متحقق</IonNote>
+                </IonItem>
+              )}
+              {phoneVerified === true && (
+                <IonItem>
+                  <IonIcon icon={shieldCheckmarkOutline} slot="start" color="success" aria-hidden="true" />
+                  <IonLabel>رقم الهاتف</IonLabel>
+                  <IonNote slot="end" color="success">متحقق ✓</IonNote>
+                </IonItem>
+              )}
               {multiDevice && (
                 <IonItem button detail onClick={() => window.dispatchEvent(new Event(EDIT_DEVICE_USER_EVENT))}>
                   <IonIcon icon={phonePortraitOutline} slot="start" aria-hidden="true" />
@@ -588,6 +613,24 @@ const Settings: React.FC = () => {
             {/* ---- Look & lock ---- */}
             <h2 className="settings-section">المظهر والأمان</h2>
             <IonList>
+              <IonItem>
+                <IonToggle checked={welcome.show} onIonChange={(e) => changeWelcome({ ...welcome, show: e.detail.checked })}>
+                  رسالة الترحيب في الرئيسية
+                </IonToggle>
+              </IonItem>
+              {welcome.show && (
+                <IonItem>
+                  <IonInput
+                    className="settings-inline"
+                    label="نص الترحيب"
+                    labelPlacement="start"
+                    value={welcome.text}
+                    maxlength={WELCOME_TEXT_MAX}
+                    placeholder="تاريخ اليوم"
+                    onIonChange={(e) => changeWelcome({ ...welcome, text: e.detail.value ?? '' })}
+                  />
+                </IonItem>
+              )}
               {ACCENTS.length > 1 && (
                 <IonItem button detail={false} onClick={cycleAccent}>
                   <IonLabel>لون التطبيق</IonLabel>

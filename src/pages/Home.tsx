@@ -24,6 +24,9 @@ import { FLAVOR } from '../flavors';
 import { GOOGLE_ENABLED } from '../lib/googleDrive';
 import { useDriveBackup } from '../lib/useDriveBackup';
 import { isAccountActive } from '../data/account';
+import { getWelcome, type Welcome } from '../data/welcome';
+import WelcomeCard from '../components/WelcomeCard';
+import { VerifyPhoneBanner } from '../components/VerifyPhone';
 
 // A contact plus its locally-computed running balances (one per currency).
 interface Row {
@@ -55,6 +58,8 @@ const Home: React.FC = () => {
   // Store name for the header — read from persisted settings (app_meta), not the
   // in-memory auth user, which is null after an app restart.
   const [storeName, setStoreName] = useState('');
+  const [ownerName, setOwnerName] = useState('');
+  const [welcome, setWelcome] = useState<Welcome>({ show: false, text: '' });
 
   // add-customer modal state
   const modal = useRef<HTMLIonModalElement>(null);
@@ -73,12 +78,14 @@ const Home: React.FC = () => {
   const load = useCallback(async () => {
     // One grouped balance query for the whole list instead of one per contact —
     // the old per-row await was an N+1 across the Capacitor bridge.
-    const [customers, settings, currentRates, balancesByCustomer, health] = await Promise.all([
-      listCustomers(), getSettings(), getRates(), getBalancesByCustomer(), getSyncHealth(),
+    const [customers, settings, currentRates, balancesByCustomer, health, welcomeSetting] = await Promise.all([
+      listCustomers(), getSettings(), getRates(), getBalancesByCustomer(), getSyncHealth(), getWelcome(),
     ]);
     setServerSync(await isAccountActive());
     setRows(customers.map((c) => ({ customer: c, balances: balancesByCustomer.get(c.id) ?? [] })));
     setStoreName(settings.storeName?.trim() ?? '');
+    setOwnerName(settings.ownerName?.trim() ?? '');
+    setWelcome(welcomeSetting);
     setRates(currentRates);
     setSyncProblem(needsAttention(health) ? health.status : null);
     setLoading(false);
@@ -236,6 +243,8 @@ const Home: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <VerifyPhoneBanner />
+        {!search && <WelcomeCard welcome={welcome} name={ownerName} storeName={storeName} />}
         {loading ? (
           <div className="ion-text-center ion-padding">
             <IonSpinner name="crescent" />

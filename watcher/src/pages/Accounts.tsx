@@ -7,8 +7,9 @@ import {
 import { logOutOutline, refreshOutline, ellipsisVertical } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
-  deleteAccount, setStoreName, setPassword,
+  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode,
 } from '../lib/api';
+import VerificationModal from '../components/VerificationModal';
 import FeatureIcons from '../components/FeatureIcons';
 import { openLive } from '../lib/live';
 import { useAuth } from '../lib/auth';
@@ -51,6 +52,7 @@ function day(iso: string | null): string {
 /** The server's refusals the owner can act on, in Arabic. */
 function arabicAdminError(err: ApiError): string {
   if (err.message.includes('not agreed')) return 'لم يوافق المستخدم على المزامنة بعد. أرسل له طلباً.';
+  if (err.message.includes('not verified')) return 'لم يتحقق الرقم بعد. أرسل له رمز التحقق.';
   return err.message;
 }
 
@@ -88,6 +90,8 @@ const Accounts: React.FC = () => {
   const [presentToast] = useIonToast();
   const router = useIonRouter();
   const { ask, modal } = useAdminCode();
+  // The code just issued, shown once in VerificationModal.
+  const [issued, setIssued] = useState<(VerificationCode & { name: string; id: string }) | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -103,9 +107,20 @@ const Accounts: React.FC = () => {
   // A user's answer to a sync request arrives at once on the live line.
   const accountsRef = useRef<Account[] | null>(null);
   accountsRef.current = accounts;
-  useEffect(() => openLive((_event, data) => {
+  useEffect(() => openLive((event, data) => {
     const who = accountsRef.current?.find((x) => x.id === data.id);
     const name = who ? (who.store_name || who.phone) : '';
+    if (event === 'registered') {
+      void presentToast({ message: '🆕 حساب جديد — بانتظار التحقق', duration: 2500, position: 'top', color: 'primary' });
+      void load();
+      return;
+    }
+    if (event === 'verified') {
+      void presentToast({ message: `✓ ${name} تحقق من رقمه`, duration: 2500, position: 'top', color: 'success' });
+      setIssued((cur) => (cur && cur.id === data.id ? null : cur)); // its job is done
+      void load();
+      return;
+    }
     const yes = data.sync_consent === 'approved';
     void presentToast({
       message: `${yes ? '✓' : '✕'} ${name} ${yes ? 'وافق على المزامنة' : 'رفض المزامنة'}`,
@@ -597,8 +612,28 @@ const Accounts: React.FC = () => {
       ],
     });
   };
-  /** The sync row's action when sync is OFF: ask first, switch on once agreed. */
-  const syncOn = (a: Account) => (a.sync_consent === 'approved' ? change(a, 'active') : sendRequest(a));
+  // Phone verification: a fresh code, shown once, sent from this phone.
+  const sendCode = async (a: Account) => {
+    setBusyId(a.id);
+    try {
+      const code = await issueVerificationCode(a.id);
+      setIssued({ ...code, id: a.id, name: a.store_name || 'بدون اسم' });
+    } catch (err) {
+      void presentToast({ message: err instanceof ApiError ? err.message : 'تعذّر إنشاء الرمز', duration: 2500, color: 'danger' });
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** The sync row's action when sync is OFF: verify the number, ask, then switch on. */
+  const syncOn = (a: Account) => {
+    if (a.phone_verified === false) {
+      void presentToast({ message: 'تحقق من الرقم أولاً', duration: 1800, color: 'warning' });
+      void sendCode(a);
+      return;
+    }
+    if (a.sync_consent === 'approved') change(a, 'active'); else sendRequest(a);
+  };
 
   // «تفعيل مباشر»: no request — for users on the old Play app, which cannot answer one.
   const directOn = (a: Account) => {
@@ -736,6 +771,12 @@ const Accounts: React.FC = () => {
             )}
 
             <IonListHeader><IonLabel>الحساب</IonLabel></IonListHeader>
+            <IonItem button detail onClick={() => pick((a) => void sendCode(a))}>
+              <IonLabel>رمز التحقق</IonLabel>
+              <IonNote slot="end" color={managed.phone_verified === false ? 'warning' : 'success'}>
+                {managed.phone_verified === false ? 'غير متحقق' : 'متحقق ✓'}
+              </IonNote>
+            </IonItem>
             <IonItem button detail onClick={() => pick(rename)}><IonLabel>تغيير الاسم</IonLabel></IonItem>
             <IonItem button detail onClick={() => pick(changePassword)}><IonLabel>كلمة المرور</IonLabel></IonItem>
 
@@ -806,6 +847,7 @@ const Accounts: React.FC = () => {
                 </div>
                 <div className="acct__badges">
                   <span className={`badge badge--${s === 'suspended' ? 'suspended' : 'active'}`}>{STATUS_AR[s]}</span>
+                  {a.phone_verified === false && <span className="badge badge--unverified">غير متحقق</span>}
                 </div>
               </div>
               {s !== 'suspended' && <FeatureIcons account={a} />}
@@ -829,6 +871,11 @@ const Accounts: React.FC = () => {
                 >
                   {s === 'suspended' ? 'موقوف · تفعيل' : 'مفعّل'}
                 </IonButton>
+                {a.phone_verified === false && s !== 'suspended' && (
+                  <IonButton size="small" color="warning" disabled={busyId === a.id} onClick={() => void sendCode(a)}>
+                    إرسال رمز التحقق
+                  </IonButton>
+                )}
                 <IonButton size="small" fill="outline" onClick={() => setManageId(a.id)}>
                   <IonIcon slot="start" icon={ellipsisVertical} />
                   المزيد
@@ -840,6 +887,14 @@ const Accounts: React.FC = () => {
       </IonContent>
       {manageSheet}
       {modal}
+      <VerificationModal
+        issued={issued}
+        onClose={() => setIssued(null)}
+        onNewCode={() => {
+          const a = accounts?.find((x) => x.id === issued?.id);
+          if (a) void sendCode(a);
+        }}
+      />
     </IonPage>
   );
 };

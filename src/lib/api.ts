@@ -103,6 +103,8 @@ export interface Me {
   /** The shopkeeper's answer to «keep my book on the server?». 'pending' =
    *  the developer switched sync on and the app must ask. */
   sync_consent?: 'none' | 'pending' | 'approved' | 'rejected';
+  /** The number was confirmed with the developer's code (022). Absent on an older server. */
+  phone_verified?: boolean;
 }
 
 export function me(): Promise<{ user: Me }> {
@@ -213,6 +215,12 @@ export function updateStaff(id: string, body: {
 }
 
 // ---- Account ----
+
+/** Confirm this account's number with the code the developer sent.
+ *  Errors: 400 wrong (body.attempts_left), 410 expired / too many, 404 none issued. */
+export function verifyPhone(code: string): Promise<{ verified: boolean }> {
+  return request('/account/verify-phone', { method: 'POST', body: JSON.stringify({ code }) });
+}
 
 /** The shopkeeper's answer to the sync request (or a withdrawal later). */
 export function answerSyncConsent(approve: boolean): Promise<{ sync_consent: string }> {

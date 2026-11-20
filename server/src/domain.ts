@@ -58,6 +58,9 @@ export const SYNCABLE_SETTING_KEYS = new Set([
   'ui_scale',
   'biometric',
   'updates_notebook',
+  // The welcome on Home (022): shown or not, and the owner's own line.
+  'ui_welcome_show',
+  'ui_welcome_text',
 ]);
 
 // Matches the VARCHAR(512) the column is declared as — checked here so an

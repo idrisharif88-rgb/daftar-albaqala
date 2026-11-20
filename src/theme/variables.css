@@ -895,3 +895,46 @@ ion-alert.mark-ask .alert-button {
 }
 ion-alert.mark-ask .alert-button .alert-button-inner { justify-content: center; }
 ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
+
+/* ---- Phone verification (components/VerifyPhone.tsx) ---- */
+.verify-phone { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
+.verify-phone h2 { font-weight: 800; margin: 4px 0; }
+.verify-phone__icon { font-size: 44px; color: var(--ion-color-primary); }
+.verify-phone__field { width: 100%; max-width: 260px; --background: var(--ion-color-light); border-radius: 12px; }
+.verify-phone__input {
+  text-align: center; direction: ltr; font-size: 1.8rem; font-weight: 800;
+  letter-spacing: 0.35em; font-variant-numeric: tabular-nums;
+}
+.verify-phone ion-button { width: 100%; max-width: 320px; }
+.verify-phone__error { font-weight: 700; }
+.verify-phone__ok { font-size: 1.2rem; font-weight: 800; }
+.verify-phone__hint { font-size: 0.85rem; }
+.verify-banner {
+  display: flex; align-items: center; gap: 8px; width: calc(100% - 24px); margin: 8px 12px 0;
+  padding: 10px 14px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; text-align: start;
+  background: #fff4d6; color: #6b4e00; cursor: pointer;
+}
+.verify-banner ion-icon { font-size: 20px; flex: none; }
+
+/* ---- Welcome on Home (components/WelcomeCard.tsx) ---- */
+.welcome {
+  display: flex; align-items: center; gap: 12px; margin: 10px 12px 2px; padding: 12px 14px;
+  border-radius: 16px; background: rgba(var(--ion-color-primary-rgb), 0.08);
+}
+.welcome__badge {
+  flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ion-color-primary); color: var(--ion-color-primary-contrast);
+  font-size: 1.25rem; font-weight: 800;
+}
+.welcome__text { flex: 1; min-width: 0; }
+.welcome__hello { font-weight: 800; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.welcome__line { color: var(--ion-color-medium-shade); font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.welcome__store {
+  flex: none; max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.78rem; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: var(--ion-color-primary); color: var(--ion-color-primary-contrast);
+}
+
+/* ---- «+ صنف جديد» inside an invoice (components/QuickAddItem.tsx) ---- */
+.quick-add__hint { display: block; padding: 8px 16px 0; font-size: 0.85rem; }
+.quick-add__empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px; }

@@ -13,6 +13,7 @@ import { VALID_ROLES } from '../domain';
 import { eraseAccount } from '../account/erase';
 import { buildStaffReport, validRange } from '../pos/staffReport';
 import { issueTicket, publish } from '../live/hub';
+import { issueCode } from '../account/phoneVerification';
 
 // The Watcher app's API: the owner's view over EVERY account.
 //
@@ -91,7 +92,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -113,6 +114,7 @@ router.get(
       pos_notes_enabled: Number(r.pos_notes_enabled) === 1,
       pos_report_enabled: Number(r.pos_report_enabled) === 1,
       multi_device: Number(r.multi_device) === 1,
+      phone_verified: r.phone_verified_at != null,
     }));
     return res.json({ users });
   })
@@ -314,6 +316,15 @@ const SETTABLE = new Set(['active', 'none', 'suspended']);
 const consentOnOff = (other: 'contractor_status' | 'subscription_status') =>
   `sync_consent = CASE WHEN ? = 'none' AND ${other} <> 'active' THEN 'none' ELSE sync_consent END`;
 
+/** Refuse switching sync on (either app) until the number is verified.
+ *  «تفعيل مباشر» (direct) skips both checks: the Play app ≤2.2 has neither
+ *  the consent prompt nor the code screen, so there the developer decides. */
+async function phoneVerified(id: string): Promise<boolean | null> {
+  const [rows] = await pool.query('SELECT phone_verified_at FROM users WHERE id = ?', [id]);
+  const row = (rows as Array<Record<string, unknown>>)[0];
+  return row ? row.phone_verified_at != null : null;
+}
+
 /** Refuse switching sync on (either app) until the user agreed. */
 async function userAgreed(id: string): Promise<boolean | null> {
   const [rows] = await pool.query('SELECT sync_consent FROM users WHERE id = ?', [id]);
@@ -346,6 +357,20 @@ router.post(
   }),
 );
 
+// POST /admin/users/:id/verification-code → { code, phone, expires_at }
+// A fresh 6-digit code for this account (any earlier one stops working). The
+// Watcher shows it ONCE and opens WhatsApp / SMS on the developer's phone with
+// the message filled in; the server never sends it and never shows it again.
+// No authenticator code: issuing a code changes nothing until the USER types it.
+router.post(
+  '/users/:id/verification-code',
+  asyncHandler(async (req, res) => {
+    const issued = await issueCode(req.params.id);
+    if (!issued) return res.status(404).json({ error: 'user not found' });
+    return res.json(issued);
+  }),
+);
+
 // POST /admin/users/:id/status  { status: 'active' | 'none' | 'suspended', direct?: true }
 //                               { app: 'contractor', status: 'active' | 'none' }
 // Without `app` it is the account (and the grocery app). With app=contractor it
@@ -357,6 +382,9 @@ router.post(
   asyncHandler(async (req, res, next) => {
     if (String(req.body?.status ?? '') !== 'active') return next();
     if (req.body?.direct === true) return next(); // owner switches it on without asking (old apps)
+    const verified = await phoneVerified(req.params.id);
+    if (verified === null) return res.status(404).json({ error: 'user not found' });
+    if (!verified) return res.status(409).json({ error: 'phone not verified' });
     const agreed = await userAgreed(req.params.id);
     if (agreed === null) return res.status(404).json({ error: 'user not found' });
     if (!agreed) return res.status(409).json({ error: 'user has not agreed to sync' });

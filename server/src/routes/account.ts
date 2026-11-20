@@ -4,6 +4,7 @@ import { AuthedRequest } from '../middleware/auth';
 import { eraseAccount } from '../account/erase';
 import { publish } from '../live/hub';
 import { pool } from '../db';
+import { verifyCode } from '../account/phoneVerification';
 
 const router = Router();
 
@@ -59,6 +60,34 @@ router.post(
     }
     publish('admin', 'consent', { id: req.userId, sync_consent: consent }); // the Watcher sees the answer at once
     return res.json({ sync_consent: consent });
+  })
+);
+
+// POST /account/verify-phone  { code }
+// The user types the code the developer sent to their number. Behind
+// requireAuth only (not requireSubscription): an unverified account is exactly
+// the one that has no sync yet.
+//   200 { verified: true }                 — done (the Watcher hears at once)
+//   400 { error: 'wrong code', attempts_left }
+//   410 { error: 'code expired' | 'too many attempts' } — ask for a new code
+//   404 { error: 'no code' }               — none was issued
+//   409 { error: 'already verified' }
+router.post(
+  '/verify-phone',
+  asyncHandler(async (req: AuthedRequest, res) => {
+    const r = await verifyCode(String(req.userId), req.body?.code);
+    if (r.ok) {
+      publish('admin', 'verified', { id: req.userId });
+      publish(`user:${req.userId}`, 'access');
+      return res.json({ verified: true });
+    }
+    switch (r.reason) {
+      case 'wrong': return res.status(400).json({ error: 'wrong code', attempts_left: r.attempts_left });
+      case 'expired': return res.status(410).json({ error: 'code expired' });
+      case 'locked': return res.status(410).json({ error: 'too many attempts' });
+      case 'already': return res.status(409).json({ error: 'already verified' });
+      default: return res.status(404).json({ error: 'no code' });
+    }
   })
 );
 

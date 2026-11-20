@@ -200,3 +200,16 @@ ion-alert.confirm-input .alert-input:focus {
 .feature--bad  { background: #c62828; color: #fff; box-shadow: 0 2px 6px rgba(198, 40, 40, .45); }
 .features:active .feature { transform: scale(.94); }
 ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 700; }
+
+/* Verification code sheet (VerificationModal) */
+.verify { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding-top: 12px; }
+.verify__who { font-size: 1.15rem; font-weight: 800; }
+.verify__phone { color: var(--ion-color-medium); font-weight: 700; }
+.verify__code {
+  font-size: 2.6rem; font-weight: 800; letter-spacing: 0.18em; font-variant-numeric: tabular-nums;
+  color: var(--ion-color-primary); background: var(--app-green-soft); border-radius: 14px; padding: 10px 22px; margin-top: 8px;
+}
+.verify__code--dead { color: var(--ion-color-medium); text-decoration: line-through; }
+.verify__send { width: 100%; display: grid; gap: 6px; margin-top: 10px; }
+.verify__hint { color: var(--ion-color-medium); font-size: 0.85rem; margin: 6px 0 0; }
+.badge--unverified { background: #fff4d6; color: #7a5a00; }
