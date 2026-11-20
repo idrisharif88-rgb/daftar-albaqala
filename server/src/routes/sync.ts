@@ -77,6 +77,7 @@ router.post(
     const settings: Row[] = Array.isArray(req.body?.settings) ? req.body.settings : [];
     const items: Row[] = Array.isArray(req.body?.items) ? req.body.items : [];
     const itemGroups: Row[] = Array.isArray(req.body?.item_groups) ? req.body.item_groups : [];
+    const clubSubs: Row[] = Array.isArray(req.body?.club_subscriptions) ? req.body.club_subscriptions : [];
 
     const result: {
       customers: TableResult;
@@ -84,12 +85,14 @@ router.post(
       settings: TableResult;
       items: TableResult;
       item_groups: TableResult;
+      club_subscriptions: TableResult;
     } = {
       customers: { accepted: [], rejected: [] },
       transactions: { accepted: [], rejected: [] },
       settings: { accepted: [], rejected: [] },
       items: { accepted: [], rejected: [] },
       item_groups: { accepted: [], rejected: [] },
+      club_subscriptions: { accepted: [], rejected: [] },
     };
 
     // Run the whole batch in one DB transaction: either the merge commits as a
@@ -314,6 +317,77 @@ router.post(
         result.item_groups.accepted.push(id);
       }
 
+      // ---- club_subscriptions: upsert, last-write-wins by updated_at ----
+      // «دفتر النادي» (Phase 43): a subscription's package and dates. The money
+      // itself is a ledger entry (transaction_id); this row only carries what
+      // the ledger has no column for. `price` may be below `list_price` — a
+      // discount for this one subscriber.
+      for (const c of clubSubs) {
+        const id = c.id ? String(c.id) : '';
+        if (!id) continue;
+        const customerId = c.customer_id ? String(c.customer_id) : '';
+        const packageName = c.package_name !== undefined && c.package_name !== null
+          ? String(c.package_name).trim().slice(0, 80) : '';
+        const days = Number(c.days);
+        const listPrice = Number(c.list_price);
+        const price = Number(c.price);
+        const currency = c.currency ? String(c.currency) : DEFAULT_CURRENCY;
+        const startDate = String(c.start_date ?? '');
+        const endDate = String(c.end_date ?? '');
+        const transactionId = c.transaction_id ? String(c.transaction_id).slice(0, 36) : null;
+        const note = c.note ? String(c.note).slice(0, 255) : null;
+        const isDay = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(new Date(`${v}T00:00:00Z`).getTime());
+        const updatedAt = c.updated_at ? new Date(c.updated_at as string) : new Date();
+        const createdAt = c.created_at ? new Date(c.created_at as string) : updatedAt;
+        const deletedAt = c.deleted_at ? new Date(c.deleted_at as string) : null;
+        if (!customerId || !packageName || !Number.isInteger(days) || days < 1 || days > 3660 ||
+            !Number.isFinite(listPrice) || listPrice < 0 || !Number.isFinite(price) || price < 0 ||
+            !VALID_CURRENCIES.has(currency) || !isDay(startDate) || !isDay(endDate) || endDate < startDate ||
+            Number.isNaN(updatedAt.getTime()) || Number.isNaN(createdAt.getTime())) {
+          result.club_subscriptions.rejected.push({ id, reason: 'invalid' });
+          continue;
+        }
+
+        const [existingRows] = await conn.query(
+          'SELECT user_id, updated_at FROM club_subscriptions WHERE id = ?',
+          [id]
+        );
+        const existing = (existingRows as Row[])[0];
+        if (existing && existing.user_id !== req.userId) {
+          result.club_subscriptions.rejected.push({ id, reason: 'foreign_owner' });
+          continue;
+        }
+        const [custRows] = await conn.query(
+          'SELECT id FROM customers WHERE id = ? AND user_id = ?',
+          [customerId, req.userId]
+        );
+        if ((custRows as Row[]).length === 0) {
+          result.club_subscriptions.rejected.push({ id, reason: 'missing_customer' });
+          continue;
+        }
+
+        if (!existing) {
+          await conn.query(
+            `INSERT INTO club_subscriptions
+               (id, user_id, customer_id, package_name, days, list_price, price, currency,
+                start_date, end_date, transaction_id, note, created_at, updated_at, deleted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, req.userId, customerId, packageName, days, listPrice.toFixed(2), price.toFixed(2), currency,
+             startDate, endDate, transactionId, note, createdAt, updatedAt, deletedAt]
+          );
+        } else if (updatedAt >= new Date(existing.updated_at as string)) {
+          await conn.query(
+            `UPDATE club_subscriptions
+               SET customer_id = ?, package_name = ?, days = ?, list_price = ?, price = ?, currency = ?,
+                   start_date = ?, end_date = ?, transaction_id = ?, note = ?, updated_at = ?, deleted_at = ?
+             WHERE id = ? AND user_id = ?`,
+            [customerId, packageName, days, listPrice.toFixed(2), price.toFixed(2), currency,
+             startDate, endDate, transactionId, note, updatedAt, deletedAt, id, req.userId]
+          );
+        }
+        result.club_subscriptions.accepted.push(id);
+      }
+
       // ---- transactions: append-only, insert if the UUID is new ----
       // Processed AFTER customers in the same DB transaction, so a contact and
       // the debts recorded against it can land in a single push.
@@ -441,6 +515,7 @@ interface PullCursor {
   transactions: TableCursor;
   items: TableCursor;
   itemGroups: TableCursor;
+  clubSubs: TableCursor;
 }
 
 const CURSOR_VERSION = 'v1';
@@ -452,15 +527,18 @@ const CURSOR_VERSION_V2 = 'v2';
 // table, so a client arriving with one starts it from zero and receives the
 // groups it has never seen.
 const CURSOR_VERSION_V3 = 'v3';
+// v4 adds the club's subscriptions (Phase 43). A v3 cursor starts them at zero.
+const CURSOR_VERSION_V4 = 'v4';
 const EPOCH = () => new Date(0);
 
 function encodeCursor(c: PullCursor): string {
   return [
-    CURSOR_VERSION_V3,
+    CURSOR_VERSION_V4,
     c.customers.ts.toISOString(), c.customers.id,
     c.transactions.ts.toISOString(), c.transactions.id,
     c.items.ts.toISOString(), c.items.id,
     c.itemGroups.ts.toISOString(), c.itemGroups.id,
+    c.clubSubs.ts.toISOString(), c.clubSubs.id,
   ].join('|');
 }
 
@@ -470,7 +548,20 @@ function encodeCursor(c: PullCursor): string {
 function decodeCursor(raw: string | undefined): PullCursor | null {
   const fresh = (): TableCursor => ({ ts: EPOCH(), id: '' });
   if (!raw) {
-    return { customers: fresh(), transactions: fresh(), items: fresh(), itemGroups: fresh() };
+    return { customers: fresh(), transactions: fresh(), items: fresh(), itemGroups: fresh(), clubSubs: fresh() };
+  }
+
+  if (raw.startsWith(`${CURSOR_VERSION_V4}|`)) {
+    const [, cts, cid, tts, tid, its, iid, gts, gid, sts, sid] = raw.split('|');
+    const dates = [cts, tts, its, gts, sts].map((v) => new Date(v));
+    if (dates.some((d) => Number.isNaN(d.getTime()))) return null;
+    return {
+      customers: { ts: dates[0], id: cid ?? '' },
+      transactions: { ts: dates[1], id: tid ?? '' },
+      items: { ts: dates[2], id: iid ?? '' },
+      itemGroups: { ts: dates[3], id: gid ?? '' },
+      clubSubs: { ts: dates[4], id: sid ?? '' },
+    };
   }
 
   if (raw.startsWith(`${CURSOR_VERSION_V3}|`)) {
@@ -488,6 +579,7 @@ function decodeCursor(raw: string | undefined): PullCursor | null {
       transactions: { ts: transactionsTs, id: tid ?? '' },
       items: { ts: itemsTs, id: iid ?? '' },
       itemGroups: { ts: groupsTs, id: gid ?? '' },
+      clubSubs: fresh(),
     };
   }
 
@@ -507,6 +599,7 @@ function decodeCursor(raw: string | undefined): PullCursor | null {
       // Nothing in a v2 cursor says where this client stands on the saved
       // baskets, so it starts at the beginning of that table.
       itemGroups: fresh(),
+      clubSubs: fresh(),
     };
   }
 
@@ -522,6 +615,7 @@ function decodeCursor(raw: string | undefined): PullCursor | null {
       // the beginning of that table rather than from the contacts' position.
       items: fresh(),
       itemGroups: fresh(),
+      clubSubs: fresh(),
     };
   }
 
@@ -530,7 +624,7 @@ function decodeCursor(raw: string | undefined): PullCursor | null {
   // Legacy clients sent a plain timestamp and expected `>=` semantics.
   return {
     customers: { ts, id: '' }, transactions: { ts, id: '' },
-    items: fresh(), itemGroups: fresh(),
+    items: fresh(), itemGroups: fresh(), clubSubs: fresh(),
   };
 }
 
@@ -624,6 +718,21 @@ router.get(
       [req.userId, cursor.itemGroups.ts, cursor.itemGroups.ts, cursor.itemGroups.id, limit + 1]
     );
 
+    // The club's subscriptions (Phase 43), tombstones included. DATEs are sent
+    // as plain «YYYY-MM-DD» text: the driver would otherwise turn them into a
+    // midnight in the server's zone, and the JSON would shift the day.
+    const [clubRows] = await pool.query(
+      `SELECT id, customer_id, package_name, days, list_price, price, currency,
+              DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
+              DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date,
+              transaction_id, note, created_at, updated_at, deleted_at, server_updated_at
+         FROM club_subscriptions
+        WHERE user_id = ? AND ${after}
+        ORDER BY server_updated_at ASC, id ASC
+        LIMIT ?`,
+      [req.userId, cursor.clubSubs.ts, cursor.clubSubs.ts, cursor.clubSubs.id, limit + 1]
+    );
+
     // Settings ride along OUTSIDE the keyset cursor: the whole set is returned
     // on every pull, page or no page. It is a dozen short strings, so there is
     // nothing to page, and sending them unconditionally means a device that
@@ -638,15 +747,18 @@ router.get(
     const allTransactions = transactionRows as Row[];
     const allItems = itemRows as Row[];
     const allGroups = groupRows as Row[];
+    const allClub = clubRows as Row[];
     const moreCustomers = allCustomers.length > limit;
     const moreTransactions = allTransactions.length > limit;
     const moreItems = allItems.length > limit;
     const moreGroups = allGroups.length > limit;
+    const moreClub = allClub.length > limit;
     const customers = moreCustomers ? allCustomers.slice(0, limit) : allCustomers;
     const transactions = moreTransactions ? allTransactions.slice(0, limit) : allTransactions;
     const items = moreItems ? allItems.slice(0, limit) : allItems;
     const itemGroups = moreGroups ? allGroups.slice(0, limit) : allGroups;
-    const hasMore = moreCustomers || moreTransactions || moreItems || moreGroups;
+    const clubSubscriptions = moreClub ? allClub.slice(0, limit) : allClub;
+    const hasMore = moreCustomers || moreTransactions || moreItems || moreGroups || moreClub;
 
     // Advance each table's cursor to its own last delivered row.
     const advance = (rows: Row[], previous: TableCursor): TableCursor => {
@@ -659,6 +771,7 @@ router.get(
       transactions: advance(transactions, cursor.transactions),
       items: advance(items, cursor.items),
       itemGroups: advance(itemGroups, cursor.itemGroups),
+      clubSubs: advance(clubSubscriptions, cursor.clubSubs),
     };
 
     // Once fully drained, rewind to a moment safely in the past.
@@ -673,7 +786,7 @@ router.get(
       const safe = { ts: new Date(serverNow.getTime() - CURSOR_REWIND_MS), id: '' };
       next = {
         customers: safe, transactions: { ...safe },
-        items: { ...safe }, itemGroups: { ...safe },
+        items: { ...safe }, itemGroups: { ...safe }, clubSubs: { ...safe },
       };
     }
 
@@ -682,6 +795,7 @@ router.get(
       transactions,
       items,
       item_groups: itemGroups,
+      club_subscriptions: clubSubscriptions,
       settings: settingRows as Row[],
       synced_at: encodeCursor(next),
       has_more: hasMore,

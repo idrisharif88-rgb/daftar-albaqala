@@ -1689,6 +1689,16 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   4. Payments + renewal: payments on a subscription → expired / about-to-expire list → «تجديد» + confirm.
   5. Subscription cards: batch generate in the Watcher → print card / QR → «كود اشتراك» redeem.
   6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
+- **Step 3 BUILT (2026-11-20, migration 027 + local migration 16):** subscriber = contact role `member`
+  (known everywhere via `CLUB_ROLES` in roles.ts, offered by no build's picker; server VALID_ROLES too).
+  Packages = synced setting `club_packages` (JSON, `features/club/packages.ts`, 20 KB limit server-side).
+  Subscription = a DEBT entry for its price + a row in `club_subscriptions` (package, days, list_price,
+  price ≤ list_price = per-subscriber DISCOUNT, start/end LOCAL days, transaction_id), synced like items,
+  sync cursor **v4** (v3 still decodes, subscriptions from zero); pull sends DATEs as text. Screens:
+  `ClubHome` (tabs ساري/قارب/منتهي, 3 totals, chip per member, + member), `ClubMember` (/club/members/:id:
+  dates, days-left bar, owed, «اشتراك جديد» with editable price + discount line, «تسجيل دفعة» partial
+  allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
+  ≤3 days. No notices yet (step 4).
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
 - **DECIDED (owner, 2026-11-20, replaces the club link of step 2):** sign-up is ONE general path for
   everyone — no «هل تدير ناديًا رياضيًا؟» link. The developer asks each new user who they are during

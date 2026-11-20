@@ -25,6 +25,8 @@ import AppTour from './features/tour/AppTour';
 import { firstPosTab, usePosTabs } from './features/pos/PosFooter';
 import Invoice from './pages/Invoice';
 import ClubHome from './features/club/ClubHome';
+import ClubMember from './features/club/ClubMember';
+import ClubPackages from './features/club/ClubPackages';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Welcome from './pages/Welcome';
@@ -207,6 +209,8 @@ const Routes: React.FC = () => {
   const ledger = (page: React.ReactNode) =>
     !isAuthenticated ? <Redirect to="/welcome" /> : staff ? <Redirect to={staffHome} />
       : isClub ? <Redirect to="/club" /> : page;
+  const club = (page: React.ReactNode) =>
+    !isAuthenticated ? <Redirect to="/welcome" /> : isClub ? page : <Redirect to={home} />;
   const account = (page: React.ReactNode) =>
     !isAuthenticated ? <Redirect to="/welcome" /> : staff ? <Redirect to={staffHome} /> : page;
   const pos = (path: string, page: React.ReactNode) =>
@@ -281,7 +285,13 @@ const Routes: React.FC = () => {
           {account(<Settings />)}
         </Route>
         <Route exact path="/club">
-          {!isAuthenticated ? <Redirect to="/welcome" /> : isClub ? <ClubHome /> : <Redirect to={home} />}
+          {club(<ClubHome />)}
+        </Route>
+        <Route exact path="/club/packages">
+          {club(<ClubPackages />)}
+        </Route>
+        <Route exact path="/club/members/:id">
+          {club(<ClubMember />)}
         </Route>
         {/* The owner's own notebook — no other account can reach it. */}
         <Route exact path="/notebook">

@@ -34,6 +34,8 @@ export const SYNCABLE_KEYS = [
   // The tour after sign-in was seen, per account type (features/tour).
   'ui_tour_grocery',
   'ui_tour_club',
+  // The club's packages, one JSON list (features/club/packages.ts).
+  'club_packages',
 ] as const;
 
 /** One setting on the wire. `updated_at` is the phone clock that wrote it. */

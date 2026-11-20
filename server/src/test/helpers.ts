@@ -24,6 +24,7 @@ export async function cleanDb(): Promise<void> {
   await pool.query('DELETE FROM pos_day_lock');
   await pool.query('DELETE FROM pos_products');
   await pool.query('DELETE FROM attachments');
+  await pool.query('DELETE FROM club_subscriptions');
   await pool.query('DELETE FROM transactions');
   await pool.query('DELETE FROM item_groups');
   await pool.query('DELETE FROM items');

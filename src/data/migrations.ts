@@ -353,6 +353,39 @@ CREATE TABLE IF NOT EXISTS pos_notes (
       await db.run('ALTER TABLE transactions ADD COLUMN recorded_by TEXT');
     },
   },
+  {
+    version: 16,
+    name: 'club_subscriptions («دفتر النادي» — a package and its dates)',
+    async run(db) {
+      // The money is a ledger entry (transaction_id); this row carries only the
+      // package and the dates. Prices in MINOR units; dates are LOCAL calendar
+      // days «YYYY-MM-DD». `price` below `list_price` = a discount.
+      await db.execute(`
+CREATE TABLE IF NOT EXISTS club_subscriptions (
+  id              TEXT PRIMARY KEY NOT NULL,
+  customer_id     TEXT NOT NULL,
+  package_name    TEXT NOT NULL,
+  days            INTEGER NOT NULL,
+  list_price      INTEGER NOT NULL,
+  price           INTEGER NOT NULL,
+  currency        TEXT NOT NULL DEFAULT 'YER',
+  start_date      TEXT NOT NULL,
+  end_date        TEXT NOT NULL,
+  transaction_id  TEXT,
+  note            TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  deleted_at      TEXT,
+  synced          INTEGER NOT NULL DEFAULT 0
+);
+`);
+      // One statement per line — see owner.ts.
+      await db.execute(
+        `CREATE INDEX IF NOT EXISTS idx_csub_customer ON club_subscriptions (customer_id, end_date);
+CREATE INDEX IF NOT EXISTS idx_csub_synced ON club_subscriptions (synced);`,
+      );
+    },
+  },
 ];
 
 // The version a fresh, fully-migrated database ends up at.

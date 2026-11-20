@@ -273,6 +273,13 @@ export interface PushItemGroup {
   id: string; customer_id: string; name: string; lines_json: string;
   created_at: string; updated_at: string; deleted_at: string | null;
 }
+/** «دفتر النادي»: a subscription's package and dates (prices in MAJOR units). */
+export interface PushClubSub {
+  id: string; customer_id: string; package_name: string; days: number;
+  list_price: number; price: number; currency: string;
+  start_date: string; end_date: string; transaction_id: string | null; note: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
 
 // Why the server would not store a row. 'missing_customer' is the only one
 // worth retrying — see server/src/routes/sync.ts.
@@ -294,6 +301,8 @@ export interface PushResult {
   items?: TableAck;
   /** Absent from a server older than saved baskets. */
   item_groups?: TableAck;
+  /** Absent from a server older than the club section. */
+  club_subscriptions?: TableAck;
   /** Keyed by setting NAME rather than by UUID — a setting has no id but its
    *  key is already unique per account. Absent from a server older than
    *  settings sync. */
@@ -330,6 +339,12 @@ export interface PullItemGroup {
   id: string; customer_id: string; name: string; lines_json: string;
   created_at: string; updated_at: string; deleted_at: string | null;
 }
+export interface PullClubSub {
+  id: string; customer_id: string; package_name: string; days: number | string;
+  list_price: string | number; price: string | number; currency: string;
+  start_date: string; end_date: string; transaction_id: string | null; note: string | null;
+  created_at: string; updated_at: string; deleted_at: string | null;
+}
 export interface PullResult {
   customers: PullCustomer[];
   transactions: PullTransaction[];
@@ -337,6 +352,8 @@ export interface PullResult {
   items?: PullItem[];
   /** Absent from a server older than saved baskets. */
   item_groups?: PullItemGroup[];
+  /** Absent from a server older than the club section. */
+  club_subscriptions?: PullClubSub[];
   /** Opaque cursor to send as `since` next time. Do not parse it. */
   synced_at: string;
   /** More pages are waiting — call again with the new cursor. */
@@ -351,6 +368,7 @@ export function syncPush(body: {
   transactions: PushTransaction[];
   items?: PushItem[];
   item_groups?: PushItemGroup[];
+  club_subscriptions?: PushClubSub[];
   settings?: SettingRow[];
 }): Promise<PushResult> {
   return request<PushResult>('/sync/push', { method: 'POST', body: JSON.stringify(body) });

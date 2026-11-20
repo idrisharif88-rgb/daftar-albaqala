@@ -979,8 +979,51 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
   .brand-intro--play { animation-delay: 2.6s !important; }
 }
 
-/* ---- «دفتر النادي» placeholder (features/club/ClubHome.tsx) ---- */
-.club-soon { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 48px 24px; }
-.club-soon__icon { font-size: 64px; color: var(--ion-color-primary); }
-.club-soon h2 { font-weight: 800; margin: 8px 0 0; }
-.club-soon p { color: var(--ion-color-medium-shade); margin: 0; }
+/* ---- «دفتر النادي» (features/club) — navy + orange, approved preview 2026-11-20 ---- */
+.club ion-toolbar { --background: #0b1f3a; --color: #fff; --border-width: 0; }
+.club ion-toolbar ion-segment-button { --color: rgba(255, 255, 255, 0.75); --color-checked: #ff8a1f; --indicator-color: #ff8a1f; font-weight: 800; min-width: 0; }
+.club ion-searchbar { --background: rgba(255, 255, 255, 0.12); --color: #fff; --placeholder-color: rgba(255, 255, 255, 0.7); --icon-color: rgba(255, 255, 255, 0.7); }
+.club-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 10px 12px 4px; }
+.club-kpi { background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 14px; padding: 9px 6px; text-align: center; }
+.club-kpi b { display: block; font-size: 1.15rem; font-weight: 800; color: #16406f; }
+.club-kpi span { font-size: 0.75rem; color: var(--app-muted); font-weight: 700; }
+.club-kpi--warn b { color: #b26a00; }
+.club-kpi--bad b { color: #b42318; }
+.club-list { display: grid; gap: 8px; padding: 6px 12px 96px; }
+.club-list--top { padding-top: 14px; }
+.club-row { --background: var(--app-surface, #fff); --padding-start: 10px; --inner-padding-end: 10px; border: 1px solid var(--app-border, #e4e9ef); border-radius: 16px; }
+.club-av { width: 40px; height: 40px; border-radius: 50%; background: #e8eef5; color: #16406f; display: grid; place-items: center; font-weight: 800; margin-inline-end: 10px; }
+.club-row__tx { flex: 1; min-width: 0; padding: 8px 0; }
+.club-row__tx b { display: block; font-weight: 800; }
+.club-row__tx span { display: block; font-size: 0.82rem; color: var(--app-muted); }
+.club-row__tx em { font-style: normal; color: #b42318; font-weight: 700; }
+.club-chip { flex: none; font-size: 0.72rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; }
+.club-chip--active { background: #e6f4ea; color: #1f7a3f; }
+.club-chip--soon { background: #fff4d6; color: #b26a00; }
+.club-chip--expired { background: #fde8e8; color: #b42318; }
+.club-chip--none { background: #eef1f4; color: #5e6b78; }
+.club-price { font-weight: 800; color: #16406f; }
+.club-empty { text-align: center; color: var(--app-muted); padding: 32px 20px; }
+.club-fab { --background: #ff8a1f; --background-activated: #e67600; --color: #1b1206; }
+.club-btn { --background: #ff8a1f; --background-activated: #e67600; --color: #1b1206; font-weight: 800; }
+.club-btn-out { --border-color: #cdd6e0; --color: #16406f; font-weight: 800; }
+.club-err { display: block; padding: 8px 16px 0; font-size: 0.88rem; }
+.club-card { margin: 12px; background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 18px; padding: 14px; display: grid; gap: 10px; }
+.club-card__head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
+.club-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.club-dates div { background: #f4f7fa; border-radius: 12px; padding: 8px; text-align: center; }
+.club-dates span { display: block; font-size: 0.75rem; color: #5e6b78; font-weight: 700; }
+.club-dates b { direction: ltr; unicode-bidi: isolate; }
+.club-prog { height: 8px; border-radius: 4px; background: #e8eef5; overflow: hidden; }
+.club-prog i { display: block; height: 100%; background: linear-gradient(90deg, #ff8a1f, #ffb366); }
+.club-left { text-align: center; font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }
+.club-money { display: flex; justify-content: space-between; font-weight: 800; font-size: 0.92rem; }
+.club-money em { font-style: normal; color: #1f7a3f; font-size: 0.82rem; }
+.club-owed { color: #b42318; }
+.club-paid { color: #1f7a3f; }
+.club-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 12px; }
+.club-hist { display: grid; gap: 6px; padding: 12px 12px 32px; }
+.club-h { display: flex; justify-content: space-between; font-size: 0.85rem; background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 12px; padding: 8px 12px; }
+.club-summary { display: grid; gap: 6px; margin: 12px 4px 0; padding: 10px 12px; border-radius: 14px; background: #fff1e3; }
+.club-summary div { display: flex; justify-content: space-between; font-size: 0.9rem; }
+.club-summary b { direction: ltr; unicode-bidi: isolate; }

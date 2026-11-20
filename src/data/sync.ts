@@ -21,9 +21,12 @@ import {
 } from './attachments';
 import {
   syncPush, syncPull, pullAttachments, ApiError,
-  type PushCustomer, type PushTransaction, type PushItem, type PushItemGroup,
+  type PushCustomer, type PushTransaction, type PushItem, type PushItemGroup, type PushClubSub,
   type TableAck,
 } from '../lib/api';
+import {
+  getDirtySubscriptions, markSubscriptionsSynced, applyServerSubscription, type WireClubSub,
+} from '../features/club/subscriptions';
 import { setAccountActive } from './account';
 import { getLocalSettings, applyServerSettings, type SettingRow } from './settingsSync';
 
@@ -218,11 +221,12 @@ async function pushChunks<T>(
     transactions: PushTransaction[];
     items?: PushItem[];
     item_groups?: PushItemGroup[];
+    club_subscriptions?: PushClubSub[];
     settings?: SettingRow[];
   },
   pick: (result: {
     customers: TableAck; transactions: TableAck; items?: TableAck;
-    item_groups?: TableAck;
+    item_groups?: TableAck; club_subscriptions?: TableAck;
   }) => TableAck | undefined,
   markClean: (accepted: Set<string>, batch: T[]) => Promise<void>,
 ): Promise<{ accepted: number; rejected: number }> {
@@ -252,11 +256,13 @@ async function doSync(): Promise<SyncOutcome> {
   let dirtyTxns: Transaction[] = [];
   let dirtyItems: Item[] = [];
   let dirtyGroups: WireGroup[] = [];
+  let dirtySubs: WireClubSub[] = [];
   try {
     dirtyCustomers = await getDirtyCustomers();
     dirtyTxns = await getDirtyTransactions();
     dirtyItems = await getDirtyItems();
     dirtyGroups = await getDirtyGroups();
+    dirtySubs = await getDirtySubscriptions();
 
     // The account settings ride along on the first push request of the run,
     // whichever one that turns out to be. They are seven short strings, so
@@ -327,6 +333,21 @@ async function doSync(): Promise<SyncOutcome> {
       },
     );
 
+    // Club subscriptions after their subscribers (refused otherwise).
+    const subResult = await pushChunks(
+      dirtySubs,
+      (batch) => ({
+        customers: [], transactions: [], club_subscriptions: batch,
+        settings: takeSettings(),
+      }),
+      (r) => r.club_subscriptions,
+      async (acceptedIds, batch) => {
+        await markSubscriptionsSynced(
+          batch.filter((x) => acceptedIds.has(x.id)).map((x) => ({ id: x.id, updated_at: x.updated_at })),
+        );
+      },
+    );
+
     const txnResult = await pushChunks(
       dirtyTxns,
       (batch) => ({
@@ -380,6 +401,16 @@ async function doSync(): Promise<SyncOutcome> {
           created_at: g.created_at, updated_at: g.updated_at, deleted_at: g.deleted_at,
         });
       }
+      for (const c of page.club_subscriptions ?? []) {
+        await applyServerSubscription({
+          id: c.id, customer_id: c.customer_id, package_name: c.package_name, days: Number(c.days),
+          list_price: toMinor(Number(c.list_price)), price: toMinor(Number(c.price)),
+          currency: isCurrencyCode(c.currency) ? c.currency : BASE_CURRENCY,
+          start_date: String(c.start_date).slice(0, 10), end_date: String(c.end_date).slice(0, 10),
+          transaction_id: c.transaction_id ?? null, note: c.note ?? null,
+          created_at: c.created_at, updated_at: c.updated_at, deleted_at: c.deleted_at,
+        });
+      }
       for (const t of page.transactions) {
         // The owner deleted it from the Watcher — drop our copy. Idempotent:
         // the cursor's rewind can deliver the same tombstone twice.
@@ -402,7 +433,8 @@ async function doSync(): Promise<SyncOutcome> {
       if (page.settings) await applyServerSettings(page.settings);
 
       pulled += page.customers.length + page.transactions.length +
-        (page.items?.length ?? 0) + (page.item_groups?.length ?? 0);
+        (page.items?.length ?? 0) + (page.item_groups?.length ?? 0) +
+        (page.club_subscriptions?.length ?? 0);
 
       // Save the cursor with the page it belongs to, before asking for the
       // next one. If the app is killed mid-drain, the next run resumes here
@@ -449,7 +481,7 @@ async function doSync(): Promise<SyncOutcome> {
     await setAccountActive(true); // a successful sync means the owner activated us
 
     const rejected = custResult.rejected + itemResult.rejected + groupResult.rejected +
-      txnResult.rejected;
+      subResult.rejected + txnResult.rejected;
     // Stopping at the page cap means data is still waiting on the server, which
     // is not a clean sync — report it as partial so the warning stays up rather
     // than telling the owner everything is fine.
@@ -457,7 +489,7 @@ async function doSync(): Promise<SyncOutcome> {
     const outcome: SyncOutcome = {
       status: rejected > 0 || !drained || attFailed > 0 ? 'partial' : 'ok',
       pushed: custResult.accepted + itemResult.accepted + groupResult.accepted +
-        txnResult.accepted,
+        subResult.accepted + txnResult.accepted,
       pulled,
       rejected,
     };
