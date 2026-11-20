@@ -1594,7 +1594,7 @@ PRs #55 + #56. Server migration **021**, local migration 15. Server 200/200, app
 - Edge-to-edge (Android 15) warning left for later.
 
 ## Status — BUILT (Phase 42: phone verification, invoice quick-add, welcome) (2026-11-20)
-Branch `verify-welcome-invoice`. Server migration **022**. Server 208/208, app 140/140. **Not deployed, not device-tested.**
+Branch `verify-welcome-invoice`. Server migration **022**. Server 211/211, app 140/140. **Not deployed, not device-tested.**
 - **Phone verification.** New accounts start unverified (`users.phone_verified_at` NULL); every account
   older than 022 is backfilled as verified. Watcher → «إرسال رمز التحقق» on the card (or «المزيد» →
   «رمز التحقق») → `POST /admin/users/:id/verification-code` → server makes a 6-digit code
