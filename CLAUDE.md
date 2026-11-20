@@ -1698,7 +1698,8 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   `ClubHome` (tabs ساري/قارب/منتهي, 3 totals, chip per member, + member), `ClubMember` (/club/members/:id:
   dates, days-left bar, owed, «اشتراك جديد» with editable price + discount line, «تسجيل دفعة» partial
   allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
-  ≤3 days. No notices yet (step 4).
+  ≤3 days. Subscription + payment go through `useContactNotifier` (WhatsApp/SMS, «no notice, no entry»; the
+  message note = `subscriptionNote()`, same words as the ledger entry). Dates shown as one plain line.
   - TODO (owner): «مشترك جديد» needs the «جهات الاتصال» picker (`pickContact`, as on Home).
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
 - **DECIDED (owner, 2026-11-20, replaces the club link of step 2):** sign-up is ONE general path for

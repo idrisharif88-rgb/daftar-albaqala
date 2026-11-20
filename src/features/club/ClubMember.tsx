@@ -11,15 +11,19 @@ import { runSync } from '../../data/sync';
 import { numericInput } from '../../lib/digits';
 import { listPackages, type ClubPackage } from './packages';
 import {
-  createSubscription, daysBetween, listSubscriptions, nextStart, statusOf, today, addDays,
+  createSubscription, daysBetween, listSubscriptions, nextStart, statusOf, today, addDays, subscriptionNote,
   type ClubSubscription,
 } from './subscriptions';
 import { chipText } from './ClubHome';
+import { useContactNotifier } from '../../lib/useContactNotifier';
 
 // A subscriber's card (Phase 43, step 3): the current subscription with its
 // dates and days left, what is still owed, «اشتراك جديد» and «تسجيل دفعة»,
 // and the history. The price of a subscription can differ per subscriber —
 // the package's price is the starting point, the owner may lower it (discount).
+// Both the subscription and a payment go out to the subscriber by WhatsApp or
+// SMS through the same notifier as the grocery book — and, as there, nothing
+// is recorded unless the notice goes (useContactNotifier: «no notice, no entry»).
 
 const ClubMember: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +33,7 @@ const ClubMember: React.FC = () => {
   const [owed, setOwed] = useState(0);
   const [packages, setPackages] = useState<ClubPackage[]>([]);
   const [presentToast] = useIonToast();
+  const notifyContact = useContactNotifier();
 
   // «اشتراك جديد»
   const [subOpen, setSubOpen] = useState(false);
@@ -82,10 +87,19 @@ const ClubMember: React.FC = () => {
     if (priceMinor > pkg.price) { setSubErr('السعر أعلى من سعر الباقة'); return; }
     setBusy(true);
     try {
-      await createSubscription({
+      const input = {
         customerId: id, packageName: pkg.name, days: pkg.days,
         listPrice: pkg.price, price: priceMinor, startDate: start,
-      });
+      };
+      const commit = async () => { await createSubscription(input); };
+      // A free subscription has no amount to announce: record it directly.
+      const recorded = priceMinor > 0
+        ? await notifyContact({
+          customerId: id, type: 'debt', amount: priceMinor, currency: 'YER',
+          note: subscriptionNote(input), commit,
+        })
+        : (await commit(), true);
+      if (!recorded) return; // the notice was cancelled — nothing recorded
       setSubOpen(false);
       void runSync();
       void presentToast({ message: 'تم تسجيل الاشتراك ✓', duration: 1600, color: 'success' });
@@ -103,7 +117,11 @@ const ClubMember: React.FC = () => {
     if (busy) return;
     setBusy(true);
     try {
-      await addTransaction({ customerId: id, type: 'payment', amount: minor, note: 'دفعة اشتراك' });
+      const recorded = await notifyContact({
+        customerId: id, type: 'payment', amount: minor, currency: 'YER', note: 'دفعة اشتراك',
+        commit: async () => { await addTransaction({ customerId: id, type: 'payment', amount: minor, note: 'دفعة اشتراك' }); },
+      });
+      if (!recorded) return;
       setPayOpen(false);
       setAmount('');
       void runSync();
@@ -136,8 +154,8 @@ const ClubMember: React.FC = () => {
           {current && (
             <>
               <div className="club-dates">
-                <div><span>من</span><b>{current.start_date}</b></div>
-                <div><span>حتى</span><b>{current.end_date}</b></div>
+                <span>من <b>{current.start_date}</b></span>
+                <span>حتى <b>{current.end_date}</b></span>
               </div>
               <div className="club-prog" aria-hidden="true"><i style={{ width: `${total ? (100 * used) / total : 0}%` }} /></div>
               <div className="club-left">

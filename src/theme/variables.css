@@ -1010,10 +1010,8 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 .club-err { display: block; padding: 8px 16px 0; font-size: 0.88rem; }
 .club-card { margin: 12px; background: var(--app-surface, #fff); border: 1px solid var(--app-border, #e4e9ef); border-radius: 18px; padding: 14px; display: grid; gap: 10px; }
 .club-card__head { display: flex; justify-content: space-between; align-items: center; font-weight: 800; }
-.club-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.club-dates div { background: #f4f7fa; border-radius: 12px; padding: 8px; text-align: center; }
-.club-dates span { display: block; font-size: 0.75rem; color: #5e6b78; font-weight: 700; }
-.club-dates b { direction: ltr; unicode-bidi: isolate; }
+.club-dates { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }
+.club-dates b { color: var(--ion-text-color); direction: ltr; unicode-bidi: isolate; margin-inline-start: 4px; }
 .club-prog { height: 8px; border-radius: 4px; background: #e8eef5; overflow: hidden; }
 .club-prog i { display: block; height: 100%; background: linear-gradient(90deg, #ff8a1f, #ffb366); }
 .club-left { text-align: center; font-size: 0.85rem; color: var(--app-muted); font-weight: 700; }

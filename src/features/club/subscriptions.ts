@@ -146,6 +146,18 @@ export async function latestByMember(): Promise<Map<string, ClubSubscription>> {
   return map;
 }
 
+/** The words for a subscription — on the ledger entry AND in the message to
+ *  the subscriber, so the two always say the same thing. */
+export function subscriptionNote(input: {
+  packageName: string; startDate: string; days: number; listPrice: number; price: number; note?: string | null;
+}): string {
+  const end = addDays(input.startDate, input.days - 1);
+  const parts = [`اشتراك ${input.packageName.trim()}: من ${input.startDate} حتى ${end}`];
+  if (input.listPrice > input.price) parts.push(`خصم ${formatMinor(input.listPrice - input.price)}`);
+  if (input.note?.trim()) parts.push(input.note.trim());
+  return parts.join(' — ');
+}
+
 /**
  * Sell a subscription: a DEBT entry for `price` (what this subscriber pays —
  * it may be below the package's price) and the dated row that explains it.
@@ -165,14 +177,10 @@ export async function createSubscription(input: {
   if (!Number.isInteger(input.days) || input.days < 1) throw new Error('عدد الأيام غير صحيح');
   if (!Number.isInteger(input.price) || input.price < 0) throw new Error('أدخل سعراً صحيحاً');
   const endDate = addDays(input.startDate, input.days - 1);
-  const discount = input.listPrice - input.price;
-  const noteParts = [`اشتراك ${input.packageName}: ${input.startDate} → ${endDate}`];
-  if (discount > 0) noteParts.push(`خصم ${formatMinor(discount)}`);
-  if (input.note?.trim()) noteParts.push(input.note.trim());
 
   // A free subscription (price 0) is a valid gift; it has no ledger entry.
   const txn = input.price > 0
-    ? await addTransaction({ customerId: input.customerId, type: 'debt', amount: input.price, note: noteParts.join(' — ') })
+    ? await addTransaction({ customerId: input.customerId, type: 'debt', amount: input.price, note: subscriptionNote(input) })
     : null;
 
   const db = await getDB();
