@@ -1690,6 +1690,11 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   5. Subscription cards: batch generate in the Watcher → print card / QR → «كود اشتراك» redeem.
   6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
+- **DECIDED (owner, 2026-11-20, replaces the club link of step 2):** sign-up is ONE general path for
+  everyone — no «هل تدير ناديًا رياضيًا؟» link. The developer asks each new user who they are during
+  verification (Phase 42) and sets the section in the Watcher («نوع الحساب»). The signed-out Welcome
+  becomes general; today's grocery Welcome content (cart, tiles) is MOVED, not deleted, into a grocer
+  tour shown after sign-in to grocery accounts (club gets its own later).
 - **REMINDER (owner, 2026-11-20): generalise the signed-out Welcome screen** (`src/pages/Welcome.tsx`) —
   today it is all grocery (🛒 cart icon, «سجّل الديون والمدفوعات، واطبع الفواتير», grocery tiles), so a
   club owner reads it as «not for me». Make the icon, tagline and tiles neutral (shops + clubs), then
