@@ -94,6 +94,8 @@ export interface Account {
   has_logo?: boolean;
   /** …and a full-screen intro picture after sign-in (025). */
   has_intro?: boolean;
+  /** Which section the app opens: the grocery book or «دفتر النادي» (026). */
+  account_type?: 'grocery' | 'club';
   /** The shop owner may see the report per staff member (the developer always can). */
   pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
@@ -145,6 +147,14 @@ export function setLogo(
   return request(`/admin/users/${encodeURIComponent(id)}/logo`, {
     method: 'POST',
     body: JSON.stringify({ logo, code, kind }),
+  });
+}
+
+/** Grocery book or gym club — which section the shop's app opens (Phase 43). */
+export function setAccountType(id: string, type: 'grocery' | 'club', code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/account-type`, {
+    method: 'POST',
+    body: JSON.stringify({ type, code }),
   });
 }
 

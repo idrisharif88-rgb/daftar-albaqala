@@ -1690,7 +1690,7 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   5. Subscription cards: batch generate in the Watcher → print card / QR → «كود اشتراك» redeem.
   6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
 - Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
-- **Progress (2026-11-20):** Step 1a (server) DONE + committed on `club-step1` (server 217/217); local daftar_db rebuilt from schema.sql. Original note:
+- **Progress (2026-11-20):** Step 1b (Watcher: «نادي» badge + «المزيد» → «نوع الحساب») DONE, not device-tested. Step 1a (server) DONE + committed on `club-step1` (server 217/217); local daftar_db rebuilt from schema.sql. Original note:
   tests NOT run: migration `026_account_type.sql` (+ schema.sql), `POST /admin/users/:id/account-type
   {type, code}` (`ACCOUNT_TYPES` in `routes/admin.ts`), `account_type` in `/me` + `/admin/users`, 2 tests in
   `admin.account.test.ts`. `tsc` passes. Next: owner applies 026 to local `daftar_test` + `daftar_db` →

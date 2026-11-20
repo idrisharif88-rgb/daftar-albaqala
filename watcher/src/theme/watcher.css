@@ -122,6 +122,7 @@ ion-input input.native-input::placeholder {
 /* «دفتر المقاول» activation, beside the account's own status. */
 .acct__badges { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .badge--contractor { background: #ff6f00; color: #1a1a1a; }
+.badge--club { background: #1565c0; color: #fff; }
 
 /* ---- Typed-confirmation dialogs: «حذف الحساب نهائياً» (red title) and
    «كلمة مرور جديدة» (confirm-input, neutral title) share the box style. ----
