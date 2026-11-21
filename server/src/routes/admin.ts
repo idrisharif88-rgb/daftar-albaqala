@@ -673,17 +673,19 @@ async function findContact(userId: string, customerId: string): Promise<Row | nu
 }
 
 // GET /admin/users/:id/customers — the account's live contacts, each with its
-// balance per currency and its number of entries.
+// balance per currency and its number of entries. Club subscribers the USER
+// deleted in the app are included too, with `deleted_at` (owner, 2026-11-21:
+// a delete in the app must not take them off the server's view).
 router.get(
   '/users/:id/customers',
   asyncHandler(async (req, res) => {
     const account = await findAccount(req.params.id);
     if (!account) return res.status(404).json({ error: 'user not found' });
     const [rows] = await pool.query(
-      `SELECT id, name, phone, note, role, created_at, updated_at
+      `SELECT id, name, phone, note, role, created_at, updated_at, deleted_at
          FROM customers
-        WHERE user_id = ? AND deleted_at IS NULL
-        ORDER BY name`,
+        WHERE user_id = ? AND (deleted_at IS NULL OR role = 'member')
+        ORDER BY deleted_at IS NOT NULL, name`,
       [req.params.id]
     );
     const balances = await balancesFor(req.params.id);

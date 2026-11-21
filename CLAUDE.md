@@ -1738,8 +1738,8 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   line icons in `components/LineIcon.tsx`). `features/tour/`: `tours.ts` = ALL words/icons/colours per
   type (grocery green, club navy + orange), `AppTour.tsx` = full-screen once per account after sign-in,
   waits for the fingerprint lock, the shop intro (`gateState.setIntroPlaying`) and the first sync; «ابدأ» /
-  «تخطٍّ» set the SYNCED key `ui_tour_<type>` (server allowlist too — deploy server first). Settings →
-  «جولة في التطبيق» replays it.
+  «تخطٍّ» set the SYNCED key `ui_tour_<type>` (server allowlist too — deploy server first). (The Settings
+  replay row was removed by the owner on 2026-11-21.)
 - ~~REMINDER: generalise the signed-out Welcome screen~~ (done above)
 - **Opening screen = the app icon (owner's choice, 2026-11-20; device-verified):** the 🛒 basket and its
   3.6 s animation are gone. `drawable/splash_app_icon.xml` (launcher icon cropped to Android 12's splash
@@ -1762,6 +1762,10 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   `components/DangerConfirm.tsx`, a centred card: red «حذف» / green «إبقاء»; soft-delete, entries kept);
   round «تحديث» on the club page. The GROCERY book still has no delete button (owner's earlier rule —
   only via the Watcher).
+- A subscriber deleted in the app is NOT erased on the server (owner): the tombstone syncs, and
+  `/admin/users/:id/customers` still returns deleted `member` rows with `deleted_at` → the Watcher shows
+  them grey «حذفه المستخدم», not openable. «جولة في التطبيق» removed from Settings (owner); the tour still
+  shows once per account. Exchange rates hidden on a club account. «إيقاف المزامنة مع الخادم» kept.
 - Carries Phase 43 (club section, items 1–9 except the dropped subscription cards) on top of 2.3 (15).
 - Privacy policy (`docs/privacy.html`, AR + EN, dated 21 Nov 2026): club data, the verification code,
   shop logo / welcome picture, and the developer's new powers (code, activation, account type, pictures,

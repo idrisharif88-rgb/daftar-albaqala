@@ -60,4 +60,16 @@ describe('admin club view', () => {
     assert.equal(res.body.subscriptions[0].price, 8000);
     assert.equal((await request(app).get(`/admin/users/${user}/club`)).status, 401);
   });
+
+  test('a subscriber the user deleted stays visible to the Watcher, flagged; other deleted contacts do not', async () => {
+    const m = await member(user);
+    await pool.query('UPDATE customers SET deleted_at = UTC_TIMESTAMP() WHERE id = ?', [m]);
+    const c = randomUUID(); const now = mysqlDate(new Date());
+    await pool.query(`INSERT INTO customers (id, user_id, name, phone, role, created_at, updated_at, deleted_at)
+      VALUES (?, ?, 'ز', '771000111', 'customer', ?, ?, UTC_TIMESTAMP())`, [c, user, now, now]);
+    const res = await request(app).get(`/admin/users/${user}/customers`).set(AUTH(await admin()));
+    const got = res.body.customers.find((x: { id: string }) => x.id === m);
+    assert.ok(got && got.deleted_at);
+    assert.equal(res.body.customers.some((x: { id: string }) => x.id === c), false);
+  });
 });

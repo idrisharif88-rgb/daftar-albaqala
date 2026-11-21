@@ -300,6 +300,8 @@ export interface Contact {
   role: Role;
   created_at: string;
   updated_at: string;
+  /** Set for a club subscriber the user deleted in the app — kept and shown grey. */
+  deleted_at?: string | null;
   balances: Balance[];
   transactions_count?: number;
 }
