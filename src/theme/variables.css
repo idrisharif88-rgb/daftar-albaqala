@@ -1046,19 +1046,22 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 .club-alert .alert-message { white-space: pre-line; line-height: 1.9; }
 
 /* ---- The club's opening (features/club/ClubIntro.tsx) — a real 3 s clip ---- */
-.club-intro { position: fixed; inset: 0; z-index: 100000; background: #000; animation: club-intro-out 0.4s ease-in 2.6s forwards; }
+.club-intro { position: fixed; inset: 0; z-index: 100000; background: #000; }
+.club-intro--playing { animation: club-intro-out 0.4s ease-in 3.6s forwards; }
 .club-intro video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .club-intro__shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.05) 40%, rgba(10, 40, 14, 0.85) 100%); }
 .club-intro__title {
   position: absolute; left: 0; right: 0; bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   text-align: center; color: #fff; font-size: 1.9rem; font-weight: 800;
-  opacity: 0; animation: club-intro-up 0.6s ease-out 0.6s forwards;
+  opacity: 0;
 }
+.club-intro--playing .club-intro__title { animation: club-intro-up 0.6s ease-out 0.6s forwards; }
 .club-intro__line {
   position: absolute; left: 50%; bottom: calc(40px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   width: 110px; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.25); overflow: hidden;
 }
-.club-intro__line i { display: block; height: 100%; width: 0; background: #fff; animation: club-intro-fill 3s linear forwards; }
+.club-intro__line i { display: block; height: 100%; width: 0; background: #fff; }
+.club-intro--playing .club-intro__line i { animation: club-intro-fill 4s linear forwards; }
 @keyframes club-intro-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes club-intro-fill { to { width: 100%; } }
 @keyframes club-intro-out { to { opacity: 0; } }

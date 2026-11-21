@@ -1701,7 +1701,8 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   ≤3 days. Subscription + payment go through `useContactNotifier` (WhatsApp/SMS, «no notice, no entry»; the
   message note = `subscriptionNote()`, same words as the ledger entry). Dates shown as one plain line.
   - DONE 2026-11-21 (item 8, identity): `ClubIntro` — a REAL 3 s gym clip for every club
-    (`public/brand/club-intro.mp4`, Pexels 5319754, free licence, no credit needed; muted, 260 KB) with
+    (`public/brand/club-intro.mp4`, Pexels 5319754, free licence, no credit needed; muted, 4 s, 312 KB —
+    lengthened from 3 s; the clock starts on the video's first played frame, `onPlaying`) with
     «دفتر النادي» only; the personal «مرحباً كابتن <name> 💪» comes after, on the club home
     (`WelcomeCard captain`). Once after sign-in + once on the first open after the update
     (`daftar.club-intro-seen`); waits for the fingerprint lock; a club with its own picture gets BrandIntro.

@@ -19,7 +19,10 @@ import { getPhone } from '../../lib/storage';
 // own picture (Watcher / FIXED_INTROS) gets that instead (BrandIntro).
 // Waits for the fingerprint lock, like BrandIntro.
 
-const PLAY_MS = 3000;
+// 4 s ON SCREEN, counted from the clip's first played frame — not from mount,
+// which ate the video's start-up time and made it feel shorter (owner, 2026-11-21).
+const PLAY_MS = 4000;
+const GIVE_UP_MS = 2500; // a clip that never starts: leave anyway
 const SEEN_KEY = 'daftar.club-intro-seen';
 
 function seenFor(phone: string): boolean {
@@ -65,19 +68,21 @@ const ClubIntro: React.FC = () => {
     };
   }, [active, show, phone]);
 
+  const [playing, setPlaying] = useState(false);
   useEffect(() => {
     setIntroPlaying(show);
-    if (!show) return undefined;
-    timer.current = setTimeout(() => setShow(false), PLAY_MS);
+    if (!show) { setPlaying(false); return undefined; }
+    // The clock starts when the video does; a clip that never starts still ends.
+    timer.current = setTimeout(() => setShow(false), playing ? PLAY_MS : GIVE_UP_MS + PLAY_MS);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [show]);
+  }, [show, playing]);
 
   if (!show) return null;
   return (
-    <div className="club-intro" role="presentation" onClick={() => setShow(false)}>
+    <div className={`club-intro${playing ? ' club-intro--playing' : ''}`} role="presentation" onClick={() => setShow(false)}>
       <video
         src="/brand/club-intro.mp4" poster="/brand/club-intro-poster.jpg"
-        autoPlay muted playsInline preload="auto"
+        autoPlay muted playsInline preload="auto" onPlaying={() => setPlaying(true)}
       />
       <div className="club-intro__shade" />
       <div className="club-intro__title">دفتر النادي</div>
