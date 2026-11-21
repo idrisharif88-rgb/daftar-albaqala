@@ -80,8 +80,9 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   // sheet (deferred so this alert has finished dismissing first).
   const confirmCancel = useCallback((
     phone: string, texts: Messages, commit: () => Promise<void>, done: (ok: boolean) => void,
+    header?: string,
   ) => {
-    const reopen = () => setTimeout(() => presentSendSheet(phone, texts, commit, done), 350);
+    const reopen = () => setTimeout(() => presentSendSheet(phone, texts, commit, done, header), 350);
     presentAlert({
       header: 'تأكيد الإلغاء',
       // Says what cancelling costs now: the entry goes with it.
@@ -105,10 +106,11 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
   // racing the dismiss animation.
   const presentSendSheet = useCallback((
     phone: string, texts: Messages, commit: () => Promise<void>, done: (ok: boolean) => void,
+    header = 'إرسال إشعار للجهة',
   ) => {
     let choice: 'whatsapp' | 'sms' | 'cancel' | null = null;
     presentSheet({
-      header: 'إرسال إشعار للجهة',
+      header,
       buttons: [
         { text: 'إرسال عبر واتساب', cssClass: 'as-olive', handler: () => { choice = 'whatsapp'; } },
         { text: 'إرسال برسالة نصية', cssClass: 'as-olive', handler: () => { choice = 'sms'; } },
@@ -118,7 +120,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
         // Anything other than an explicit channel — the إلغاء button, the back
         // button, or a backdrop tap — is treated as a cancel and confirmed.
         if (choice !== 'whatsapp' && choice !== 'sms') {
-          confirmCancel(phone, texts, commit, done);
+          confirmCancel(phone, texts, commit, done, header);
           return;
         }
         const channel = choice;
@@ -139,7 +141,7 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
               duration: 2500,
               color: 'warning',
             });
-            setTimeout(() => presentSendSheet(phone, texts, commit, done), 400);
+            setTimeout(() => presentSendSheet(phone, texts, commit, done, header), 400);
             return;
           }
 
@@ -216,8 +218,10 @@ export function useContactNotifier(): (input: NotifyInput) => Promise<boolean> {
       })
       : { whatsapp: buildMessage(input), sms: buildSmsMessage(input) };
 
+    // «دفتر النادي» speaks of a subscriber, not a contact.
+    const header = c.role === 'member' ? 'إرسال إشعار للمشترك' : 'إرسال إشعار للجهة';
     return new Promise<boolean>((resolve) => {
-      presentSendSheet(c.phone, texts, commit, resolve);
+      presentSendSheet(c.phone, texts, commit, resolve, header);
     });
   }, [presentSendSheet]);
 }

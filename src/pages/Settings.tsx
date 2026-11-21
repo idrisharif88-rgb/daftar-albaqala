@@ -245,8 +245,11 @@ const Settings: React.FC = () => {
     presentAlert({
       header: 'حذف الحساب نهائياً',
       message:
-        'سيُحذف حسابك وكل ما فيه: جميع الجهات وأرقامها، وكل الديون والدفعات، ' +
-        'وقوائم الأسعار والمجموعات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n' +
+        (isClub
+          ? 'سيُحذف حسابك وكل ما فيه: جميع المشتركين وأرقامهم، والاشتراكات والدفعات، ' +
+            'والباقات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n'
+          : 'سيُحذف حسابك وكل ما فيه: جميع الجهات وأرقامها، وكل الديون والدفعات، ' +
+            'وقوائم الأسعار والمجموعات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n') +
         'لا يمكن التراجع عن هذا، ولا يمكن استعادة الدفتر بعده.',
       buttons: [
         { text: 'إلغاء', role: 'cancel' },
@@ -732,7 +735,8 @@ const Settings: React.FC = () => {
             )}
 
             {/* Automatic debt reminders — direct build only (renders nothing elsewhere). */}
-            <AutoReminderSection />
+            {/* Grocery debt reminders; a club reminds from its own «تذكير» (owner, 2026-11-21). */}
+            {!isClub && <AutoReminderSection />}
 
             {/* ---- About ---- Privacy policy: not required by Play for an app
                 that collects what this one does, but reviewers look for it, and
@@ -756,7 +760,9 @@ const Settings: React.FC = () => {
             <div className="danger-zone">
               <IonNote className="ion-padding-start">
                 <IonText>
-                  حذف الحساب يمحو كل الجهات والديون والدفعات من هذا الجهاز ومن الخادم نهائياً.
+                  {isClub
+                    ? 'حذف الحساب يمحو كل المشتركين والاشتراكات والدفعات من هذا الجهاز ومن الخادم نهائياً.'
+                    : 'حذف الحساب يمحو كل الجهات والديون والدفعات من هذا الجهاز ومن الخادم نهائياً.'}
                 </IonText>
               </IonNote>
               <IonButton
