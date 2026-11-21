@@ -1066,3 +1066,33 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 @keyframes club-intro-fill { to { width: 100%; } }
 @keyframes club-intro-out { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .club-intro__title { animation: none; opacity: 1; } }
+
+/* ---- «اشتراك جديد» sheet (ClubMember) — four blocks, room to breathe ---- */
+.sub-title { display: grid; line-height: 1.2; }
+.sub-title small { font-size: 0.78rem; font-weight: 600; color: var(--app-muted); }
+.sub-form { display: grid; gap: 28px; padding: 20px 18px calc(28px + env(safe-area-inset-bottom, 0px)); max-width: 560px; margin-inline: auto; }
+.sub-block { display: grid; gap: 12px; }
+.sub-block h3 { margin: 0; font-size: 0.82rem; font-weight: 800; color: var(--app-muted); letter-spacing: 0.02em; }
+.sub-pkgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.sub-pkg {
+  display: grid; gap: 4px; text-align: start; padding: 14px; border-radius: 14px; cursor: pointer;
+  background: var(--app-surface); border: 1.5px solid var(--app-border); color: var(--ion-text-color); font: inherit;
+}
+.sub-pkg b { font-size: 1rem; font-weight: 800; }
+.sub-pkg span { font-size: 0.8rem; color: var(--app-muted); }
+.sub-pkg em { font-style: normal; font-weight: 800; margin-top: 4px; }
+.sub-pkg--on { border-color: var(--app-bar); box-shadow: inset 0 0 0 1px var(--app-bar); }
+.sub-pkg:focus-visible { outline: 2px solid var(--app-bar); outline-offset: 2px; }
+.sub-price { display: flex; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--app-border); padding-bottom: 4px; }
+.sub-price:focus-within { border-color: var(--app-bar); }
+.sub-price ion-input { --padding-start: 0; font-size: 2rem; font-weight: 800; direction: ltr; text-align: right; }
+.sub-price span { font-weight: 800; color: var(--app-muted); }
+.sub-hint { margin: 0; font-size: 0.85rem; color: var(--app-muted); }
+.sub-hint b { color: var(--ion-text-color); }
+.sub-date { --padding-start: 0; border-bottom: 2px solid var(--app-border); font-weight: 700; }
+.sub-summary { display: grid; gap: 14px; padding: 18px 0 0; border-top: 1px solid var(--app-border); }
+.sub-summary div { display: flex; justify-content: space-between; align-items: center; }
+.sub-summary span { display: inline-flex; align-items: center; gap: 8px; color: var(--app-muted); font-weight: 700; }
+.sub-summary b { font-weight: 800; }
+.sub-summary__total b { font-size: 1.15rem; }
+.sub-go { margin: 4px 0 0; }

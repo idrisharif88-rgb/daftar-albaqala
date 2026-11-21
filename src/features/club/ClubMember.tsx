@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import {
-  IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonInput, IonItem, IonLabel, IonList,
-  IonModal, IonNote, IonPage, IonSelect, IonSelectOption, IonTitle, IonToolbar, useIonToast, useIonViewWillEnter,
+  IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonInput, IonItem, IonLabel,
+  IonModal, IonNote, IonPage, IonTitle, IonToolbar, useIonToast, useIonViewWillEnter,
 } from '@ionic/react';
 import { getCustomer, type Customer } from '../../data/customers';
 import { addTransaction, getBalances, listTransactions, type Transaction } from '../../data/transactions';
@@ -217,54 +217,81 @@ const ClubMember: React.FC = () => {
           ))}
         </div>
 
-        {/* ---- اشتراك جديد ---- */}
-        <IonModal className="club-sheet" isOpen={subOpen} onDidDismiss={() => setSubOpen(false)} initialBreakpoint={0.75} breakpoints={[0, 0.75, 1]}>
+        {/* ---- اشتراك جديد ----
+            Four clear blocks, top to bottom (redesigned 2026-11-21: «crowded»):
+            the package as tappable cards · the price, big, with the discount it
+            makes · the start date · a summary — then one button. */}
+        <IonModal className="club-sheet" isOpen={subOpen} onDidDismiss={() => setSubOpen(false)} initialBreakpoint={1} breakpoints={[0, 1]}>
           <IonHeader>
             <IonToolbar>
-              <IonTitle>اشتراك جديد</IonTitle>
+              <IonTitle>
+                <div className="sub-title">اشتراك جديد<small>{member?.name}</small></div>
+              </IonTitle>
               <IonButtons slot="end"><IonButton onClick={() => setSubOpen(false)}>إلغاء</IonButton></IonButtons>
             </IonToolbar>
           </IonHeader>
-          <IonContent className="ion-padding">
+          <IonContent>
             {packages.length === 0 ? (
               <div className="club-empty">
                 <p>لا توجد باقات بعد.</p>
                 <IonButton routerLink="/club/packages" onClick={() => setSubOpen(false)} className="club-btn">إضافة الباقات</IonButton>
               </div>
             ) : (
-              <>
-                <IonList>
-                  <IonItem>
-                    <IonSelect label="الباقة" labelPlacement="stacked" interface="popover" value={pkgId}
-                      onIonChange={(e) => pickPackage(String(e.detail.value))}>
-                      {packages.map((p) => (
-                        <IonSelectOption key={p.id} value={p.id}>{p.name} — {formatMinor(p.price)} ر.ي · {p.days} يوم</IonSelectOption>
-                      ))}
-                    </IonSelect>
-                  </IonItem>
-                  <div className="club-two">
-                  <IonItem>
-                    <IonInput label="سعر هذا المشترك" labelPlacement="stacked" type="text" inputmode="decimal" value={price}
-                      onIonInput={(e) => setPrice(numericInput(e.detail.value ?? ''))} />
-                  </IonItem>
-                  <IonItem>
-                    <IonInput label="يبدأ في" labelPlacement="stacked" type="date" value={start}
-                      onIonChange={(e) => setStart(String(e.detail.value || today()))} />
-                  </IonItem>
+              <div className="sub-form">
+                <section className="sub-block">
+                  <h3>الباقة</h3>
+                  <div className="sub-pkgs" role="radiogroup" aria-label="الباقة">
+                    {packages.map((p) => (
+                      <button
+                        key={p.id} type="button" role="radio" aria-checked={p.id === pkgId}
+                        className={`sub-pkg${p.id === pkgId ? ' sub-pkg--on' : ''}`}
+                        onClick={() => pickPackage(p.id)}
+                      >
+                        <b>{p.name}</b>
+                        <span>{p.days === 1 ? 'يوم واحد' : `${p.days} يوماً`}</span>
+                        <em>{formatMinor(p.price)} ر.ي</em>
+                      </button>
+                    ))}
                   </div>
-                </IonList>
+                </section>
+
+                <section className="sub-block">
+                  <h3>سعر هذا المشترك</h3>
+                  <div className="sub-price">
+                    <IonInput
+                      aria-label="السعر" type="text" inputmode="decimal" value={price}
+                      onIonInput={(e) => setPrice(numericInput(e.detail.value ?? ''))}
+                    />
+                    <span>ر.ي</span>
+                  </div>
+                  <p className="sub-hint">
+                    {pkg && discount > 0
+                      ? <>خصم <b>{formatMinor(discount)} ر.ي</b> من {formatMinor(pkg.price)}</>
+                      : 'غيّر السعر لمنح خصم لهذا المشترك'}
+                  </p>
+                </section>
+
+                <section className="sub-block">
+                  <h3>يبدأ في</h3>
+                  <IonInput
+                    className="sub-date" aria-label="تاريخ البداية" type="date" value={start}
+                    onIonChange={(e) => setStart(String(e.detail.value || today()))}
+                  />
+                </section>
+
                 {pkg && (
-                  <div className="club-summary">
-                    <div><span><i className="club-tri club-tri--down" aria-hidden="true" />ينتهي</span><b>{arabicDate(addDays(start, pkg.days - 1))}</b></div>
-                    {discount > 0 && <div><span>خصم</span><b>{formatMinor(discount)} ر.ي</b></div>}
-                    <div><span>يُسجَّل دين</span><b>{Number.isFinite(priceMinor) ? formatMinor(priceMinor) : '—'} ر.ي</b></div>
-                  </div>
+                  <section className="sub-summary" aria-label="الملخص">
+                    <div><span><i className="club-tri club-tri--up" aria-hidden="true" />البداية</span><b>{arabicDate(start)}</b></div>
+                    <div><span><i className="club-tri club-tri--down" aria-hidden="true" />النهاية</span><b>{arabicDate(addDays(start, pkg.days - 1))}</b></div>
+                    <div className="sub-summary__total"><span>يُسجَّل عليه</span><b>{Number.isFinite(priceMinor) ? formatMinor(priceMinor) : '—'} ر.ي</b></div>
+                  </section>
                 )}
+
                 {subErr && <IonNote color="danger" className="club-err">{subErr}</IonNote>}
-                <IonButton expand="block" className="club-btn ion-margin-top" disabled={!pkg || busy} onClick={() => void sell()}>
+                <IonButton expand="block" size="large" className="club-btn sub-go" disabled={!pkg || busy} onClick={() => void sell()}>
                   تسجيل الاشتراك وإرسال الإشعار
                 </IonButton>
-              </>
+              </div>
             )}
           </IonContent>
         </IonModal>
