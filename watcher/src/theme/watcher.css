@@ -248,3 +248,8 @@ button.feature { position: relative; border: 0; padding: 0; font: inherit; curso
   content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
   border: 6px solid transparent; border-top-color: #111;
 }
+/* Edge icons: the bubble grows inward from the icon's own side. */
+.feature-tip--start { left: auto; right: 0; transform: none; }
+.feature-tip--start::after { left: auto; right: 9px; transform: none; }
+.feature-tip--end { left: 0; transform: none; }
+.feature-tip--end::after { left: 9px; transform: none; }

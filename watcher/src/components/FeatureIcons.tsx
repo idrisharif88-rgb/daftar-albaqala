@@ -65,7 +65,7 @@ const FeatureIcons: React.FC<{ account: Account }> = ({ account }) => {
   };
   return (
     <div className="features" role="group" aria-label="الميزات">
-      {features.map((f) => (
+      {features.map((f, i) => (
         <button
           type="button"
           key={f.key}
@@ -76,7 +76,12 @@ const FeatureIcons: React.FC<{ account: Account }> = ({ account }) => {
         >
           <IonIcon icon={f.icon} aria-hidden="true" />
           {open === f.key && (
-            <span id={`tip-${account.id}-${f.key}`} role="tooltip" className="feature-tip">
+            // The outermost icons anchor their bubble to their own edge, so it
+            // never runs off the card: first ones (right, RTL) / last ones (left).
+            <span
+              id={`tip-${account.id}-${f.key}`} role="tooltip"
+              className={`feature-tip${i < 2 ? ' feature-tip--start' : i >= features.length - 2 ? ' feature-tip--end' : ''}`}
+            >
               {f.label}: {STATE_AR[f.state]}
             </span>
           )}
