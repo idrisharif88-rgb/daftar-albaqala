@@ -71,7 +71,7 @@ const Settings: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
   const [version, setVersion] = useState<string | null>(null);
-  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice, phoneVerified } = useAuth();
+  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice, phoneVerified, isClub } = useAuth();
   // «عدة أجهزة»: who uses THIS phone («أحمد · 727»), shown + editable here.
   const [deviceUser, setDeviceUserLabel] = useState<string | null>(null);
   useEffect(() => {
@@ -646,7 +646,9 @@ const Settings: React.FC = () => {
               onClose={() => setScaleOpen(false)}
             />
 
-            {/* ---- Exchange rates ---- */}
+            {/* ---- Exchange rates ---- (not in «دفتر النادي»: a club charges in riyals
+                only — owner, 2026-11-21) */}
+            {!isClub && (<>
             <h2 className="settings-section">أسعار الصرف مقابل {currencyDef(BASE_CURRENCY).longAr}</h2>
             <IonList>
               {CONVERTIBLE_CURRENCIES.map((c) => (
@@ -679,6 +681,7 @@ const Settings: React.FC = () => {
                     'ولن يظهر ما يقابلها بالريال حتى تُدخل الأسعار.'}
               </IonText>
             </IonNote>
+            </>)}
 
             {/* ---- Server sync: its own section, apart from the copies below ---- */}
             <h2 className="settings-section">المزامنة</h2>
