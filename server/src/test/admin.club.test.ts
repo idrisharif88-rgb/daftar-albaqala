@@ -67,12 +67,12 @@ describe('admin club view', () => {
     const c = randomUUID(); const now = mysqlDate(new Date());
     await pool.query(`INSERT INTO customers (id, user_id, name, phone, role, created_at, updated_at, deleted_at)
       VALUES (?, ?, 'ز', '771000111', 'customer', ?, ?, UTC_TIMESTAMP())`, [c, user, now, now]);
-    const res = await request(app).get(`/admin/users/${user}/customers`).set(AUTH(await admin()));
+    const tok = await admin(); // one login: a TOTP code works once
+    const res = await request(app).get(`/admin/users/${user}/customers`).set(AUTH(tok));
     const got = res.body.customers.find((x: { id: string }) => x.id === m);
     assert.ok(got && got.deleted_at);
     assert.equal(res.body.customers.some((x: { id: string }) => x.id === c), false);
     // …and it can be opened (read-only), unlike any other deleted contact.
-    const tok = await admin();
     assert.equal((await request(app).get(`/admin/users/${user}/customers/${m}`).set(AUTH(tok))).status, 200);
     assert.equal((await request(app).get(`/admin/users/${user}/customers/${c}`).set(AUTH(tok))).status, 404);
   });
