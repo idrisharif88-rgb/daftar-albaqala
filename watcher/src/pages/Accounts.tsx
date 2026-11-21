@@ -990,9 +990,6 @@ const Accounts: React.FC = () => {
                     aria-label={CARD_AR[s]} title={CARD_AR[s]} role="button"
                     onClick={() => sayIcon(CARD_AR[s])}
                   />
-                  {a.account_type === 'club' && (
-                    <span className="badge badge--club" role="button" onClick={() => sayIcon('نادٍ رياضي')}>نادي</span>
-                  )}
                   {a.phone_verified === false && (
                     <IonIcon
                       className="status-ic status-ic--unverified" icon={shieldOutline} aria-label="غير متحقق" title="غير متحقق"
