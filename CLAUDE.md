@@ -1760,5 +1760,5 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
 - Privacy policy (`docs/privacy.html`, AR + EN, dated 21 Nov 2026): club data, the verification code,
   shop logo / welcome picture, and the developer's new powers (code, activation, account type, pictures,
   club view).
-- Watcher: each feature icon names ITSELF on tap (short bold toast), and a «دفتر النادي» icon was added.
+- Watcher: each feature icon names ITSELF on tap (a small black bubble right above that icon, 1.8 s), and a «دفتر النادي» icon was added.
 - Droplet already has migrations 026 + 027. Build with `VITE_POS=1 npm run android:grocery`.

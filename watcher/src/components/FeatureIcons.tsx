@@ -1,4 +1,5 @@
-import { IonIcon, useIonToast } from '@ionic/react';
+import { useEffect, useRef, useState } from 'react';
+import { IonIcon } from '@ionic/react';
 import {
   barChartOutline, cardOutline, chatbubblesOutline, cloudUploadOutline, constructOutline,
   peopleOutline, phonePortraitOutline, syncOutline, barbellOutline,
@@ -51,15 +52,16 @@ export function accountFeatures(a: Account): Feature[] {
 }
 
 const FeatureIcons: React.FC<{ account: Account }> = ({ account }) => {
-  const [presentToast] = useIonToast();
   const features = accountFeatures(account);
-  // Each icon speaks for itself: a tap shows ITS name and state, short and bold
-  // (owner, 2026-11-21 — the old legend listed every feature at once).
-  const say = (f: Feature) => {
-    void presentToast({
-      message: `${f.label}: ${STATE_AR[f.state]}`,
-      duration: 1600, position: 'top', cssClass: 'feature-toast',
-    });
+  // Each icon speaks for itself: a tap opens a small black bubble right above
+  // THAT icon with its name and state, gone after a moment (owner, 2026-11-21).
+  const [open, setOpen] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const say = (key: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen((cur) => (cur === key ? null : key));
+    timer.current = setTimeout(() => setOpen(null), 1800);
   };
   return (
     <div className="features" role="group" aria-label="الميزات">
@@ -69,9 +71,15 @@ const FeatureIcons: React.FC<{ account: Account }> = ({ account }) => {
           key={f.key}
           className={`feature feature--${f.state}`}
           aria-label={`${f.label}: ${STATE_AR[f.state]}`}
-          onClick={(e) => { e.stopPropagation(); say(f); }}
+          aria-describedby={open === f.key ? `tip-${account.id}-${f.key}` : undefined}
+          onClick={(e) => { e.stopPropagation(); say(f.key); }}
         >
           <IonIcon icon={f.icon} aria-hidden="true" />
+          {open === f.key && (
+            <span id={`tip-${account.id}-${f.key}`} role="tooltip" className="feature-tip">
+              {f.label}: {STATE_AR[f.state]}
+            </span>
+          )}
         </button>
       ))}
     </div>
