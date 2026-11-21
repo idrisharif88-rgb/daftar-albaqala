@@ -6,7 +6,7 @@ import {
   IonSegment, IonSegmentButton, IonLabel,
   useIonViewWillEnter, useIonRouter, useIonToast, useIonActionSheet,
 } from '@ionic/react';
-import { downloadOutline } from 'ionicons/icons';
+import { downloadOutline, trashOutline } from 'ionicons/icons';
 import { ApiError, ClubSub, Contact, exportBook, getBook, getClub } from '../lib/api';
 import { ROLE_AR, arabicDate, balanceText, isClubRole, isContractorRole } from '../lib/format';
 import { digitsOnly } from '../lib/digits';
@@ -186,15 +186,15 @@ const Book: React.FC = () => {
         {contacts && shown.length === 0 && <div className="empty">لا توجد جهات</div>}
 
         {shown.map((c) => (
-          <div key={c.id} className={`acct${c.deleted_at ? ' acct--deleted' : ' acct--link'}`} role={c.deleted_at ? undefined : 'button'}
-            onClick={() => { if (!c.deleted_at) router.push(`/accounts/${id}/customers/${c.id}`); }}>
+          <div key={c.id} className="acct acct--link" role="button"
+            onClick={() => router.push(`/accounts/${id}/customers/${c.id}`)}>
             <div className="acct__top">
               <div>
                 <div className="acct__name">{c.name}</div>
                 <div className="acct__phone">{c.phone}</div>
               </div>
               {c.deleted_at
-                ? <span className="badge badge--deleted">حذفه المستخدم</span>
+                ? <span className="deleted-mark"><IonIcon icon={trashOutline} aria-hidden="true" />حذفه المستخدم</span>
                 : <span className="badge badge--role">{ROLE_AR[c.role] ?? c.role}</span>}
             </div>
             {isClubRole(c.role) && (() => {

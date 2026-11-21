@@ -137,14 +137,15 @@ const Contact: React.FC = () => {
         <IonToolbar>
           <IonButtons slot="start"><IonBackButton defaultHref={`/accounts/${id}`} text="" /></IonButtons>
           <IonTitle>{contact?.name ?? 'الجهة'}</IonTitle>
-          <IonButtons slot="end">
+          {/* A subscriber the user deleted in the app opens READ-ONLY (owner, 2026-11-21). */}
+          {!contact?.deleted_at && <IonButtons slot="end">
             <IonButton onClick={openEdit} disabled={!contact || busy} aria-label="تعديل">
               <IonIcon slot="icon-only" icon={createOutline} />
             </IonButton>
             <IonButton onClick={askDeleteContact} disabled={!contact || busy} aria-label="حذف الجهة">
               <IonIcon slot="icon-only" icon={trashOutline} />
             </IonButton>
-          </IonButtons>
+          </IonButtons>}
         </IonToolbar>
       </IonHeader>
       <IonContent>
@@ -162,7 +163,9 @@ const Contact: React.FC = () => {
                 <div className="acct__name">{contact.name}</div>
                 <div className="acct__phone">{contact.phone}</div>
               </div>
-              <span className="badge badge--role">{roleBadge(contact.role)}</span>
+              {contact.deleted_at
+                ? <span className="deleted-mark"><IonIcon icon={trashOutline} aria-hidden="true" />حذفه المستخدم</span>
+                : <span className="badge badge--role">{roleBadge(contact.role)}</span>}
             </div>
             <div className="acct__meta">
               الرصيد: {contact.balances.length === 0 ? 'مسدد' : contact.balances.map(balanceText).join(' · ')}
@@ -184,14 +187,14 @@ const Contact: React.FC = () => {
             {t.note && <div className="entry__note">{t.note}</div>}
             {t.recorded_by && <div className="entry__note">👤 {t.recorded_by}</div>}
             <div className="entry__id ltr">{t.id}</div>
-            <div className="acct__actions">
+            {!contact?.deleted_at && <div className="acct__actions">
               <IonButton size="small" fill="outline" disabled={busy} onClick={() => askReverse(t)}>
                 عكس
               </IonButton>
               <IonButton size="small" fill="outline" color="danger" disabled={busy} onClick={() => askDelete(t)}>
                 حذف
               </IonButton>
-            </div>
+            </div>}
           </div>
         ))}
 

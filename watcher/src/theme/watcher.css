@@ -254,6 +254,7 @@ button.feature { position: relative; border: 0; padding: 0; font: inherit; curso
 .feature-tip--end { left: 0; transform: none; }
 .feature-tip--end::after { left: 9px; transform: none; }
 
-/* A club subscriber the user deleted in the app: kept, shown grey, not opened. */
-.acct--deleted { opacity: 0.55; }
-.badge--deleted { background: #eceff1; color: #546e7a; }
+/* A club subscriber the user deleted in the app: kept and openable (read-only);
+   marked by a small quiet line — no pill, no dimmed card. */
+.deleted-mark { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 700; color: #b23b3b; white-space: nowrap; }
+.deleted-mark ion-icon { font-size: 15px; }

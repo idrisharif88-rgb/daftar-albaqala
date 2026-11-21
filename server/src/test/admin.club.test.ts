@@ -71,5 +71,9 @@ describe('admin club view', () => {
     const got = res.body.customers.find((x: { id: string }) => x.id === m);
     assert.ok(got && got.deleted_at);
     assert.equal(res.body.customers.some((x: { id: string }) => x.id === c), false);
+    // …and it can be opened (read-only), unlike any other deleted contact.
+    const tok = await admin();
+    assert.equal((await request(app).get(`/admin/users/${user}/customers/${m}`).set(AUTH(tok))).status, 200);
+    assert.equal((await request(app).get(`/admin/users/${user}/customers/${c}`).set(AUTH(tok))).status, 404);
   });
 });

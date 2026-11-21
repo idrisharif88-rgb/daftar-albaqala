@@ -662,11 +662,15 @@ async function findAccount(id: string): Promise<Row | null> {
   return (rows as Row[])[0] ?? null;
 }
 
-async function findContact(userId: string, customerId: string): Promise<Row | null> {
+async function findContact(
+  userId: string, customerId: string, opts: { deletedMember?: boolean } = {},
+): Promise<Row | null> {
+  // `deletedMember`: also find a club subscriber the user deleted in the app —
+  // the Watcher may still open him (read-only), as the owner asked.
   const [rows] = await pool.query(
-    `SELECT id, name, phone, note, role, created_at, updated_at
+    `SELECT id, name, phone, note, role, created_at, updated_at, deleted_at
        FROM customers
-      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+      WHERE id = ? AND user_id = ? AND (deleted_at IS NULL${opts.deletedMember ? " OR role = 'member'" : ''})`,
     [customerId, userId]
   );
   return (rows as Row[])[0] ?? null;
@@ -768,7 +772,7 @@ router.get(
 router.get(
   '/users/:id/customers/:cid',
   asyncHandler(async (req, res) => {
-    const contact = await findContact(req.params.id, req.params.cid);
+    const contact = await findContact(req.params.id, req.params.cid, { deletedMember: true });
     if (!contact) return res.status(404).json({ error: 'customer not found' });
     const [rows] = await pool.query(
       `SELECT id, type, amount, currency, note, recorded_by, occurred_at, created_at
