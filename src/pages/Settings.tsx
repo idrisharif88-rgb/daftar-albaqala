@@ -548,7 +548,7 @@ const Settings: React.FC = () => {
                   labelPlacement="start"
                   value={settings.storeName}
                   onIonInput={(e) => update({ storeName: e.detail.value ?? '' })}
-                  placeholder="مثال: بقالة الأمل"
+                  placeholder={isClub ? 'مثال: نادي الأبطال' : 'مثال: بقالة الأمل'}
                 />
               </IonItem>
               <IonItem>
