@@ -1766,6 +1766,10 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   `/admin/users/:id/customers` still returns deleted `member` rows with `deleted_at` → the Watcher shows
   them grey «حذفه المستخدم», not openable. «جولة في التطبيق» removed from Settings (owner); the tour still
   shows once per account. Exchange rates hidden on a club account. «إيقاف المزامنة مع الخادم» kept.
+- Club completeness pass (2026-11-21): Settings Excel export = the club's subscribers on a club account
+  (`exportWorkbook({club})` → `listMembers`); Settings wording «اسم النادي» / «إشعار المشتركين» and the
+  printing section hidden for clubs; ✏️ edit a subscriber (`updateMember`, name/phone + contacts picker,
+  unique among members); 📄 PDF statement per subscriber (the book's `exportCustomerStatement`).
 - Carries Phase 43 (club section, items 1–9 except the dropped subscription cards) on top of 2.3 (15).
 - Privacy policy (`docs/privacy.html`, AR + EN, dated 21 Nov 2026): club data, the verification code,
   shop logo / welcome picture, and the developer's new powers (code, activation, account type, pictures,

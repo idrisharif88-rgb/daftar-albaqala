@@ -120,6 +120,23 @@ export async function createMember(input: { name: string; phone: string; note?: 
   return id;
 }
 
+/** Correct a subscriber's name / phone (unique among the club's subscribers).
+ *  Bumps updated_at so the change wins the other phone's last-write-wins. */
+export async function updateMember(id: string, input: { name: string; phone: string }): Promise<void> {
+  const name = input.name.trim();
+  const phone = input.phone.replace(/[^\d+]/g, '');
+  if (!name) throw new Error('الاسم مطلوب');
+  if (!phone) throw new Error('رقم الهاتف مطلوب');
+  const db = await getDB();
+  const dup = await db.query(
+    `SELECT 1 FROM customers WHERE role = 'member' AND deleted_at IS NULL AND phone = ? AND id <> ? LIMIT 1`,
+    [phone, id],
+  );
+  if ((dup.values ?? []).length > 0) throw new Error('يوجد مشترك بهذا الرقم');
+  await db.run('UPDATE customers SET name = ?, phone = ?, updated_at = ?, synced = 0 WHERE id = ?', [name, phone, nowIso(), id]);
+  await persist();
+}
+
 // ---- Subscriptions ----
 
 export async function listSubscriptions(customerId: string): Promise<ClubSubscription[]> {

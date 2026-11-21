@@ -457,7 +457,7 @@ const Settings: React.FC = () => {
       // Loaded on demand: the xlsx writer is a big dependency that most sessions
       // never touch, and startup on a cheap Android is the scarce resource.
       const { exportWorkbook } = await import('../lib/excel');
-      await exportWorkbook({ storeName: settings ? messageSender(settings) : '', rates });
+      await exportWorkbook({ storeName: settings ? messageSender(settings) : '', rates, club: isClub });
     } catch (err) {
       // Backing out of the share sheet is not a failure and gets no toast.
       if (!(err instanceof ShareCancelledError)) {
@@ -544,7 +544,7 @@ const Settings: React.FC = () => {
               <IonItem>
                 <IonInput
                   className="settings-inline"
-                  label="اسم المتجر"
+                  label={isClub ? 'اسم النادي' : 'اسم المتجر'}
                   labelPlacement="start"
                   value={settings.storeName}
                   onIonInput={(e) => update({ storeName: e.detail.value ?? '' })}
@@ -566,7 +566,7 @@ const Settings: React.FC = () => {
                   checked={settings.notifyCustomers}
                   onIonChange={(e) => void toggleNotify(e.detail.checked)}
                 >
-                  إشعار الجهات (SMS وواتساب)
+                  {isClub ? 'إشعار المشتركين (SMS وواتساب)' : 'إشعار الجهات (SMS وواتساب)'}
                 </IonToggle>
               </IonItem>
               {phoneVerified === false && (
@@ -594,9 +594,9 @@ const Settings: React.FC = () => {
 
             <IonNote color="medium" className="ion-padding-start">
               <IonText>
-                يظهر اسم المتجر في أول سطر من الرسائل والكشوفات، وإذا تركته فارغاً
-                يظهر اسمك بدلاً منه. عند إيقاف الإشعارات لن يتم إرسال أي رسالة عند
-                تسجيل دين أو دفعة.
+                {isClub
+                  ? 'يظهر اسم النادي في أول سطر من رسائل المشتركين وكشوفاتهم، وإذا تركته فارغاً يظهر اسمك. عند إيقاف الإشعارات لن تُرسل أي رسالة عند تسجيل اشتراك أو دفعة.'
+                  : 'يظهر اسم المتجر في أول سطر من الرسائل والكشوفات، وإذا تركته فارغاً يظهر اسمك بدلاً منه. عند إيقاف الإشعارات لن يتم إرسال أي رسالة عند تسجيل دين أو دفعة.'}
               </IonText>
             </IonNote>
 
@@ -711,7 +711,8 @@ const Settings: React.FC = () => {
             {/* The invoice printer. Offered only where the phone can print at
                 all — on the web neither path exists, and the row would be a
                 promise the app cannot keep. */}
-            {(systemPrintAvailable() || thermalPrintingAvailable()) && (
+            {/* Not for a club: nothing in «دفتر النادي» prints (owner, 2026-11-21). */}
+            {!isClub && (systemPrintAvailable() || thermalPrintingAvailable()) && (
               <>
                 <h2 className="settings-section">الطباعة</h2>
                 <IonList>

@@ -4,7 +4,12 @@ import {
   IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonInput, IonItem, IonLabel,
   IonIcon, IonModal, IonNote, IonPage, IonTitle, IonToolbar, useIonRouter, useIonToast, useIonViewWillEnter,
 } from '@ionic/react';
-import { trashOutline } from 'ionicons/icons';
+import { trashOutline, createOutline, documentTextOutline, personAddOutline } from 'ionicons/icons';
+import { getSettings, messageSender } from '../../data/settings';
+import { getRates } from '../../data/rates';
+import { pickContact } from '../../lib/contacts';
+import { phoneInput } from '../../lib/digits';
+import { ShareCancelledError } from '../../lib/shareTarget';
 import { getCustomer, softDeleteCustomer, type Customer } from '../../data/customers';
 import DangerConfirm from '../../components/DangerConfirm';
 import { addTransaction, getBalances, listTransactions, type Transaction } from '../../data/transactions';
@@ -13,7 +18,7 @@ import { runSync } from '../../data/sync';
 import { numericInput } from '../../lib/digits';
 import { listPackages, type ClubPackage } from './packages';
 import {
-  createSubscription, daysBetween, listSubscriptions, nextStart, statusOf, today, addDays, subscriptionNote,
+  createSubscription, daysBetween, listSubscriptions, nextStart, statusOf, today, addDays, subscriptionNote, updateMember,
   type ClubSubscription,
 } from './subscriptions';
 import { chipText } from './ClubHome';
@@ -40,6 +45,46 @@ const ClubMember: React.FC = () => {
   const notifyContact = useContactNotifier();
   const router = useIonRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // «تعديل»: correct a subscriber's name or number.
+  const [editOpen, setEditOpen] = useState(false);
+  const [eName, setEName] = useState('');
+  const [ePhone, setEPhone] = useState('');
+  const [eErr, setEErr] = useState<string | null>(null);
+  const openEdit = () => { setEName(member?.name ?? ''); setEPhone(member?.phone ?? ''); setEErr(null); setEditOpen(true); };
+  const saveEdit = async () => {
+    try {
+      await updateMember(id, { name: eName, phone: ePhone });
+      setEditOpen(false);
+      void runSync();
+      await load();
+    } catch (err) {
+      setEErr(err instanceof Error ? err.message : 'تعذّر الحفظ');
+    }
+  };
+  const editFromContacts = async () => {
+    const picked = await pickContact().catch(() => null);
+    if (!picked) return;
+    if (picked.name) setEName(picked.name);
+    if (picked.phone) setEPhone(phoneInput(picked.phone));
+  };
+
+  // «كشف حساب»: the same PDF statement as the grocery book — every subscription
+  // and payment, with the club's name at the top.
+  const statement = async () => {
+    if (!member) return;
+    try {
+      const [settings, rates] = await Promise.all([getSettings(), getRates()]);
+      const { exportCustomerStatement } = await import('../../lib/pdf');
+      await exportCustomerStatement({
+        customer: member, transactions: txns, storeName: messageSender(settings),
+        ownerName: settings.ownerName, rates, periodLabel: 'كل الحركات',
+      });
+    } catch (err) {
+      if (!(err instanceof ShareCancelledError)) {
+        void presentToast({ message: 'تعذّر إنشاء الكشف', duration: 2200, color: 'danger' });
+      }
+    }
+  };
 
   // Delete a subscriber: a tombstone (it syncs), the list forgets him. His
   // entries stay in the ledger — append-only, as everywhere in the book.
@@ -179,6 +224,12 @@ const ClubMember: React.FC = () => {
           <IonButtons slot="start"><IonBackButton defaultHref="/club" text="رجوع" /></IonButtons>
           <IonTitle>{member?.name ?? ''}</IonTitle>
           <IonButtons slot="end">
+            <IonButton onClick={() => void statement()} aria-label="كشف حساب PDF">
+              <IonIcon slot="icon-only" icon={documentTextOutline} />
+            </IonButton>
+            <IonButton onClick={openEdit} aria-label="تعديل المشترك">
+              <IonIcon slot="icon-only" icon={createOutline} />
+            </IonButton>
             <IonButton onClick={() => setConfirmDelete(true)} aria-label="حذف المشترك">
               <IonIcon slot="icon-only" icon={trashOutline} />
             </IonButton>
@@ -235,6 +286,37 @@ const ClubMember: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* ---- تعديل المشترك ---- */}
+        <IonModal className="club-sheet" isOpen={editOpen} onDidDismiss={() => setEditOpen(false)} initialBreakpoint={0.6} breakpoints={[0, 0.6, 0.9]}>
+          <IonHeader>
+            <IonToolbar>
+              <IonTitle>تعديل المشترك</IonTitle>
+              <IonButtons slot="end"><IonButton onClick={() => setEditOpen(false)}>إلغاء</IonButton></IonButtons>
+            </IonToolbar>
+          </IonHeader>
+          <IonContent>
+            <div className="sub-form">
+              <IonButton expand="block" fill="outline" className="club-btn-out" onClick={() => void editFromContacts()}>
+                <IonIcon slot="start" icon={personAddOutline} />
+                جهات الاتصال
+              </IonButton>
+              <section className="sub-block">
+                <h3>الاسم</h3>
+                <IonInput className="sub-date" aria-label="الاسم" value={eName} onIonInput={(e) => setEName(e.detail.value ?? '')} />
+              </section>
+              <section className="sub-block">
+                <h3>رقم الهاتف</h3>
+                <IonInput className="sub-date" aria-label="رقم الهاتف" type="tel" inputmode="tel" value={ePhone}
+                  onIonInput={(e) => setEPhone(phoneInput(e.detail.value ?? ''))} />
+              </section>
+              {eErr && <IonNote color="danger" className="club-err">{eErr}</IonNote>}
+              <IonButton expand="block" size="large" className="club-btn" disabled={!eName.trim() || !ePhone.trim()} onClick={() => void saveEdit()}>
+                حفظ
+              </IonButton>
+            </div>
+          </IonContent>
+        </IonModal>
 
         <DangerConfirm
           open={confirmDelete}

@@ -75,6 +75,8 @@ function textCell(value: string, extra: Partial<Exclude<Cell, null | undefined>>
 export interface WorkbookOptions {
   storeName: string;
   rates: Rates;
+  /** «دفتر النادي»: export the club's subscribers instead of the grocery book. */
+  club?: boolean;
 }
 
 // ---- Sheet 1: one row per contact, with a column per currency ----
@@ -259,7 +261,8 @@ function totalsSheet(
 /** Build and share an .xlsx of the entire book. */
 export async function exportWorkbook(o: WorkbookOptions): Promise<void> {
   const [customers, everyTransaction, balances] = await Promise.all([
-    listCustomers(), listAllTransactions(), getBalancesByCustomer(),
+    o.club ? (await import('../features/club/subscriptions')).listMembers() : listCustomers(),
+    listAllTransactions(), getBalancesByCustomer(),
   ]);
   // Only this build's book: entries of contacts the other app owns stay out.
   const shown = new Set(customers.map((c) => c.id));
