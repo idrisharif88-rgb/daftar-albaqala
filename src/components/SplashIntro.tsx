@@ -5,23 +5,20 @@ import { FLAVOR } from '../flavors';
 
 // The animated opening screen, played once per launch, over everything.
 //
-// ON THE PHONE this component draws nothing: Android plays the same animation
-// itself (NativeSplash.java), because the page needs ~1.5s to start and a
-// web-drawn basket meant two baskets and a black flash at the hand-over. Here
-// it only waits for Android's «done» signal. The animation below is what the
-// browser shows.
+// ON THE PHONE this component draws nothing: Android shows the same screen
+// itself (NativeSplash.java), because the page needs ~1.5s to start. Here it
+// only waits for Android's «done» signal. What is below is what the browser
+// shows.
 //
 // Android's launch window (launch_green.xml) and the boot placeholder in
-// index.html already show the basket in the same spot, so this screen starts
-// on the very picture they leave — no empty green, no white flash, no jump.
+// index.html already show the app icon in the same spot, so nothing jumps.
 //
-// The fingerprint lock waits for it (whenSplashDone): asking for a finger
-// while the basket is still rolling would put Samsung's sheet over the
-// animation.
+// The fingerprint lock waits for it (whenSplashDone), so Samsung's sheet
+// never covers the opening screen.
 
-// Basket and name until 2.4s, then the sample book held for about a second
-// before the real app.
-const SHOW_MS = 3600;
+// The app icon, briefly — no artificial wait (owner's choice, 2026-11-20:
+// the opening screen shows the icon the user tapped, for every business).
+const SHOW_MS = 600;
 const FADE_MS = 350;
 
 const reducedMotion = () =>
@@ -85,31 +82,26 @@ const SplashIntro: React.FC = () => {
     );
   }
 
+  // The browser's copy of the native opening screen: the app icon on green and
+  // the name at the bottom (NativeSplash.java draws the same on the phone).
   return (
     <div
-      className={`splash-intro${phase === 'leaving' ? ' splash-intro--leaving' : ''}`}
+      className={`splash-intro splash-intro--icon${phase === 'leaving' ? ' splash-intro--leaving' : ''}`}
       aria-hidden="true"
     >
-      <div className="splash-tile">
-        <svg viewBox="0 0 64 64" fill="none">
-          <path d="M8 12h7l6 28h28l6-20H18" stroke="#ffffff" strokeWidth="5"
-            strokeLinecap="round" strokeLinejoin="round" />
-          <circle className="splash-intro__wheel" cx="25" cy="50" r="4.5" fill="#ffffff" />
-          <circle className="splash-intro__wheel" cx="45" cy="50" r="4.5" fill="#ffffff" />
-        </svg>
-      </div>
-      <div className="splash-intro__below">
-        <h1 className="splash-intro__name">{FLAVOR.appName}</h1>
-        <p className="splash-intro__tag">{FLAVOR.tagline}</p>
-        <div className="splash-intro__bar"><span /></div>
-      </div>
-
-      <div className="splash-intro__book">
-        <header>دفتر الديون</header>
-        <div className="splash-intro__row"><span>محمد</span><b className="credit">100 ريال سعودي له</b></div>
-        <div className="splash-intro__row"><span>فاطمة</span><b className="settled">مسدد</b></div>
-        <div className="splash-intro__row"><span>علي</span><b className="credit">3,000 ريال له</b></div>
-      </div>
+      <svg className="splash-intro__icon" viewBox="18 18 72 72" width="160" height="160">
+          <clipPath id="spl-c"><circle cx="54" cy="54" r="36"/></clipPath>
+          <g clipPath="url(#spl-c)">
+            <rect width="108" height="108" fill="#2E7D32"/>
+            <circle cx="54" cy="54" r="46" fill="#37903C"/>
+            <path fill="#FBF3E3" d="M39,31 H69 A5,5 0 0 1 74,36 V72 A5,5 0 0 1 69,77 H39 A5,5 0 0 1 34,72 V36 A5,5 0 0 1 39,31 Z"/>
+            <path stroke="#E24C4B" strokeWidth="2.5" strokeLinecap="round" d="M41,38 L41,70"/>
+            <path stroke="#9DB6C7" strokeWidth="2.8" strokeLinecap="round" d="M46,44 L68,44 M46,54 L68,54 M46,64 L56,64"/>
+            <circle cx="68" cy="68" r="10" fill="#F6C445"/>
+            <circle cx="68" cy="68" r="6.5" fill="none" stroke="#DBA400" strokeWidth="2"/>
+          </g>
+      </svg>
+      <div className="splash-intro__brand">فليكتب | Shopbook</div>
     </div>
   );
 };

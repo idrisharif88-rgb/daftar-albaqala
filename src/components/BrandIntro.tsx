@@ -3,7 +3,7 @@ import { BRAND_LOGO_EVENT, clearIntroPending, introMarkedAt, introPending, markI
 import { useAuth } from '../lib/auth';
 import { getSettings } from '../data/settings';
 import { greeting } from '../data/welcome';
-import { GATE_EVENT, gateUnlockedAt, isGateLocked } from '../lib/gateState';
+import { GATE_EVENT, gateUnlockedAt, isGateLocked, setIntroPlaying } from '../lib/gateState';
 import { biometricEnabled } from '../lib/biometric';
 import { fixedIntroFor } from '../config';
 import { getPhone } from '../lib/storage';
@@ -85,6 +85,8 @@ const BrandIntro: React.FC = () => {
     timer.current = setTimeout(() => setShow(false), PLAY_MS);
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [show]);
+
+  useEffect(() => { setIntroPlaying(show); }, [show]);
 
   if (!show || !intro) return null;
   return (

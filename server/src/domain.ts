@@ -22,6 +22,8 @@ export const DEFAULT_CURRENCY = 'YER';
 export const VALID_ROLES = new Set([
   'customer', 'supplier', 'partner',
   'worker', 'client', 'broker', 'materials',
+  // «دفتر النادي» (Phase 43): a club's subscriber.
+  'member',
 ]);
 export const DEFAULT_ROLE = 'customer';
 
@@ -58,6 +60,11 @@ export const SYNCABLE_SETTING_KEYS = new Set([
   'ui_scale',
   'biometric',
   'updates_notebook',
+  // The tour after sign-in was seen, per account type (Phase 43).
+  'ui_tour_grocery',
+  'ui_tour_club',
+  // The club's packages, as one JSON list (Phase 43).
+  'club_packages',
 ]);
 
 // Matches the VARCHAR(512) the column is declared as — checked here so an
@@ -67,7 +74,7 @@ export const MAX_SETTING_VALUE_LENGTH = 512;
 
 // The notebook is the one setting that is a document rather than a word: it
 // gets its own ceiling (the column is MEDIUMTEXT since migration 009).
-const LONG_SETTING_LIMITS: Record<string, number> = { updates_notebook: 200_000 };
+const LONG_SETTING_LIMITS: Record<string, number> = { updates_notebook: 200_000, club_packages: 20_000 };
 
 export const maxSettingLength = (key: string): number =>
   LONG_SETTING_LIMITS[key] ?? MAX_SETTING_VALUE_LENGTH;

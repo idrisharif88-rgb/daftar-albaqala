@@ -23,14 +23,15 @@
     </style>
 
 
-    <!-- Launch window: plain brand green, no stock logo. The animated opening
-         screen (SplashIntro.tsx) takes over from it. On Android 12+ the
-         system splash API is used instead, so it gets the same green and no
-         icon there too. -->
+    <!-- Launch window: brand green with the app icon (launch_green.xml). On
+         Android 12+ the system splash API shows the same icon. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/launch_green</item>
         <item name="windowSplashScreenBackground">@color/splashBackground</item>
-        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <!-- Android 12+: the system splash shows the app icon on the green, as
+             Google's guidelines expect; NativeSplash then shows the same icon in
+             the same place until the page is ready. -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_app_icon</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

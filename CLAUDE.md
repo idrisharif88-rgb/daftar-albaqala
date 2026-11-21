@@ -1640,3 +1640,139 @@ Branch `verify-welcome-invoice`. Server migration **022**. Server 215/215, app 1
 - ⚠️ **MIGRATIONS 022–025 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
   `git pull` + `pm2 restart daftar-api`, THEN the apps (Watcher APK + shop app).
 - Price: discussed, not decided (options: free / sync $2 / shop $5, yearly). No price wording in-app (Play).
+
+## Status — RELEASE 2.3 (code 15) for Google Play (2026-11-20)
+- Carries Phase 42 (PR #59): phone verification, account activation separate from sync, invoice
+  quick-add, welcome greeting, shop logo + intro, fixed intro for 771436613. Built with
+  `VITE_POS=1 npm run android:grocery` + `bundleGroceryRelease`, signed with the upload key.
+- Droplet: migrations 022–025 applied; runs `master`.
+- Code 15: Play flagged `android.hardware.screen.portrait` as required (ML Kit's scanner activity is
+  portrait-only) → declared `required="false"` in the app manifest. Signed AABs land in
+  `~/Documents/99-Inbox/From-Downloads/` (Downloads is auto-tidied).
+
+## Status — PLANNED (Phase 43: «دفتر النادي» — gym-club section) (decided 2026-11-17, saved 2026-11-20)
+Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothing starts before the owner says «ابدأ».**
+- **Idea.** A PAID section inside this app (like POS, Phase 32 — not a flavor). Subscriber = a contact
+  with role «مشترك». Package = price list. Subscription = a debt entry. Payment (full / partial / daily /
+  weekly) = a payment entry. Remaining = the balance. Notices, PDF and Excel are reused.
+  New: start + end date, package type (monthly / weekly / daily), list of expired + about-to-expire,
+  «تجديد» button with a confirm dialog (NO automatic renewal).
+- **Account type** (grocery / club) lives on the server; default «بقالة» for every existing account;
+  only the owner changes it, from the Watcher. A club owner does NOT see the grocery book or POS unless
+  the owner enables them. Existing grocery users see no change.
+- **Sign-up.** Welcome screen + «حساب جديد» unchanged; under them a small link «هل تدير ناديًا رياضيًا؟»
+  opens the club path: phone + password + club name + owner name → «حسابك بانتظار التفعيل» (no prices,
+  no payment pointer). Blocking applies to clubs only; grocery stays free (Phase 27).
+  Number check + activation = **reuse Phase 42** (verification code + `activated_at`), do not rebuild.
+  Watcher: account-type badge + change type + POS control. Route each user to their section by the
+  server's account type.
+- **Distribution + subscription cards.** Play promo codes are capped (~500 / 3 months, shared) → normal
+  Play link + manual activation. Cards: a code for a fixed period (week / month / year), generated in a
+  batch from the Watcher, printed as a card or QR sticker, typed into a neutral «كود اشتراك» screen.
+  Play: no prices, no pointer to paying outside; «App access» says honestly the developer activates
+  accounts; a demo account is supplied; neutral waiting text with no contact number.
+- **Identity.** Own colours, icon, opening scene, «مرحبًا كابتن <الاسم>» then the club name. First logo
+  draft (hexagon + dumbbell) REJECTED — redo bolder. Logo = ONE replaceable file.
+- **Review notes (2026-11-20):**
+  - Keep subscription periods in their OWN table (`club_subscriptions`: contact, package, start, end,
+    linked debt entry id) — don't add date columns to the shared ledger.
+  - Account type = `users.account_type` VARCHAR default 'grocery' (server migration 026), carried by
+    `/me` + `/admin/users`, like `pos_enabled`. Every query filters by `user_id`.
+  - Card codes: store only a hash (like Phase 42), single use, expiry, wrong-try limit, rate limit.
+  - ⚠️ Play risk: a code that unlocks a paid in-app feature bought outside Play may fall under Play's
+    payments policy — check before release.
+  - The 1–2 day estimate is optimistic; plan for small verified slices.
+- **Build order (small slices, each verified before the next):**
+  1. Account type: migration 026 + `/me` → Watcher badge + change type → app routes by type.
+  2. Club sign-up path: welcome link → club form → waiting screen (reuses Phase 42 activation).
+  3. Subscribers + packages: role «مشترك» → packages (monthly/weekly/daily) → subscription with dates.
+  4. Payments + renewal: payments on a subscription → expired / about-to-expire list → «تجديد» + confirm.
+  5. ~~Subscription cards~~ — DROPPED by the owner (2026-11-21): not needed.
+  6. Identity: colours + welcome «كابتن» → opening scene → new logo file.
+- **Step 3 BUILT (2026-11-20, migration 027 + local migration 16):** subscriber = contact role `member`
+  (known everywhere via `CLUB_ROLES` in roles.ts, offered by no build's picker; server VALID_ROLES too).
+  Packages = synced setting `club_packages` (JSON, `features/club/packages.ts`, 20 KB limit server-side).
+  Subscription = a DEBT entry for its price + a row in `club_subscriptions` (package, days, list_price,
+  price ≤ list_price = per-subscriber DISCOUNT, start/end LOCAL days, transaction_id), synced like items,
+  sync cursor **v4** (v3 still decodes, subscriptions from zero); pull sends DATEs as text. Screens:
+  `ClubHome` (tabs ساري/قارب/منتهي, 3 totals, chip per member, + member), `ClubMember` (/club/members/:id:
+  dates, days-left bar, owed, «اشتراك جديد» with editable price + discount line, «تسجيل دفعة» partial
+  allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
+  ≤3 days. Subscription + payment go through `useContactNotifier` (WhatsApp/SMS, «no notice, no entry»; the
+  message note = `subscriptionNote()`, same words as the ledger entry). Dates shown as one plain line.
+  - SYNC AUDIT 2026-11-21: everything the club writes syncs — members (customers, role `member` in server
+    VALID_ROLES), their entries (transactions), `club_subscriptions` (own table, cursor v4), packages
+    (setting `club_packages`, also in the Drive backup via settings). Round-trip test in `sync.club.test.ts`.
+    Gap fixed: the club page had no manual sync / warning — now the round «تحديث» button (as in the book) +
+    pull-to-refresh (sync, or Drive for a free
+    account) + the ⚠️ `SyncWarning` in its header. Deliberately NOT synced (both sections): doc counters,
+    the phone's user (multi-device), reminders outbox, printer choice, sync cursor.
+  - DONE 2026-11-21 (item 9, Watcher): `GET /admin/users/:id/club` (live subscriptions, dates as text,
+    read-only) + a «النادي» tab in `Book.tsx` (shown when the account has subscribers; a club-only book opens
+    on it): package · price (+ discount) · ▲ start ▼ end · status · balance. Watcher role `member` = «مشترك»,
+    its own book (`isClubRole`), not offered as a grocery role.
+  - DONE 2026-11-21 (item 8, identity): `ClubIntro` — a REAL 3 s gym clip for every club
+    (`public/brand/club-intro.mp4`, Pexels 5319754, free licence, no credit needed; muted, 4 s, 312 KB —
+    lengthened from 3 s; the clock starts on the video's first played frame, `onPlaying`) with
+    «دفتر النادي» only; the personal «مرحباً كابتن <name> 💪» comes after, on the club home
+    (`WelcomeCard captain`). Once after sign-in + once on the first open after the update
+    (`daftar.club-intro-seen`); waits for the fingerprint lock; a club with its own picture gets BrandIntro.
+  - DONE 2026-11-21 (item 6): «تجديد» + «تذكير» (`useClubActions`): rows in «قارب»/«منتهي» show both; renew =
+    confirm (same package + price, ▲/▼ dates from `nextStart`) → send sheet → recorded; «تعديل السعر» opens
+    the card's form via `?renew=1`. Reminder = message only (`reminderMessage`: «اشتراكك ينتهي في …» /
+    «انتهى اشتراكك في …»), own WhatsApp/SMS sheet, nothing recorded; also on the card when soon/expired.
+  - DONE 2026-11-21: «جهات الاتصال» in «مشترك جديد»; club's OWN messages (`features/club/messages.ts`,
+    approved wording: «اشتراكك ساري حتى …» / «دفعت … المتبقي … ينتهي اشتراكك في …», SMS = same without
+    emoji) via `useContactNotifier`'s new `compose` hook; calm design from the approved preview — the
+    book's dark green (`--app-bar`) for header/buttons/➕/▲, grey ▼, status + days as plain text, rows with
+    dividers, dates «20 ديسمبر 2026» (`arabicDate`), every colour a theme token (night mode), sheets
+    `.club-sheet` on the page surface (no white slab).
+- Working rules: short replies, no building before «ابدأ», ask when instructions conflict.
+- **DECIDED (owner, 2026-11-20, replaces the club link of step 2):** sign-up is ONE general path for
+  everyone — no «هل تدير ناديًا رياضيًا؟» link. The developer asks each new user who they are during
+  verification (Phase 42) and sets the section in the Watcher («نوع الحساب»). The signed-out Welcome
+  becomes general; today's grocery Welcome content (cart, tiles) is MOVED, not deleted, into a grocer
+  tour shown after sign-in to grocery accounts (club gets its own later).
+- **BUILT (2026-11-20): general Welcome + tour per type** — exactly the approved preview. `Welcome.tsx`:
+  book mark, «دفتر حساباتك مع عملائك…», 3 benefits, sign-in / new account, contact icons (`.wl*` CSS,
+  line icons in `components/LineIcon.tsx`). `features/tour/`: `tours.ts` = ALL words/icons/colours per
+  type (grocery green, club navy + orange), `AppTour.tsx` = full-screen once per account after sign-in,
+  waits for the fingerprint lock, the shop intro (`gateState.setIntroPlaying`) and the first sync; «ابدأ» /
+  «تخطٍّ» set the SYNCED key `ui_tour_<type>` (server allowlist too — deploy server first). (The Settings
+  replay row was removed by the owner on 2026-11-21.)
+- ~~REMINDER: generalise the signed-out Welcome screen~~ (done above)
+- **Opening screen = the app icon (owner's choice, 2026-11-20; device-verified):** the 🛒 basket and its
+  3.6 s animation are gone. `drawable/splash_app_icon.xml` (launcher icon cropped to Android 12's splash
+  circle, 160dp) is used by `launch_green.xml`, the system splash (`windowSplashScreenAnimatedIcon`) and
+  `NativeSplash.build()` (icon + «فليكتب | Shopbook» at the bottom, SHOW_MS 600, leaves once the page
+  painted); browser copy in `SplashIntro.tsx` + `index.html`. Contractor keeps its scene (its own
+  transparent `splash_app_icon`). `vite.config.ts` regex for the contractor boot placeholder updated. (`src/pages/Welcome.tsx`) —
+  today it is all grocery (🛒 cart icon, «سجّل الديون والمدفوعات، واطبع الفواتير», grocery tiles), so a
+  club owner reads it as «not for me». Make the icon, tagline and tiles neutral (shops + clubs), then
+  the «هل تدير ناديًا رياضيًا؟» link of step 2 sits under it. Discuss wording with the owner first.
+- **Progress (2026-11-20):** Step 1c DONE: `/me` → `account_type` kept in localStorage (`daftar.account-type`, auth `isClub`); a club account opens `/club` (`features/club/ClubHome.tsx`, placeholder «قريباً») and every grocery route redirects there; Settings shared; router key includes the type (Watcher can switch it live). Not device-tested. Step 1b (Watcher: «نادي» badge + «المزيد» → «نوع الحساب») DONE, not device-tested. Step 1a (server) DONE + committed on `club-step1` (server 217/217); local daftar_db rebuilt from schema.sql. Original note:
+  tests NOT run: migration `026_account_type.sql` (+ schema.sql), `POST /admin/users/:id/account-type
+  {type, code}` (`ACCOUNT_TYPES` in `routes/admin.ts`), `account_type` in `/me` + `/admin/users`, 2 tests in
+  `admin.account.test.ts`. `tsc` passes. Next: owner applies 026 to local `daftar_test` + `daftar_db` →
+  `npm test` → Step 1b (Watcher badge + change type) → 1c (app routes by type).
+
+## Status — RELEASE 2.4 (code 16) prepared (2026-11-21)
+- Club additions the same day: «اشتراك جديد» sheet redesigned (package cards, one big price field + its
+  discount, start date, ▲/▼ summary, one button); delete a subscriber (🗑 on the card →
+  `components/DangerConfirm.tsx`, a centred card: red «حذف» / green «إبقاء»; soft-delete, entries kept);
+  round «تحديث» on the club page. The GROCERY book still has no delete button (owner's earlier rule —
+  only via the Watcher).
+- A subscriber deleted in the app is NOT erased on the server (owner): the tombstone syncs, and
+  `/admin/users/:id/customers` still returns deleted `member` rows with `deleted_at` → the Watcher shows
+  them grey «حذفه المستخدم», not openable. «جولة في التطبيق» removed from Settings (owner); the tour still
+  shows once per account. Exchange rates hidden on a club account. «إيقاف المزامنة مع الخادم» kept.
+- Club completeness pass (2026-11-21): Settings Excel export = the club's subscribers on a club account
+  (`exportWorkbook({club})` → `listMembers`); Settings wording «اسم النادي» / «إشعار المشتركين» and the
+  printing section hidden for clubs; ✏️ edit a subscriber (`updateMember`, name/phone + contacts picker,
+  unique among members); 📄 PDF statement per subscriber (the book's `exportCustomerStatement`).
+- Carries Phase 43 (club section, items 1–9 except the dropped subscription cards) on top of 2.3 (15).
+- Privacy policy (`docs/privacy.html`, AR + EN, dated 21 Nov 2026): club data, the verification code,
+  shop logo / welcome picture, and the developer's new powers (code, activation, account type, pictures,
+  club view).
+- Watcher: each feature icon names ITSELF on tap (a small black bubble right above that icon, 1.8 s), and a «دفتر النادي» icon was added.
+- Droplet already has migrations 026 + 027. Build with `VITE_POS=1 npm run android:grocery`.

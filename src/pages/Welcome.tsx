@@ -1,30 +1,24 @@
-import { IonContent, IonPage, IonButton, IonIcon, useIonRouter } from '@ionic/react';
-import {
-  book, receipt, print, chatbubbles, documentText, cloud,
-  logoWhatsapp, call, mail, cart, construct,
-} from 'ionicons/icons';
+import { IonContent, IonPage, useIonRouter } from '@ionic/react';
+import LineIcon, { type LineIconName } from '../components/LineIcon';
 import { openWhatsApp, openEmail, openUrl } from '../lib/notify';
 import { FLAVOR } from '../flavors';
 
-// The first screen a signed-out grocer sees. It says what the app is for and
-// gives a way to reach us — activation is manual, so a new (or suspended)
-// account needs the contact channels BEFORE it can get in. Kept to one screen
-// (icon tiles, not a scrolling list) and uses FILLED icons: the outline set
-// reads as hairlines on a coloured circle. A signed-in grocer never sees this:
-// App.tsx sends him to /home.
+// The first screen a signed-out user sees — ONE general screen for every kind
+// of business (Phase 43, design approved 2026-11-20): no shopping basket, no
+// club. What each business type can do is told AFTER sign-in, by its own tour
+// (features/tour), once the developer has set the account's type in the
+// Watcher. The contact channels stay here: activation is manual, so a new
+// account needs them before it can get in.
 const WELCOME_WHATSAPP = '779412972';
 const WELCOME_CALL = '781215102';
 const WELCOME_EMAIL = 'q.fives.app@gmail.com';
 
 const CONTACT_MESSAGE = `مرحباً، لدي استفسار حول تطبيق ${FLAVOR.appName}.`;
 
-const FEATURES = [
-  { icon: book, title: 'دفتر الديون' },
-  { icon: receipt, title: 'فواتير وأصناف' },
-  { icon: print, title: 'طباعة الإيصالات' },
-  { icon: chatbubbles, title: 'إشعار واتساب / SMS' },
-  { icon: documentText, title: 'كشوف PDF وExcel' },
-  { icon: cloud, title: 'مزامنة سحابية' },
+const BENEFITS: { icon: LineIconName; title: string; line: string }[] = [
+  { icon: 'wallet', title: 'الديون والمدفوعات', line: 'رصيد كل عميل محسوب لحظة بلحظة' },
+  { icon: 'msg', title: 'إشعار فوري', line: 'عبر واتساب أو رسالة نصية' },
+  { icon: 'shield', title: 'بياناتك محفوظة', line: 'نسخ احتياطي ومزامنة آمنة' },
 ];
 
 const Welcome: React.FC = () => {
@@ -33,55 +27,44 @@ const Welcome: React.FC = () => {
   return (
     <IonPage>
       <IonContent>
-        <div className="welcome">
-
-          <div className="welcome-hero">
-            <div className="welcome-logo"><IonIcon icon={FLAVOR.id === 'contractor' ? construct : cart} /></div>
-            <h1>{FLAVOR.appName}</h1>
-            <p>{FLAVOR.pitch}</p>
+        <div className="wl">
+          <div className="wl__band">
+            <div className="wl__mark"><LineIcon name="book" /></div>
+            <h1 className="wl__brand">{FLAVOR.appName}</h1>
+            <p className="wl__tag">دفتر حساباتك مع عملائك — منظّم، آمن، ويعمل بدون إنترنت.</p>
           </div>
 
-          <div className="welcome-grid">
-            {FEATURES.map((f) => (
-              <div className="welcome-tile" key={f.title}>
-                <div className="welcome-tile__ic"><IonIcon icon={f.icon} /></div>
-                <b>{f.title}</b>
+          <div className="wl__list">
+            {BENEFITS.map((b) => (
+              <div className="wl__item" key={b.title}>
+                <div className="wl__ic"><LineIcon name={b.icon} /></div>
+                <div className="wl__tx"><b>{b.title}</b><span>{b.line}</span></div>
               </div>
             ))}
           </div>
 
-          <div className="welcome-auth">
-            <IonButton expand="block" onClick={() => router.push('/login')}>
+          <div className="wl__bottom">
+            <button type="button" className="wl__btn wl__btn--solid" onClick={() => router.push('/login')}>
               تسجيل الدخول
-            </IonButton>
-            <IonButton expand="block" fill="outline" onClick={() => router.push('/login?register=1')}>
+            </button>
+            <button type="button" className="wl__btn wl__btn--out" onClick={() => router.push('/login?register=1')}>
               إنشاء حساب جديد
-            </IonButton>
-          </div>
-
-          <div className="welcome-contact">
-            <div className="welcome-contact__lbl">تواصل معنا</div>
-            <div className="welcome-circles">
-              <button className="welcome-circ" onClick={() => void openWhatsApp(WELCOME_WHATSAPP, CONTACT_MESSAGE)}>
-                <span className="welcome-circ__ic welcome-circ__wa"><IonIcon icon={logoWhatsapp} /></span>
-                واتساب
+            </button>
+            <div className="wl__contact">
+              <button type="button" onClick={() => void openWhatsApp(WELCOME_WHATSAPP, CONTACT_MESSAGE)}>
+                <i><LineIcon name="msg" /></i>واتساب
               </button>
-              <button className="welcome-circ" onClick={() => void openUrl(`tel:+967${WELCOME_CALL}`)}>
-                <span className="welcome-circ__ic welcome-circ__call"><IonIcon icon={call} /></span>
-                اتصال
+              <button type="button" onClick={() => void openUrl(`tel:+967${WELCOME_CALL}`)}>
+                <i><LineIcon name="phone" /></i>اتصال
               </button>
               <button
-                className="welcome-circ"
+                type="button"
                 onClick={() => void openEmail(WELCOME_EMAIL, `استفسار — ${FLAVOR.appName}`, CONTACT_MESSAGE)}
               >
-                <span className="welcome-circ__ic welcome-circ__mail"><IonIcon icon={mail} /></span>
-                بريد
+                <i><LineIcon name="mail" /></i>بريد
               </button>
             </div>
           </div>
-
-          <div className="welcome-foot">المطور: إدريس أحمد</div>
-
         </div>
       </IonContent>
     </IonPage>

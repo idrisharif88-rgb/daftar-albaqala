@@ -145,7 +145,7 @@ app.get(
   requireAuth,
   asyncHandler(async (req: AuthedRequest, res) => {
     const [rows] = await pool.query(
-      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled, pos_notes_enabled, sync_consent, multi_device, phone_verified_at, activated_at, brand_logo_at, brand_intro_at FROM users WHERE id = ?',
+      'SELECT id, phone, store_name, plan, subscription_status, contractor_status, drive_backup, pos_enabled, pos_staff_enabled, pos_notes_enabled, sync_consent, multi_device, phone_verified_at, activated_at, brand_logo_at, brand_intro_at, account_type FROM users WHERE id = ?',
       [req.userId]
     );
     const row = (rows as Array<Record<string, unknown>>)[0];

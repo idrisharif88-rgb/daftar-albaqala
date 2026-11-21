@@ -23,7 +23,9 @@ export type ContactRole =
   // دفتر البقالة
   | 'customer' | 'supplier' | 'partner'
   // دفتر المقاول
-  | 'worker' | 'client' | 'broker' | 'materials';
+  | 'worker' | 'client' | 'broker' | 'materials'
+  // دفتر النادي (Phase 43) — inside this app, not a flavor of its own
+  | 'member';
 
 export interface RoleDef {
   role: ContactRole;
@@ -89,7 +91,17 @@ export function balanceSentence(role: string, minor: number, amount: string): st
 // The role definitions themselves live with each build (src/flavors/). Every
 // build KNOWS every role, so a contact made in the other app survives a sync
 // untouched; it only SHOWS and offers its own.
-const ALL_ROLES: RoleDef[] = ALL_FLAVORS.flatMap((f) => f.roles);
+// «دفتر النادي» (Phase 43) is a SECTION of this app, not a build, so its role
+// is known everywhere but offered by no build's pickers: club pages create and
+// list it themselves. The subscription is the debt; a payment lowers it.
+const CLUB_ROLES: RoleDef[] = [{
+  role: 'member', labelAr: 'مشترك', pluralAr: 'مشتركون', senderLabelAr: 'النادي',
+  plusAr: 'اشتراك', minusAr: 'دفعة',
+  plusContactAr: 'اشتراك', minusContactAr: 'دفعة',
+  growsType: 'debt',
+}];
+
+const ALL_ROLES: RoleDef[] = [...ALL_FLAVORS.flatMap((f) => f.roles), ...CLUB_ROLES];
 
 /** The roles this build offers — tabs, pickers, settings. */
 export const ROLES: RoleDef[] = FLAVOR.roles;

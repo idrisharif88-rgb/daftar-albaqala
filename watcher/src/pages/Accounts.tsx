@@ -9,7 +9,7 @@ import {
 } from 'ionicons/icons';
 import {
   Account, ApiError, Status, listAccounts, setAccountStatus, setContractorStatus, setDriveBackup, setPosAccess, setPosStaffAccess, setPosNotesAccess, setPosReportAccess, requestSync, setMultiDevice,
-  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation, setLogo,
+  deleteAccount, setStoreName, setPassword, issueVerificationCode, VerificationCode, setActivation, setLogo, setAccountType,
 } from '../lib/api';
 import VerificationModal from '../components/VerificationModal';
 import LogoModal, { type BrandKind } from '../components/LogoModal';
@@ -672,6 +672,39 @@ const Accounts: React.FC = () => {
     }, 350);
   };
 
+  // «نوع الحساب»: grocery ↔ club. The app opens the matching section (Phase 43).
+  const changeType = (a: Account) => {
+    const toClub = a.account_type !== 'club';
+    const who = a.store_name || a.phone;
+    presentAlert({
+      header: 'نوع الحساب',
+      message: toClub ? `تحويل «${who}» إلى نادٍ رياضي؟` : `تحويل «${who}» إلى بقالة؟`,
+      buttons: [
+        { text: 'رجوع', role: 'cancel' },
+        {
+          text: 'تحويل', role: 'confirm',
+          handler: () => {
+            setTimeout(() => {
+              void ask('نوع الحساب').then(async (code) => {
+                if (!code) return;
+                setBusyId(a.id);
+                try {
+                  await setAccountType(a.id, toClub ? 'club' : 'grocery', code);
+                  void presentToast({ message: toClub ? 'أصبح نادياً ✓' : 'أصبح بقالة ✓', duration: 1800, color: 'success' });
+                  await load();
+                } catch (err) {
+                  void presentToast({ message: err instanceof ApiError ? err.message : 'تعذّر التنفيذ', duration: 2500, color: 'danger' });
+                } finally {
+                  setBusyId(null);
+                }
+              });
+            }, 350);
+          },
+        },
+      ],
+    });
+  };
+
   /** Tap a status icon → its name, since icons alone can be ambiguous. */
   const sayIcon = (text: string) =>
     void presentToast({ message: text, duration: 1400, position: 'top', color: 'dark' });
@@ -853,6 +886,10 @@ const Accounts: React.FC = () => {
             )}
 
             <IonListHeader><IonLabel>الحساب</IonLabel></IonListHeader>
+            <IonItem button detail onClick={() => pick(changeType)}>
+              <IonLabel>نوع الحساب</IonLabel>
+              <IonNote slot="end">{managed.account_type === 'club' ? 'نادٍ رياضي' : 'بقالة'}</IonNote>
+            </IonItem>
             <IonItem button detail onClick={() => pick((a) => void sendCode(a))}>
               <IonLabel>رمز التحقق</IonLabel>
               <IonNote slot="end" color={managed.phone_verified === false ? 'warning' : 'success'}>

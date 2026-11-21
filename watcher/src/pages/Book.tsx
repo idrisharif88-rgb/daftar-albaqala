@@ -6,9 +6,9 @@ import {
   IonSegment, IonSegmentButton, IonLabel,
   useIonViewWillEnter, useIonRouter, useIonToast, useIonActionSheet,
 } from '@ionic/react';
-import { downloadOutline } from 'ionicons/icons';
-import { ApiError, Contact, exportBook, getBook } from '../lib/api';
-import { ROLE_AR, balanceText, isContractorRole } from '../lib/format';
+import { downloadOutline, trashOutline } from 'ionicons/icons';
+import { ApiError, ClubSub, Contact, exportBook, getBook, getClub } from '../lib/api';
+import { ROLE_AR, arabicDate, balanceText, isClubRole, isContractorRole } from '../lib/format';
 import { digitsOnly } from '../lib/digits';
 
 // One account's book: its live contacts, each with a balance per currency.
@@ -19,12 +19,28 @@ import { digitsOnly } from '../lib/digits';
 // the same person as a grocery partner and a contractor's worker are never two
 // rows of one list.
 
-type BookTab = 'grocery' | 'contractor';
+type BookTab = 'grocery' | 'contractor' | 'club';
+
+/** Whole days from today to `day` (local calendar). */
+function daysLeft(day: string): number {
+  const [y, m, d] = day.split('-').map(Number);
+  const t = new Date();
+  return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())) / 86_400_000);
+}
+function subStatus(s: ClubSub | undefined): string {
+  if (!s) return 'بلا اشتراك';
+  const left = daysLeft(s.end_date);
+  if (left < 0) return 'منتهي';
+  if (left === 0) return 'ينتهي اليوم';
+  return left <= 3 ? `باقي ${left} يوم` : `ساري · ${left} يوم`;
+}
 
 const Book: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [title, setTitle] = useState('الدفتر');
   const [contacts, setContacts] = useState<Contact[] | null>(null);
+  // «دفتر النادي»: each subscriber's latest subscription, by contact id.
+  const [latest, setLatest] = useState<Map<string, ClubSub>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<BookTab>('grocery');
@@ -36,9 +52,14 @@ const Book: React.FC = () => {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await getBook(id);
+      const [res, club] = await Promise.all([getBook(id), getClub(id).catch(() => ({ subscriptions: [] }))]);
       setTitle(res.account.store_name || res.account.phone);
       setContacts(res.customers);
+      const map = new Map<string, ClubSub>();
+      for (const s of club.subscriptions) map.set(s.customer_id, s); // ordered by end date: last = latest
+      setLatest(map);
+      // A club's book opens on its own tab.
+      if (res.customers.some((c) => isClubRole(c.role)) && !res.customers.some((c) => !isClubRole(c.role))) setTab('club');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
     }
@@ -55,8 +76,11 @@ const Book: React.FC = () => {
   // he READS, the spreadsheet the one he (or whoever helps him) can sum, sort
   // and filter. Neither is a substitute for the other, so he is asked.
   // Which book a contact belongs to — by role code, as each app decides.
-  const inTab = useCallback((c: { role: string }, t: BookTab) =>
-    isContractorRole(c.role) === (t === 'contractor'), []);
+  const inTab = useCallback((c: { role: string }, t: BookTab) => (
+    t === 'club' ? isClubRole(c.role)
+      : t === 'contractor' ? isContractorRole(c.role)
+        : !isContractorRole(c.role) && !isClubRole(c.role)
+  ), []);
 
   const exportAs = useCallback(async (format: 'pdf' | 'excel') => {
     setExporting(true);
@@ -69,7 +93,7 @@ const Book: React.FC = () => {
         ...whole,
         customers,
         transactions: whole.transactions.filter((t) => ids.has(t.customer_id)),
-        book_label: tab === 'contractor' ? 'دفتر المقاول' : 'دفتر البقالة',
+        book_label: tab === 'contractor' ? 'دفتر المقاول' : tab === 'club' ? 'دفتر النادي' : 'دفتر البقالة',
       };
       if (format === 'pdf') {
         const { exportBookToPdf } = await import('../lib/pdfBook');
@@ -105,6 +129,7 @@ const Book: React.FC = () => {
   const counts = useMemo(() => ({
     grocery: (contacts ?? []).filter((c) => inTab(c, 'grocery')).length,
     contractor: (contacts ?? []).filter((c) => inTab(c, 'contractor')).length,
+    club: (contacts ?? []).filter((c) => inTab(c, 'club')).length,
   }), [contacts, inTab]);
 
   const shown = useMemo(() => {
@@ -137,6 +162,11 @@ const Book: React.FC = () => {
             <IonSegmentButton value="contractor">
               <IonLabel>دفتر المقاول ({counts.contractor})</IonLabel>
             </IonSegmentButton>
+            {counts.club > 0 && (
+              <IonSegmentButton value="club">
+                <IonLabel>النادي ({counts.club})</IonLabel>
+              </IonSegmentButton>
+            )}
           </IonSegment>
         </IonToolbar>
       </IonHeader>
@@ -163,8 +193,27 @@ const Book: React.FC = () => {
                 <div className="acct__name">{c.name}</div>
                 <div className="acct__phone">{c.phone}</div>
               </div>
-              <span className="badge badge--role">{ROLE_AR[c.role] ?? c.role}</span>
+              {c.deleted_at
+                ? <span className="deleted-mark"><IonIcon icon={trashOutline} aria-hidden="true" />حذفه المستخدم</span>
+                : <span className="badge badge--role">{ROLE_AR[c.role] ?? c.role}</span>}
             </div>
+            {isClubRole(c.role) && (() => {
+              const s = latest.get(c.id);
+              return (
+                <div className="acct__meta club-sub">
+                  {s ? (
+                    <>
+                      {s.package_name} · {Number(s.price).toLocaleString('en-US')} ر.ي
+                      {s.price < s.list_price && ` (خصم ${(s.list_price - s.price).toLocaleString('en-US')})`}
+                      <br />
+                      <span className="tri tri--up" aria-label="البداية" />{arabicDate(s.start_date)}
+                      {'  '}<span className="tri tri--down" aria-label="النهاية" />{arabicDate(s.end_date)}
+                      {' · '}<b>{subStatus(s)}</b>
+                    </>
+                  ) : subStatus(undefined)}
+                </div>
+              );
+            })()}
             <div className="acct__meta">
               {c.balances.length === 0 ? 'مسدد' : c.balances.map(balanceText).join(' · ')}
               <br />

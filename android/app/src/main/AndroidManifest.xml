@@ -62,6 +62,12 @@
         </intent>
     </queries>
 
+    <!-- Google's barcode scanner activity (ML Kit) is fixed to portrait, so Play
+         would infer android.hardware.screen.portrait as REQUIRED and hide the
+         app from devices without it (some tablets, desktops, Android XR).
+         The app works in any orientation: declare it optional. -->
+    <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
+
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />

@@ -21,6 +21,7 @@ export async function eraseAccount(userId: string): Promise<boolean> {
     await conn.beginTransaction();
     // Attachments first: they hold a foreign key onto transactions.
     await conn.query('DELETE FROM attachments WHERE user_id = ?', [userId]);
+    await conn.query('DELETE FROM club_subscriptions WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM transactions WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM item_groups WHERE user_id = ?', [userId]);
     await conn.query('DELETE FROM items WHERE user_id = ?', [userId]);

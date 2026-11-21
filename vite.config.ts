@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
 // index.html is the grocery build's. For the contractor build, swap what is
-// painted before any script runs — the name, and the green basket placeholder
+// painted before any script runs — the name, and the green app-icon placeholder
 // (its scene opens on dark grey, so a green flash would come first).
 function contractorHtml(): Plugin {
   return {
@@ -15,7 +15,7 @@ function contractorHtml(): Plugin {
       return html
         .replaceAll('Shopbook | فَلْيَكْتُبْ', 'دفتر المقاول')
         .replaceAll('فَلْيَكْتُبْ', 'دفتر المقاول')
-        .replace(/<div id="boot-splash"[\s\S]*?<\/svg>\s*<\/div>\s*<\/div>/,
+        .replace(/<div id="boot-splash"[\s\S]*?<\/svg>\s*<\/div>/,
           '<div id="boot-splash" style="position:fixed;inset:0;z-index:300000;background:#2B2B2B"></div>')
     },
   }

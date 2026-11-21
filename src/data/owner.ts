@@ -41,6 +41,7 @@ export async function wipeLocalStore(): Promise<void> {
     `DELETE FROM attachments;
 DELETE FROM transactions;
 DELETE FROM item_groups;
+DELETE FROM club_subscriptions;
 DELETE FROM items;
 DELETE FROM pos_notes;
 DELETE FROM pos_sales;

@@ -203,7 +203,7 @@ describe('item groups sync', () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.item_groups.length, 1);
     assert.equal(res.body.item_groups[0].id, group.id);
-    assert.ok(String(res.body.synced_at).startsWith('v3|'));
+    assert.ok(String(res.body.synced_at).startsWith('v4|'));
   });
 
   test('a caught-up client is not sent the same groups again', async () => {

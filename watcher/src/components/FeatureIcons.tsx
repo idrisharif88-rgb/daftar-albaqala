@@ -1,7 +1,8 @@
-import { IonIcon, useIonAlert } from '@ionic/react';
+import { useEffect, useRef, useState } from 'react';
+import { IonIcon } from '@ionic/react';
 import {
   barChartOutline, cardOutline, chatbubblesOutline, cloudUploadOutline, constructOutline,
-  peopleOutline, phonePortraitOutline, syncOutline,
+  peopleOutline, phonePortraitOutline, syncOutline, barbellOutline,
 } from 'ionicons/icons';
 import type { Account } from '../lib/api';
 
@@ -12,8 +13,8 @@ import type { Account } from '../lib/api';
 //   off  grey       — switched off
 //   wait amber — asked, waiting for the user (sync not yet approved)
 //   bad  red   — refused by the user
-// Tapping the row opens a legend that names every feature and its state, so
-// nothing depends on colour alone.
+// Tapping an icon names that one feature and its state, so nothing depends on
+// colour alone.
 
 export type FeatureState = 'on' | 'off' | 'wait' | 'bad';
 
@@ -46,34 +47,47 @@ export function accountFeatures(a: Account): Feature[] {
     { key: 'report', icon: barChartOutline, label: 'تقرير الموظفين', state: flag(a.pos_report_enabled) },
     { key: 'multi', icon: phonePortraitOutline, label: 'عدة أجهزة', state: flag(a.multi_device) },
     { key: 'contractor', icon: constructOutline, label: 'دفتر المقاول', state: flag(a.contractor_status === 'active') },
+    { key: 'club', icon: barbellOutline, label: 'دفتر النادي', state: flag(a.account_type === 'club') },
   ];
 }
 
 const FeatureIcons: React.FC<{ account: Account }> = ({ account }) => {
-  const [presentAlert] = useIonAlert();
   const features = accountFeatures(account);
-  const legend = () => {
-    void presentAlert({
-      header: account.store_name || account.phone,
-      message: features.map((f) => `${f.label}: ${STATE_AR[f.state]}`).join('\n'),
-      cssClass: 'feature-legend',
-      buttons: ['حسناً'],
-    });
+  // Each icon speaks for itself: a tap opens a small black bubble right above
+  // THAT icon with its name and state, gone after a moment (owner, 2026-11-21).
+  const [open, setOpen] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  const say = (key: string) => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen((cur) => (cur === key ? null : key));
+    timer.current = setTimeout(() => setOpen(null), 1800);
   };
   return (
-    <button type="button" className="features" onClick={legend} aria-label="الميزات المفعّلة — اضغط للتفاصيل">
-      {features.map((f) => (
-        <span
+    <div className="features" role="group" aria-label="الميزات">
+      {features.map((f, i) => (
+        <button
+          type="button"
           key={f.key}
           className={`feature feature--${f.state}`}
-          title={`${f.label}: ${STATE_AR[f.state]}`}
           aria-label={`${f.label}: ${STATE_AR[f.state]}`}
-          role="img"
+          aria-describedby={open === f.key ? `tip-${account.id}-${f.key}` : undefined}
+          onClick={(e) => { e.stopPropagation(); say(f.key); }}
         >
           <IonIcon icon={f.icon} aria-hidden="true" />
-        </span>
+          {open === f.key && (
+            // The outermost icons anchor their bubble to their own edge, so it
+            // never runs off the card: first ones (right, RTL) / last ones (left).
+            <span
+              id={`tip-${account.id}-${f.key}`} role="tooltip"
+              className={`feature-tip${i < 2 ? ' feature-tip--start' : i >= features.length - 2 ? ' feature-tip--end' : ''}`}
+            >
+              {f.label}: {STATE_AR[f.state]}
+            </span>
+          )}
+        </button>
       ))}
-    </button>
+    </div>
   );
 };
 

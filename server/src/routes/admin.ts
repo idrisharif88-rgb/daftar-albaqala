@@ -93,7 +93,7 @@ router.get(
                  WHERE s.user_id = u.id AND s.\`key\` = 'contractor_store_name') AS contractor_store_name,
               u.plan,
               u.subscription_status, u.subscription_expires_at, u.drive_backup, u.pos_enabled, u.pos_staff_enabled,
-              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.brand_logo_at, u.brand_intro_at, u.created_at,
+              u.contractor_status, u.sync_consent, u.pos_notes_enabled, u.pos_report_enabled, u.multi_device, u.phone_verified_at, u.activated_at, u.brand_logo_at, u.brand_intro_at, u.account_type, u.created_at,
               (SELECT COUNT(*) FROM customers c
                  WHERE c.user_id = u.id AND c.deleted_at IS NULL) AS customers_count,
               (SELECT COUNT(*) FROM transactions t
@@ -143,6 +143,34 @@ router.post(
       return res.status(404).json({ error: 'user not found' });
     }
     return res.json({ id: req.params.id, drive_backup: enabled });
+  })
+);
+
+// POST /admin/users/:id/account-type  { type: 'grocery' | 'club', code }
+// Which section the app opens for this account («دفتر النادي», Phase 43). Only
+// the developer changes it; every account starts as 'grocery'.
+export const ACCOUNT_TYPES = ['grocery', 'club'] as const;
+router.post(
+  '/users/:id/account-type',
+  // Checked before the authenticator code, so a bad type does not spend it.
+  (req, res, next) => {
+    if (!ACCOUNT_TYPES.includes(req.body?.type)) {
+      return res.status(400).json({ error: `type must be one of: ${ACCOUNT_TYPES.join(', ')}` });
+    }
+    return next();
+  },
+  requireAdminCode,
+  asyncHandler(async (req, res) => {
+    const type = req.body.type;
+    const [result] = await pool.query(
+      'UPDATE users SET account_type = ?, updated_at = UTC_TIMESTAMP() WHERE id = ?',
+      [type, req.params.id]
+    );
+    if ((result as { affectedRows: number }).affectedRows === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+    publish(`user:${req.params.id}`, 'access'); // the app re-reads /me and opens the right section
+    return res.json({ id: req.params.id, account_type: type });
   })
 );
 
@@ -634,28 +662,34 @@ async function findAccount(id: string): Promise<Row | null> {
   return (rows as Row[])[0] ?? null;
 }
 
-async function findContact(userId: string, customerId: string): Promise<Row | null> {
+async function findContact(
+  userId: string, customerId: string, opts: { deletedMember?: boolean } = {},
+): Promise<Row | null> {
+  // `deletedMember`: also find a club subscriber the user deleted in the app —
+  // the Watcher may still open him (read-only), as the owner asked.
   const [rows] = await pool.query(
-    `SELECT id, name, phone, note, role, created_at, updated_at
+    `SELECT id, name, phone, note, role, created_at, updated_at, deleted_at
        FROM customers
-      WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+      WHERE id = ? AND user_id = ? AND (deleted_at IS NULL${opts.deletedMember ? " OR role = 'member'" : ''})`,
     [customerId, userId]
   );
   return (rows as Row[])[0] ?? null;
 }
 
 // GET /admin/users/:id/customers — the account's live contacts, each with its
-// balance per currency and its number of entries.
+// balance per currency and its number of entries. Club subscribers the USER
+// deleted in the app are included too, with `deleted_at` (owner, 2026-11-21:
+// a delete in the app must not take them off the server's view).
 router.get(
   '/users/:id/customers',
   asyncHandler(async (req, res) => {
     const account = await findAccount(req.params.id);
     if (!account) return res.status(404).json({ error: 'user not found' });
     const [rows] = await pool.query(
-      `SELECT id, name, phone, note, role, created_at, updated_at
+      `SELECT id, name, phone, note, role, created_at, updated_at, deleted_at
          FROM customers
-        WHERE user_id = ? AND deleted_at IS NULL
-        ORDER BY name`,
+        WHERE user_id = ? AND (deleted_at IS NULL OR role = 'member')
+        ORDER BY deleted_at IS NOT NULL, name`,
       [req.params.id]
     );
     const balances = await balancesFor(req.params.id);
@@ -668,6 +702,30 @@ router.get(
       };
     });
     return res.json({ account, customers });
+  })
+);
+
+// GET /admin/users/:id/club — the club's live subscriptions («دفتر النادي»,
+// Phase 43): package, price, dates. Read-only; the Watcher pairs them with the
+// subscribers from /customers. DATEs as plain «YYYY-MM-DD» text (no zone shift).
+router.get(
+  '/users/:id/club',
+  asyncHandler(async (req, res) => {
+    const account = await findAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: 'user not found' });
+    const [rows] = await pool.query(
+      `SELECT id, customer_id, package_name, days, list_price, price, currency,
+              DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
+              DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date
+         FROM club_subscriptions
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY end_date ASC, created_at ASC`,
+      [req.params.id]
+    );
+    const subscriptions = (rows as Row[]).map((r) => ({
+      ...r, days: Number(r.days), price: Number(r.price), list_price: Number(r.list_price),
+    }));
+    return res.json({ subscriptions });
   })
 );
 
@@ -714,7 +772,7 @@ router.get(
 router.get(
   '/users/:id/customers/:cid',
   asyncHandler(async (req, res) => {
-    const contact = await findContact(req.params.id, req.params.cid);
+    const contact = await findContact(req.params.id, req.params.cid, { deletedMember: true });
     if (!contact) return res.status(404).json({ error: 'customer not found' });
     const [rows] = await pool.query(
       `SELECT id, type, amount, currency, note, recorded_by, occurred_at, created_at

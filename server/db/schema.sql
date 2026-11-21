@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS users (
   brand_logo_at            DATETIME(3)     NULL,
   brand_intro              MEDIUMTEXT      NULL,                     -- صورة الترحيب بعد الدخول (025)
   brand_intro_at           DATETIME(3)     NULL,
+  account_type             VARCHAR(16)     NOT NULL DEFAULT 'grocery', -- نوع الحساب: grocery | club «دفتر النادي» (026)
 
   created_at               DATETIME        NOT NULL,
   updated_at               DATETIME        NOT NULL,
@@ -179,6 +180,36 @@ CREATE TABLE IF NOT EXISTS item_groups (
   CONSTRAINT fk_group_cust FOREIGN KEY (customer_id) REFERENCES customers(id),
   KEY idx_group_user_cust (user_id, customer_id),
   KEY idx_group_sync (user_id, server_updated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- اشتراكات النادي — الباقة وتواريخها؛ المبلغ نفسه حركة دين في الدفتر (027)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS club_subscriptions (
+  id              CHAR(36)      NOT NULL,
+  user_id         CHAR(36)      NOT NULL,
+  customer_id     CHAR(36)      NOT NULL,
+  package_name    VARCHAR(80)   NOT NULL,
+  days            SMALLINT      NOT NULL,
+  list_price      DECIMAL(12,2) NOT NULL,
+  price           DECIMAL(12,2) NOT NULL,
+  currency        VARCHAR(8)    NOT NULL DEFAULT 'YER',
+  start_date      DATE          NOT NULL,
+  end_date        DATE          NOT NULL,
+  transaction_id  CHAR(36)      NULL,
+  note            VARCHAR(255)  NULL,
+  created_at      DATETIME      NOT NULL,
+  updated_at      DATETIME      NOT NULL,
+  deleted_at      DATETIME      NULL,
+
+  server_updated_at DATETIME(3) NOT NULL
+    DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+  PRIMARY KEY (id),
+  CONSTRAINT fk_csub_user FOREIGN KEY (user_id)     REFERENCES users(id),
+  CONSTRAINT fk_csub_cust FOREIGN KEY (customer_id) REFERENCES customers(id),
+  KEY idx_csub_user_cust (user_id, customer_id),
+  KEY idx_csub_sync (user_id, server_updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------

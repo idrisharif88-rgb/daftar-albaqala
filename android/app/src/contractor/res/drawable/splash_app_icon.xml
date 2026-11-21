@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «دفتر المقاول» keeps its own opening scene (loader.html) on a plain
+     background: no icon in the system splash, as before 2026-11-20. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@android:color/transparent" />
+    <size android:width="160dp" android:height="160dp" />
+</shape>

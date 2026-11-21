@@ -21,8 +21,13 @@ import SyncConsentPrompt from './components/SyncConsentPrompt';
 import DeviceUserPrompt from './components/DeviceUserPrompt';
 import { VerifyPhoneModal } from './components/VerifyPhone';
 import BrandIntro from './components/BrandIntro';
+import AppTour from './features/tour/AppTour';
+import ClubIntro from './features/club/ClubIntro';
 import { firstPosTab, usePosTabs } from './features/pos/PosFooter';
 import Invoice from './pages/Invoice';
+import ClubHome from './features/club/ClubHome';
+import ClubMember from './features/club/ClubMember';
+import ClubPackages from './features/club/ClubPackages';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Welcome from './pages/Welcome';
@@ -192,15 +197,22 @@ const HardwareBack: React.FC = () => {
 // sent to /welcome — including on logout, so leaving the app lands on the same
 // first screen as opening it. Kept inside AuthProvider so useAuth() is available.
 const Routes: React.FC = () => {
-  const { isAuthenticated, isOwner, posAllowed, staff } = useAuth();
+  const { isAuthenticated, isOwner, posAllowed, staff, isClub } = useAuth();
   const posAccess = isAuthenticated && POS_ENABLED && (isOwner || posAllowed);
   // A STAFF member sees only the POS tabs their permissions allow, and never
   // the ledger: every other path sends them to their first tab (or to their
   // account page, when they hold no tab at all).
   const tabs = usePosTabs();
   const staffHome = firstPosTab(tabs) ?? '/pos/account';
-  const home = staff ? staffHome : '/home';
+  // «دفتر النادي» (Phase 43): a club account opens the club section; the
+  // grocery book stays closed to it (Settings is shared).
+  const home = staff ? staffHome : isClub ? '/club' : '/home';
   const ledger = (page: React.ReactNode) =>
+    !isAuthenticated ? <Redirect to="/welcome" /> : staff ? <Redirect to={staffHome} />
+      : isClub ? <Redirect to="/club" /> : page;
+  const club = (page: React.ReactNode) =>
+    !isAuthenticated ? <Redirect to="/welcome" /> : isClub ? page : <Redirect to={home} />;
+  const account = (page: React.ReactNode) =>
     !isAuthenticated ? <Redirect to="/welcome" /> : staff ? <Redirect to={staffHome} /> : page;
   const pos = (path: string, page: React.ReactNode) =>
     !posAccess ? <Redirect to={isAuthenticated ? '/home' : '/welcome'} />
@@ -212,7 +224,9 @@ const Routes: React.FC = () => {
     // which is the blank screen the owner saw after login and logout (a back
     // press rebuilt the stack and the page appeared). A fresh router starts
     // with an empty stack, so the first page it shows is the right one.
-    <IonReactRouter key={isAuthenticated ? 'in' : 'out'}>
+    // The account type is part of the key too: the Watcher can switch it while
+    // the app is open, and the stack must restart in the other section.
+    <IonReactRouter key={!isAuthenticated ? 'out' : isClub ? 'club' : 'in'}>
       <HardwareBack />
       <IonRouterOutlet>
         <Route exact path="/welcome">
@@ -269,11 +283,20 @@ const Routes: React.FC = () => {
           <Redirect to={staff ? staffHome : '/pos/today'} />
         </Route>
         <Route exact path="/settings">
-          {ledger(<Settings />)}
+          {account(<Settings />)}
+        </Route>
+        <Route exact path="/club">
+          {club(<ClubHome />)}
+        </Route>
+        <Route exact path="/club/packages">
+          {club(<ClubPackages />)}
+        </Route>
+        <Route exact path="/club/members/:id">
+          {club(<ClubMember />)}
         </Route>
         {/* The owner's own notebook — no other account can reach it. */}
         <Route exact path="/notebook">
-          {isOwner ? <UpdatesNotebook /> : <Redirect to="/home" />}
+          {isOwner ? <UpdatesNotebook /> : <Redirect to={home} />}
         </Route>
         <Route exact path="/">
           <Redirect to={isAuthenticated ? home : '/welcome'} />
@@ -295,6 +318,8 @@ const App: React.FC = () => (
         <DeviceUserPrompt />
         <VerifyPhoneModal />
         <BrandIntro />
+        <ClubIntro />
+        <AppTour />
         <BiometricGate />
         <SplashIntro />
       </AuthProvider>

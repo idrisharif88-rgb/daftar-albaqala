@@ -70,7 +70,7 @@ const Settings: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [active, setActive] = useState(true); // assume active until we check
   const [version, setVersion] = useState<string | null>(null);
-  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice, phoneVerified } = useAuth();
+  const { logout, isOwner, syncConsent, answerSyncConsent, multiDevice, phoneVerified, isClub } = useAuth();
   // «عدة أجهزة»: who uses THIS phone («أحمد · 727»), shown + editable here.
   const [deviceUser, setDeviceUserLabel] = useState<string | null>(null);
   useEffect(() => {
@@ -245,8 +245,11 @@ const Settings: React.FC = () => {
     presentAlert({
       header: 'حذف الحساب نهائياً',
       message:
-        'سيُحذف حسابك وكل ما فيه: جميع الجهات وأرقامها، وكل الديون والدفعات، ' +
-        'وقوائم الأسعار والمجموعات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n' +
+        (isClub
+          ? 'سيُحذف حسابك وكل ما فيه: جميع المشتركين وأرقامهم، والاشتراكات والدفعات، ' +
+            'والباقات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n'
+          : 'سيُحذف حسابك وكل ما فيه: جميع الجهات وأرقامها، وكل الديون والدفعات، ' +
+            'وقوائم الأسعار والمجموعات والإعدادات — من هذا الجهاز ومن الخادم معاً.\n\n') +
         'لا يمكن التراجع عن هذا، ولا يمكن استعادة الدفتر بعده.',
       buttons: [
         { text: 'إلغاء', role: 'cancel' },
@@ -457,7 +460,7 @@ const Settings: React.FC = () => {
       // Loaded on demand: the xlsx writer is a big dependency that most sessions
       // never touch, and startup on a cheap Android is the scarce resource.
       const { exportWorkbook } = await import('../lib/excel');
-      await exportWorkbook({ storeName: settings ? messageSender(settings) : '', rates });
+      await exportWorkbook({ storeName: settings ? messageSender(settings) : '', rates, club: isClub });
     } catch (err) {
       // Backing out of the share sheet is not a failure and gets no toast.
       if (!(err instanceof ShareCancelledError)) {
@@ -544,11 +547,11 @@ const Settings: React.FC = () => {
               <IonItem>
                 <IonInput
                   className="settings-inline"
-                  label="اسم المتجر"
+                  label={isClub ? 'اسم النادي' : 'اسم المتجر'}
                   labelPlacement="start"
                   value={settings.storeName}
                   onIonInput={(e) => update({ storeName: e.detail.value ?? '' })}
-                  placeholder="مثال: بقالة الأمل"
+                  placeholder={isClub ? 'مثال: نادي الأبطال' : 'مثال: بقالة الأمل'}
                 />
               </IonItem>
               <IonItem>
@@ -566,7 +569,7 @@ const Settings: React.FC = () => {
                   checked={settings.notifyCustomers}
                   onIonChange={(e) => void toggleNotify(e.detail.checked)}
                 >
-                  إشعار الجهات (SMS وواتساب)
+                  {isClub ? 'إشعار المشتركين (SMS وواتساب)' : 'إشعار الجهات (SMS وواتساب)'}
                 </IonToggle>
               </IonItem>
               {phoneVerified === false && (
@@ -594,9 +597,9 @@ const Settings: React.FC = () => {
 
             <IonNote color="medium" className="ion-padding-start">
               <IonText>
-                يظهر اسم المتجر في أول سطر من الرسائل والكشوفات، وإذا تركته فارغاً
-                يظهر اسمك بدلاً منه. عند إيقاف الإشعارات لن يتم إرسال أي رسالة عند
-                تسجيل دين أو دفعة.
+                {isClub
+                  ? 'يظهر اسم النادي في أول سطر من رسائل المشتركين وكشوفاتهم، وإذا تركته فارغاً يظهر اسمك. عند إيقاف الإشعارات لن تُرسل أي رسالة عند تسجيل اشتراك أو دفعة.'
+                  : 'يظهر اسم المتجر في أول سطر من الرسائل والكشوفات، وإذا تركته فارغاً يظهر اسمك بدلاً منه. عند إيقاف الإشعارات لن يتم إرسال أي رسالة عند تسجيل دين أو دفعة.'}
               </IonText>
             </IonNote>
 
@@ -645,7 +648,9 @@ const Settings: React.FC = () => {
               onClose={() => setScaleOpen(false)}
             />
 
-            {/* ---- Exchange rates ---- */}
+            {/* ---- Exchange rates ---- (not in «دفتر النادي»: a club charges in riyals
+                only — owner, 2026-11-21) */}
+            {!isClub && (<>
             <h2 className="settings-section">أسعار الصرف مقابل {currencyDef(BASE_CURRENCY).longAr}</h2>
             <IonList>
               {CONVERTIBLE_CURRENCIES.map((c) => (
@@ -678,6 +683,7 @@ const Settings: React.FC = () => {
                     'ولن يظهر ما يقابلها بالريال حتى تُدخل الأسعار.'}
               </IonText>
             </IonNote>
+            </>)}
 
             {/* ---- Server sync: its own section, apart from the copies below ---- */}
             <h2 className="settings-section">المزامنة</h2>
@@ -708,7 +714,8 @@ const Settings: React.FC = () => {
             {/* The invoice printer. Offered only where the phone can print at
                 all — on the web neither path exists, and the row would be a
                 promise the app cannot keep. */}
-            {(systemPrintAvailable() || thermalPrintingAvailable()) && (
+            {/* Not for a club: nothing in «دفتر النادي» prints (owner, 2026-11-21). */}
+            {!isClub && (systemPrintAvailable() || thermalPrintingAvailable()) && (
               <>
                 <h2 className="settings-section">الطباعة</h2>
                 <IonList>
@@ -728,7 +735,8 @@ const Settings: React.FC = () => {
             )}
 
             {/* Automatic debt reminders — direct build only (renders nothing elsewhere). */}
-            <AutoReminderSection />
+            {/* Grocery debt reminders; a club reminds from its own «تذكير» (owner, 2026-11-21). */}
+            {!isClub && <AutoReminderSection />}
 
             {/* ---- About ---- Privacy policy: not required by Play for an app
                 that collects what this one does, but reviewers look for it, and
@@ -752,7 +760,9 @@ const Settings: React.FC = () => {
             <div className="danger-zone">
               <IonNote className="ion-padding-start">
                 <IonText>
-                  حذف الحساب يمحو كل الجهات والديون والدفعات من هذا الجهاز ومن الخادم نهائياً.
+                  {isClub
+                    ? 'حذف الحساب يمحو كل المشتركين والاشتراكات والدفعات من هذا الجهاز ومن الخادم نهائياً.'
+                    : 'حذف الحساب يمحو كل الجهات والديون والدفعات من هذا الجهاز ومن الخادم نهائياً.'}
                 </IonText>
               </IonNote>
               <IonButton

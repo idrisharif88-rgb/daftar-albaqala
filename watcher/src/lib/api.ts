@@ -94,6 +94,8 @@ export interface Account {
   has_logo?: boolean;
   /** …and a full-screen intro picture after sign-in (025). */
   has_intro?: boolean;
+  /** Which section the app opens: the grocery book or «دفتر النادي» (026). */
+  account_type?: 'grocery' | 'club';
   /** The shop owner may see the report per staff member (the developer always can). */
   pos_report_enabled?: boolean;
   /** The shopkeeper's own answer to the sync request. Switching sync on only
@@ -145,6 +147,14 @@ export function setLogo(
   return request(`/admin/users/${encodeURIComponent(id)}/logo`, {
     method: 'POST',
     body: JSON.stringify({ logo, code, kind }),
+  });
+}
+
+/** Grocery book or gym club — which section the shop's app opens (Phase 43). */
+export function setAccountType(id: string, type: 'grocery' | 'club', code: string): Promise<unknown> {
+  return request(`/admin/users/${encodeURIComponent(id)}/account-type`, {
+    method: 'POST',
+    body: JSON.stringify({ type, code }),
   });
 }
 
@@ -273,7 +283,7 @@ export function setStoreName(
 // their own role codes (src/flavors/ in the shop app).
 export type Role =
   | 'customer' | 'supplier' | 'partner'
-  | 'worker' | 'client' | 'broker' | 'materials';
+  | 'worker' | 'client' | 'broker' | 'materials' | 'member';
 export type TxnType = 'debt' | 'payment';
 
 export interface Balance {
@@ -290,6 +300,8 @@ export interface Contact {
   role: Role;
   created_at: string;
   updated_at: string;
+  /** Set for a club subscriber the user deleted in the app — kept and shown grey. */
+  deleted_at?: string | null;
   balances: Balance[];
   transactions_count?: number;
 }
@@ -307,6 +319,15 @@ export interface Entry {
 }
 
 const u = (id: string) => `/admin/users/${encodeURIComponent(id)}`;
+
+/** «دفتر النادي»: one club's live subscriptions (Phase 43). Prices in major units. */
+export interface ClubSub {
+  id: string; customer_id: string; package_name: string; days: number;
+  list_price: number; price: number; currency: string; start_date: string; end_date: string;
+}
+export function getClub(userId: string): Promise<{ subscriptions: ClubSub[] }> {
+  return request(`${u(userId)}/club`);
+}
 
 export function getBook(userId: string): Promise<{ account: Pick<Account, 'id' | 'phone' | 'store_name' | 'subscription_status'>; customers: Contact[] }> {
   return request(`${u(userId)}/customers`);

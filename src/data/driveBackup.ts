@@ -34,6 +34,7 @@ const TABLES: TableSpec[] = [
   { name: 'customers', mutable: true, soft: true, key: 'id' },
   { name: 'items', mutable: true, soft: true, key: 'id' },
   { name: 'item_groups', mutable: true, soft: true, key: 'id' },
+  { name: 'club_subscriptions', mutable: true, soft: true, key: 'id' },
   { name: 'transactions', mutable: false, soft: false, key: 'id' },
   // The point-of-sale section. Empty on an account that never used it.
   { name: 'pos_products', mutable: true, soft: true, key: 'id' },
