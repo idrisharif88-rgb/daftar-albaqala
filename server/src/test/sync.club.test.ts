@@ -97,6 +97,29 @@ describe('club subscriptions sync', () => {
     assert.equal(res.body.club_subscriptions.rejected.length, bad.length);
   });
 
+  test('a whole club round-trip in one push: member, its debt, the subscription, the packages', async () => {
+    const mid = randomUUID(); const tid = randomUUID();
+    const packages = JSON.stringify([{ id: 'p1', name: 'شهري', days: 30, price: 1000000, currency: 'YER' }]);
+    const res = await request(app).post('/sync/push').set(AUTH(tokenA)).send({
+      customers: [{ id: mid, name: 'خالد', phone: '771999888', role: 'member', note: null,
+        created_at: '2026-11-21T09:00:00Z', updated_at: '2026-11-21T09:00:00Z', deleted_at: null }],
+      transactions: [{ id: tid, customer_id: mid, type: 'debt', amount: 8000, currency: 'YER',
+        note: 'اشتراك شهري', occurred_at: '2026-11-21T09:00:00Z', created_at: '2026-11-21T09:00:00Z' }],
+      club_subscriptions: [aSub(mid, { transaction_id: tid })],
+      settings: [{ key: 'club_packages', value: packages, updated_at: '2026-11-21T09:00:00Z' }],
+    });
+    assert.deepEqual(res.body.customers.rejected, []);
+    assert.deepEqual(res.body.transactions.rejected, []);
+    assert.deepEqual(res.body.club_subscriptions.rejected, []);
+    assert.deepEqual(res.body.settings.rejected, []);
+    // A second device pulls everything back, the role intact.
+    const pull = await request(app).get('/sync/pull').set(AUTH(tokenA));
+    assert.equal(pull.body.customers.find((c: { id: string }) => c.id === mid).role, 'member');
+    assert.ok(pull.body.transactions.some((t: { id: string }) => t.id === tid));
+    assert.equal(pull.body.club_subscriptions.find((x: { customer_id: string }) => x.customer_id === mid).transaction_id, tid);
+    assert.equal(pull.body.settings.find((x: { key: string }) => x.key === 'club_packages').value, packages);
+  });
+
   test('a v3 cursor starts the subscriptions from zero', async () => {
     const sub = aSub(memA);
     await push(tokenA, [sub]);

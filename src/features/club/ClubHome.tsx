@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IonButton, IonButtons, IonContent, IonFab, IonFabButton, IonHeader, IonIcon, IonInput, IonItem,
-  IonList, IonModal, IonNote, IonPage, IonSearchbar, IonSegment, IonSegmentButton, IonTitle, IonToolbar,
+  IonList, IonModal, IonNote, IonPage, IonRefresher, IonRefresherContent, IonSearchbar, IonSegment, IonSegmentButton, IonTitle, IonToolbar,
   useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
 import { add, pricetagsOutline, settingsOutline, personAddOutline } from 'ionicons/icons';
@@ -9,7 +9,10 @@ import { useAuth } from '../../lib/auth';
 import { getSettings } from '../../data/settings';
 import { getBalancesByCustomer } from '../../data/transactions';
 import { formatMinor } from '../../data/money';
-import { onSyncComplete, runSync } from '../../data/sync';
+import { getSyncHealth, needsAttention, onSyncComplete, runSync } from '../../data/sync';
+import { SyncWarning, SYNC_PROBLEM_TEXT } from '../../components/SyncWarning';
+import { GOOGLE_ENABLED } from '../../lib/googleDrive';
+import { useDriveBackup } from '../../lib/useDriveBackup';
 import { phoneInput } from '../../lib/digits';
 import { pickContact } from '../../lib/contacts';
 import { arabicDate } from './messages';
@@ -47,7 +50,10 @@ export function chipText(status: SubStatus, left: number): string {
 }
 
 const ClubHome: React.FC = () => {
-  const { logout } = useAuth();
+  const { logout, driveBackupAllowed } = useAuth();
+  const drive = useDriveBackup();
+  const [syncProblem, setSyncProblem] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
@@ -73,9 +79,10 @@ const ClubHome: React.FC = () => {
   };
 
   const load = useCallback(async () => {
-    const [settings, members, latest, balances] = await Promise.all([
-      getSettings(), listMembers(), latestByMember(), getBalancesByCustomer(),
+    const [settings, members, latest, balances, health] = await Promise.all([
+      getSettings(), listMembers(), latestByMember(), getBalancesByCustomer(), getSyncHealth(),
     ]);
+    setSyncProblem(needsAttention(health) ? health.status : null);
     setStoreName(settings.storeName.trim());
     setOwnerName(settings.ownerName.trim());
     setRows(members.map((m) => {
@@ -89,6 +96,21 @@ const ClubHome: React.FC = () => {
   useIonViewWillEnter(() => { void load(); });
   const { renew, remind } = useClubActions(() => { void load(); });
   useEffect(() => onSyncComplete(() => { void load(); }), [load]);
+
+  // Pull down = sync now (or, for an account without server sync, the Google
+  // Drive backup) — the same rule as the grocery book's «تحديث».
+  const syncNow = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const r = await runSync({ force: true });
+      if (r.status === 'subscription' && driveBackupAllowed && GOOGLE_ENABLED) await drive.backup();
+      else if (r.status !== 'ok') void presentToast({ message: SYNC_PROBLEM_TEXT[r.status], duration: 2600, color: 'warning' });
+      await load();
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const counts = useMemo(() => {
     const c = { all: rows.length, active: 0, soon: 0, expired: 0, owed: 0 };
@@ -139,6 +161,9 @@ const ClubHome: React.FC = () => {
             </IonButton>
           </IonButtons>
           <IonButtons slot="end">
+            {syncProblem && (
+              <SyncWarning onRetry={() => { void syncNow(); }} busy={syncing} label={SYNC_PROBLEM_TEXT[syncProblem]} />
+            )}
             <IonButton onClick={logout}>خروج</IonButton>
           </IonButtons>
         </IonToolbar>
@@ -156,6 +181,9 @@ const ClubHome: React.FC = () => {
       </IonHeader>
 
       <IonContent>
+        <IonRefresher slot="fixed" onIonRefresh={async (e) => { await syncNow(); e.detail.complete(); }}>
+          <IonRefresherContent />
+        </IonRefresher>
         {!search && <WelcomeCard name={ownerName} storeName={storeName} captain />}
         <div className="club-kpis">
           <div className="club-kpi"><b>{counts.active}</b><span>ساري</span></div>

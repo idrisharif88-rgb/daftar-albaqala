@@ -1700,6 +1700,12 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
   ≤3 days. Subscription + payment go through `useContactNotifier` (WhatsApp/SMS, «no notice, no entry»; the
   message note = `subscriptionNote()`, same words as the ledger entry). Dates shown as one plain line.
+  - SYNC AUDIT 2026-11-21: everything the club writes syncs — members (customers, role `member` in server
+    VALID_ROLES), their entries (transactions), `club_subscriptions` (own table, cursor v4), packages
+    (setting `club_packages`, also in the Drive backup via settings). Round-trip test in `sync.club.test.ts`.
+    Gap fixed: the club page had no manual sync / warning — now pull-to-refresh (sync, or Drive for a free
+    account) + the ⚠️ `SyncWarning` in its header. Deliberately NOT synced (both sections): doc counters,
+    the phone's user (multi-device), reminders outbox, printer choice, sync cursor.
   - DONE 2026-11-21 (item 9, Watcher): `GET /admin/users/:id/club` (live subscriptions, dates as text,
     read-only) + a «النادي» tab in `Book.tsx` (shown when the account has subscribers; a club-only book opens
     on it): package · price (+ discount) · ▲ start ▼ end · status · balance. Watcher role `member` = «مشترك»,
