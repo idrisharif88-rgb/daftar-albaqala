@@ -1,7 +1,7 @@
-import { IonIcon, useIonAlert } from '@ionic/react';
+import { IonIcon, useIonToast } from '@ionic/react';
 import {
   barChartOutline, cardOutline, chatbubblesOutline, cloudUploadOutline, constructOutline,
-  peopleOutline, phonePortraitOutline, syncOutline,
+  peopleOutline, phonePortraitOutline, syncOutline, barbellOutline,
 } from 'ionicons/icons';
 import type { Account } from '../lib/api';
 
@@ -12,8 +12,8 @@ import type { Account } from '../lib/api';
 //   off  grey       — switched off
 //   wait amber — asked, waiting for the user (sync not yet approved)
 //   bad  red   — refused by the user
-// Tapping the row opens a legend that names every feature and its state, so
-// nothing depends on colour alone.
+// Tapping an icon names that one feature and its state, so nothing depends on
+// colour alone.
 
 export type FeatureState = 'on' | 'off' | 'wait' | 'bad';
 
@@ -46,34 +46,35 @@ export function accountFeatures(a: Account): Feature[] {
     { key: 'report', icon: barChartOutline, label: 'تقرير الموظفين', state: flag(a.pos_report_enabled) },
     { key: 'multi', icon: phonePortraitOutline, label: 'عدة أجهزة', state: flag(a.multi_device) },
     { key: 'contractor', icon: constructOutline, label: 'دفتر المقاول', state: flag(a.contractor_status === 'active') },
+    { key: 'club', icon: barbellOutline, label: 'دفتر النادي', state: flag(a.account_type === 'club') },
   ];
 }
 
 const FeatureIcons: React.FC<{ account: Account }> = ({ account }) => {
-  const [presentAlert] = useIonAlert();
+  const [presentToast] = useIonToast();
   const features = accountFeatures(account);
-  const legend = () => {
-    void presentAlert({
-      header: account.store_name || account.phone,
-      message: features.map((f) => `${f.label}: ${STATE_AR[f.state]}`).join('\n'),
-      cssClass: 'feature-legend',
-      buttons: ['حسناً'],
+  // Each icon speaks for itself: a tap shows ITS name and state, short and bold
+  // (owner, 2026-11-21 — the old legend listed every feature at once).
+  const say = (f: Feature) => {
+    void presentToast({
+      message: `${f.label}: ${STATE_AR[f.state]}`,
+      duration: 1600, position: 'top', cssClass: 'feature-toast',
     });
   };
   return (
-    <button type="button" className="features" onClick={legend} aria-label="الميزات المفعّلة — اضغط للتفاصيل">
+    <div className="features" role="group" aria-label="الميزات">
       {features.map((f) => (
-        <span
+        <button
+          type="button"
           key={f.key}
           className={`feature feature--${f.state}`}
-          title={`${f.label}: ${STATE_AR[f.state]}`}
           aria-label={`${f.label}: ${STATE_AR[f.state]}`}
-          role="img"
+          onClick={(e) => { e.stopPropagation(); say(f); }}
         >
           <IonIcon icon={f.icon} aria-hidden="true" />
-        </span>
+        </button>
       ))}
-    </button>
+    </div>
   );
 };
 

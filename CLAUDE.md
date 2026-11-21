@@ -1754,3 +1754,11 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   {type, code}` (`ACCOUNT_TYPES` in `routes/admin.ts`), `account_type` in `/me` + `/admin/users`, 2 tests in
   `admin.account.test.ts`. `tsc` passes. Next: owner applies 026 to local `daftar_test` + `daftar_db` →
   `npm test` → Step 1b (Watcher badge + change type) → 1c (app routes by type).
+
+## Status — RELEASE 2.4 (code 16) prepared (2026-11-21)
+- Carries Phase 43 (club section, items 1–9 except the dropped subscription cards) on top of 2.3 (15).
+- Privacy policy (`docs/privacy.html`, AR + EN, dated 21 Nov 2026): club data, the verification code,
+  shop logo / welcome picture, and the developer's new powers (code, activation, account type, pictures,
+  club view).
+- Watcher: each feature icon names ITSELF on tap (short bold toast), and a «دفتر النادي» icon was added.
+- Droplet already has migrations 026 + 027. Build with `VITE_POS=1 npm run android:grocery`.
