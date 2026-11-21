@@ -1096,3 +1096,15 @@ ion-alert.mark-ask .alert-button.mark-yes { background: #1b8a2e; }
 .sub-summary b { font-weight: 800; }
 .sub-summary__total b { font-size: 1.15rem; }
 .sub-go { margin: 4px 0 0; }
+
+/* ---- Destructive confirm (components/DangerConfirm.tsx) — red deletes, green keeps ---- */
+ion-modal.danger-modal { --width: min(340px, calc(100% - 40px)); --height: auto; --border-radius: 22px; --background: var(--app-surface); }
+.danger { display: grid; justify-items: center; gap: 12px; text-align: center; padding: 26px 22px 22px; }
+.danger__mark { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; background: rgba(198, 40, 40, 0.12); color: #c62828; font-size: 28px; }
+.danger h2 { margin: 4px 0 0; font-size: 1.15rem; font-weight: 800; }
+.danger p { margin: 0; color: var(--app-muted); line-height: 1.7; font-size: 0.95rem; }
+.danger__btns { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.danger__btns button { border: 0; border-radius: 14px; padding: 13px; font: inherit; font-weight: 800; font-size: 1rem; cursor: pointer; color: #fff; }
+.danger__keep { background: #2e7d32; }
+.danger__go { background: #c62828; }
+.danger__btns button:focus-visible { outline: 3px solid var(--ion-text-color); outline-offset: 2px; }

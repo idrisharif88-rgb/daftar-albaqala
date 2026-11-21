@@ -1757,6 +1757,11 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   `npm test` → Step 1b (Watcher badge + change type) → 1c (app routes by type).
 
 ## Status — RELEASE 2.4 (code 16) prepared (2026-11-21)
+- Club additions the same day: «اشتراك جديد» sheet redesigned (package cards, one big price field + its
+  discount, start date, ▲/▼ summary, one button); delete a subscriber (🗑 on the card →
+  `components/DangerConfirm.tsx`, a centred card: red «حذف» / green «إبقاء»; soft-delete, entries kept);
+  round «تحديث» on the club page. The GROCERY book still has no delete button (owner's earlier rule —
+  only via the Watcher).
 - Carries Phase 43 (club section, items 1–9 except the dropped subscription cards) on top of 2.3 (15).
 - Privacy policy (`docs/privacy.html`, AR + EN, dated 21 Nov 2026): club data, the verification code,
   shop logo / welcome picture, and the developer's new powers (code, activation, account type, pictures,

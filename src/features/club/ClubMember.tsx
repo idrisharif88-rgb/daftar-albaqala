@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import {
   IonBackButton, IonButton, IonButtons, IonContent, IonHeader, IonInput, IonItem, IonLabel,
-  IonModal, IonNote, IonPage, IonTitle, IonToolbar, useIonToast, useIonViewWillEnter,
+  IonIcon, IonModal, IonNote, IonPage, IonTitle, IonToolbar, useIonRouter, useIonToast, useIonViewWillEnter,
 } from '@ionic/react';
-import { getCustomer, type Customer } from '../../data/customers';
+import { trashOutline } from 'ionicons/icons';
+import { getCustomer, softDeleteCustomer, type Customer } from '../../data/customers';
+import DangerConfirm from '../../components/DangerConfirm';
 import { addTransaction, getBalances, listTransactions, type Transaction } from '../../data/transactions';
 import { formatMinor, toMinor } from '../../data/money';
 import { runSync } from '../../data/sync';
@@ -36,6 +38,18 @@ const ClubMember: React.FC = () => {
   const [packages, setPackages] = useState<ClubPackage[]>([]);
   const [presentToast] = useIonToast();
   const notifyContact = useContactNotifier();
+  const router = useIonRouter();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Delete a subscriber: a tombstone (it syncs), the list forgets him. His
+  // entries stay in the ledger — append-only, as everywhere in the book.
+  const removeMember = async () => {
+    setConfirmDelete(false);
+    await softDeleteCustomer(id);
+    void runSync();
+    void presentToast({ message: 'تم حذف المشترك', duration: 1600, color: 'medium' });
+    router.push('/club', 'back');
+  };
 
   // «اشتراك جديد»
   const [subOpen, setSubOpen] = useState(false);
@@ -164,6 +178,11 @@ const ClubMember: React.FC = () => {
         <IonToolbar>
           <IonButtons slot="start"><IonBackButton defaultHref="/club" text="رجوع" /></IonButtons>
           <IonTitle>{member?.name ?? ''}</IonTitle>
+          <IonButtons slot="end">
+            <IonButton onClick={() => setConfirmDelete(true)} aria-label="حذف المشترك">
+              <IonIcon slot="icon-only" icon={trashOutline} />
+            </IonButton>
+          </IonButtons>
         </IonToolbar>
       </IonHeader>
       <IonContent>
@@ -216,6 +235,14 @@ const ClubMember: React.FC = () => {
             </div>
           ))}
         </div>
+
+        <DangerConfirm
+          open={confirmDelete}
+          title="حذف المشترك؟"
+          message={`سيُحذف «${member?.name ?? ''}» من قائمة المشتركين. حركاته السابقة تبقى محفوظة في الدفتر.`}
+          onConfirm={() => void removeMember()}
+          onCancel={() => setConfirmDelete(false)}
+        />
 
         {/* ---- اشتراك جديد ----
             Four clear blocks, top to bottom (redesigned 2026-11-21: «crowded»):
