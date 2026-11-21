@@ -1700,6 +1700,10 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   allowed, history), `ClubPackages` (/club/packages). End date = start + days − 1 (inclusive); «قارب» =
   ≤3 days. Subscription + payment go through `useContactNotifier` (WhatsApp/SMS, «no notice, no entry»; the
   message note = `subscriptionNote()`, same words as the ledger entry). Dates shown as one plain line.
+  - DONE 2026-11-21 (item 9, Watcher): `GET /admin/users/:id/club` (live subscriptions, dates as text,
+    read-only) + a «النادي» tab in `Book.tsx` (shown when the account has subscribers; a club-only book opens
+    on it): package · price (+ discount) · ▲ start ▼ end · status · balance. Watcher role `member` = «مشترك»,
+    its own book (`isClubRole`), not offered as a grocery role.
   - DONE 2026-11-21 (item 8, identity): `ClubIntro` — a REAL 3 s gym clip for every club
     (`public/brand/club-intro.mp4`, Pexels 5319754, free licence, no credit needed; muted, 4 s, 312 KB —
     lengthened from 3 s; the clock starts on the video's first played frame, `onPlaying`) with

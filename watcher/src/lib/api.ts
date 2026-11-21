@@ -283,7 +283,7 @@ export function setStoreName(
 // their own role codes (src/flavors/ in the shop app).
 export type Role =
   | 'customer' | 'supplier' | 'partner'
-  | 'worker' | 'client' | 'broker' | 'materials';
+  | 'worker' | 'client' | 'broker' | 'materials' | 'member';
 export type TxnType = 'debt' | 'payment';
 
 export interface Balance {
@@ -317,6 +317,15 @@ export interface Entry {
 }
 
 const u = (id: string) => `/admin/users/${encodeURIComponent(id)}`;
+
+/** «دفتر النادي»: one club's live subscriptions (Phase 43). Prices in major units. */
+export interface ClubSub {
+  id: string; customer_id: string; package_name: string; days: number;
+  list_price: number; price: number; currency: string; start_date: string; end_date: string;
+}
+export function getClub(userId: string): Promise<{ subscriptions: ClubSub[] }> {
+  return request(`${u(userId)}/club`);
+}
 
 export function getBook(userId: string): Promise<{ account: Pick<Account, 'id' | 'phone' | 'store_name' | 'subscription_status'>; customers: Contact[] }> {
   return request(`${u(userId)}/customers`);

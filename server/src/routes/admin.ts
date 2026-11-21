@@ -699,6 +699,30 @@ router.get(
   })
 );
 
+// GET /admin/users/:id/club — the club's live subscriptions («دفتر النادي»,
+// Phase 43): package, price, dates. Read-only; the Watcher pairs them with the
+// subscribers from /customers. DATEs as plain «YYYY-MM-DD» text (no zone shift).
+router.get(
+  '/users/:id/club',
+  asyncHandler(async (req, res) => {
+    const account = await findAccount(req.params.id);
+    if (!account) return res.status(404).json({ error: 'user not found' });
+    const [rows] = await pool.query(
+      `SELECT id, customer_id, package_name, days, list_price, price, currency,
+              DATE_FORMAT(start_date, '%Y-%m-%d') AS start_date,
+              DATE_FORMAT(end_date, '%Y-%m-%d') AS end_date
+         FROM club_subscriptions
+        WHERE user_id = ? AND deleted_at IS NULL
+        ORDER BY end_date ASC, created_at ASC`,
+      [req.params.id]
+    );
+    const subscriptions = (rows as Row[]).map((r) => ({
+      ...r, days: Number(r.days), price: Number(r.price), list_price: Number(r.list_price),
+    }));
+    return res.json({ subscriptions });
+  })
+);
+
 // GET /admin/users/:id/export — the whole book of one account in one response:
 // every live contact and every live entry.
 //

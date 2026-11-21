@@ -13,10 +13,21 @@ export const ROLE_AR: Record<Role, string> = {
   client: 'جهة',
   broker: 'وسيط',
   materials: 'محل مواد',
+  member: 'مشترك',
 };
 
 const CONTRACTOR_ROLES: Role[] = ['worker', 'client', 'broker', 'materials'];
 const GROCERY_ROLES: Role[] = ['customer', 'supplier', 'partner'];
+
+/** «دفتر النادي»'s subscriber (Phase 43) — a book of its own. */
+export const isClubRole = (r: string): boolean => r === 'member';
+
+const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+/** «2026-12-20» → «20 ديسمبر 2026», as the club app writes it. */
+export function arabicDate(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : day;
+}
 
 /** The book a contact lives in. Each app shows only its own roles. */
 export const isContractorRole = (r: string): boolean => (CONTRACTOR_ROLES as string[]).includes(r);
@@ -30,7 +41,7 @@ export const roleBadge = (r: string): string =>
  *  to the other app's role would make it vanish from one app and appear in the
  *  other, history and all. */
 export const rolesInSameBook = (r: string): Role[] =>
-  isContractorRole(r) ? CONTRACTOR_ROLES : GROCERY_ROLES;
+  isClubRole(r) ? ['member'] : isContractorRole(r) ? CONTRACTOR_ROLES : GROCERY_ROLES;
 
 export function money(amount: number, currency: string): string {
   const n = Math.abs(amount).toLocaleString('en-US', { maximumFractionDigits: 2 });

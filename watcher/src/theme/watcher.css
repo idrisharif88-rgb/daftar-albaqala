@@ -230,3 +230,9 @@ ion-alert.feature-legend .alert-message { white-space: pre-line; font-weight: 70
 .logo-pick__empty { display: grid; place-items: center; color: var(--ion-color-medium); font-size: 48px; }
 .logo-pick ion-button { width: 100%; }
 .status-ic { cursor: pointer; }
+
+/* «دفتر النادي» rows in the Book (Phase 43) — ▲ start (green) ▼ end (grey) */
+.club-sub { line-height: 1.9; }
+.tri { display: inline-block; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; margin-inline-end: 5px; vertical-align: middle; }
+.tri--up { border-bottom: 8px solid var(--ion-color-primary); }
+.tri--down { border-top: 8px solid var(--ion-color-medium); }
