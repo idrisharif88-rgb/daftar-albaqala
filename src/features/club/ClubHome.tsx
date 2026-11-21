@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   IonButton, IonButtons, IonContent, IonFab, IonFabButton, IonHeader, IonIcon, IonInput, IonItem,
-  IonList, IonModal, IonNote, IonPage, IonRefresher, IonRefresherContent, IonSearchbar, IonSegment, IonSegmentButton, IonTitle, IonToolbar,
+  IonList, IonModal, IonNote, IonPage, IonRefresher, IonRefresherContent, IonSearchbar, IonSpinner, IonSegment, IonSegmentButton, IonTitle, IonToolbar,
   useIonViewWillEnter, useIonToast,
 } from '@ionic/react';
-import { add, pricetagsOutline, settingsOutline, personAddOutline } from 'ionicons/icons';
+import { add, pricetagsOutline, settingsOutline, personAddOutline, checkmarkCircle } from 'ionicons/icons';
 import { useAuth } from '../../lib/auth';
 import { getSettings } from '../../data/settings';
 import { getBalancesByCustomer } from '../../data/transactions';
@@ -105,7 +105,8 @@ const ClubHome: React.FC = () => {
     try {
       const r = await runSync({ force: true });
       if (r.status === 'subscription' && driveBackupAllowed && GOOGLE_ENABLED) await drive.backup();
-      else if (r.status !== 'ok') void presentToast({ message: SYNC_PROBLEM_TEXT[r.status], duration: 2600, color: 'warning' });
+      else if (r.status === 'ok') void presentToast({ message: '', icon: checkmarkCircle, cssClass: 'toast-sync-ok', position: 'top', duration: 1200 });
+      else void presentToast({ message: SYNC_PROBLEM_TEXT[r.status], duration: 2600, color: 'warning' });
       await load();
     } finally {
       setSyncing(false);
@@ -223,6 +224,12 @@ const ClubHome: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* «تحديث» — the same round button as the grocery book: server sync, or
+            the Drive backup for an account without it. */}
+        <button type="button" className="sync-round-btn" onClick={() => void syncNow()} disabled={syncing || !!drive.busy}>
+          {syncing || drive.busy ? <IonSpinner name="crescent" /> : 'تحديث'}
+        </button>
 
         <IonFab vertical="bottom" horizontal="start" slot="fixed">
           <IonFabButton id="club-add-member" className="club-fab" aria-label="مشترك جديد">

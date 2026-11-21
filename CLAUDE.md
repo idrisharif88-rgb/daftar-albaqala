@@ -1703,7 +1703,8 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   - SYNC AUDIT 2026-11-21: everything the club writes syncs — members (customers, role `member` in server
     VALID_ROLES), their entries (transactions), `club_subscriptions` (own table, cursor v4), packages
     (setting `club_packages`, also in the Drive backup via settings). Round-trip test in `sync.club.test.ts`.
-    Gap fixed: the club page had no manual sync / warning — now pull-to-refresh (sync, or Drive for a free
+    Gap fixed: the club page had no manual sync / warning — now the round «تحديث» button (as in the book) +
+    pull-to-refresh (sync, or Drive for a free
     account) + the ⚠️ `SyncWarning` in its header. Deliberately NOT synced (both sections): doc counters,
     the phone's user (multi-device), reminders outbox, printer choice, sync cursor.
   - DONE 2026-11-21 (item 9, Watcher): `GET /admin/users/:id/club` (live subscriptions, dates as text,
