@@ -8,9 +8,11 @@ import { useBrandLogo } from '../lib/brandLogo';
 interface Props {
   name: string;
   storeName: string;
+  /** «دفتر النادي»: «مرحباً كابتن <name> 💪» instead of the time-of-day greeting. */
+  captain?: boolean;
 }
 
-const WelcomeCard: React.FC<Props> = ({ name, storeName }) => {
+const WelcomeCard: React.FC<Props> = ({ name, storeName, captain }) => {
   const logo = useBrandLogo();
   const who = name || storeName;
   return (
@@ -22,7 +24,9 @@ const WelcomeCard: React.FC<Props> = ({ name, storeName }) => {
       )}
       <div className="greet__text">
         <div className="greet__hello">
-          {greeting()}{who ? `، ${who}` : ''} 👋
+          {captain
+            ? `مرحباً كابتن${name ? ` ${name}` : ''} 💪`
+            : `${greeting()}${who ? `، ${who}` : ''} 👋`}
         </div>
       </div>
       {storeName && name && <span className="greet__store">{storeName}</span>}

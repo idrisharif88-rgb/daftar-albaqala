@@ -22,6 +22,7 @@ import DeviceUserPrompt from './components/DeviceUserPrompt';
 import { VerifyPhoneModal } from './components/VerifyPhone';
 import BrandIntro from './components/BrandIntro';
 import AppTour from './features/tour/AppTour';
+import ClubIntro from './features/club/ClubIntro';
 import { firstPosTab, usePosTabs } from './features/pos/PosFooter';
 import Invoice from './pages/Invoice';
 import ClubHome from './features/club/ClubHome';
@@ -317,6 +318,7 @@ const App: React.FC = () => (
         <DeviceUserPrompt />
         <VerifyPhoneModal />
         <BrandIntro />
+        <ClubIntro />
         <AppTour />
         <BiometricGate />
         <SplashIntro />

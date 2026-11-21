@@ -156,7 +156,7 @@ const ClubHome: React.FC = () => {
       </IonHeader>
 
       <IonContent>
-        {!search && <WelcomeCard name={ownerName} storeName={storeName} />}
+        {!search && <WelcomeCard name={ownerName} storeName={storeName} captain />}
         <div className="club-kpis">
           <div className="club-kpi"><b>{counts.active}</b><span>ساري</span></div>
           <div className="club-kpi club-kpi--warn"><b>{counts.soon}</b><span>ينتهي قريباً</span></div>
