@@ -1658,3 +1658,17 @@ Source: `~/Downloads/daftar-alnadi.pdf` (owner's decisions). **Not built. Nothin
   club view).
 - Watcher: each feature icon names ITSELF on tap (a small black bubble right above that icon, 1.8 s), and a «دفتر النادي» icon was added.
 - Droplet already has migrations 026 + 027. Build with `VITE_POS=1 npm run android:grocery`.
+
+## Status — BUILT (Phase 44: Watcher times) (2026-11-25)
+Branch `watcher-times`. Server migration **028** (`users.last_seen_at DATETIME(3)`). Not deployed, not device-tested.
+- **Account card** (all accounts, unverified too): «التسجيل» / «آخر حركة» / «آخر نشاط», each date + time
+  (`dateTime`, Latin digits, phone's local time).
+  - «آخر حركة» = newest LIVE transaction's `occurred_at` (`last_transaction_at` in `GET /admin/users`).
+  - «آخر نشاط» = `users.last_seen_at`: stamped by `requireAuth`, by the OWNER path of `requirePosActor`
+    and by `POST /auth/login` (`server/src/account/lastSeen.ts`, fire-and-forget, ≤1 write/min/account —
+    memory map + SQL guard). Staff requests do not count. Old apps count too (any signed-in request).
+    NULL («—») until the account is seen after 028. The old `last_activity_at` is still returned, not shown.
+- **Contact screen:** each entry also shows «وصلت الخادم: …» (`server_updated_at`).
+- Test: `admin.account.test.ts` «list: last seen + newest transaction time».
+- ⚠️ **MIGRATION 028 REQUIRED** (root): local `daftar_test` + `daftar_db`, then droplet, then
+  `git pull` + `pm2 restart daftar-api`, then the Watcher APK.

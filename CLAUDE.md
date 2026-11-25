@@ -145,6 +145,7 @@ before changing a feature.** After each phase: full write-up → HISTORY.md, one
 - 36–41: manager PIN, staff chat, sync request flow, live line (SSE), direct sync enable, multi-device.
 - 42: phone verification, account activation, invoice quick-add, welcome, shop logo + intro.
 - 43: «دفتر النادي» club section (`src/features/club/`). Releases: 2.2 (13), 2.3 (15), 2.4 (16).
+- 44: Watcher times — account card: registration / last transaction / last seen (date + time); entry shows when it reached the server. Migration **028**.
 
 ## ⚠️ Rules that still bite (details in HISTORY.md)
 - **Never re-add** `SEND_SMS` (except the `direct` build type, never shipped to Play),
@@ -152,7 +153,7 @@ before changing a feature.** After each phase: full write-up → HISTORY.md, one
   Check the **merged** manifest (rebuild first — stale merged manifests lie).
 - **Hand-written SQL on `customers`** MUST set `updated_at=UTC_TIMESTAMP()` or phones discard it.
 - **Local schema:** add columns only via `src/data/migrations.ts` (`PRAGMA user_version`), never `schema.ts`.
-  Server DDL = `server/db/migrations/NNN_*.sql`, run as **root** (latest: **027**); deploy server
+  Server DDL = `server/db/migrations/NNN_*.sql`, run as **root** (latest: **028**); deploy server
   before the app. Update `schema.sql` too.
 - **SQLite on Android:** multi-statement `execSQL` splits on `";\n"` — one statement per line.
 - **Account switch wipe** (`src/data/owner.ts`) must include every new local table.
