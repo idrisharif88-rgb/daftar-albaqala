@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { touchLastSeen } from '../account/lastSeen';
 
 // Requests that passed requireAuth carry the authenticated user's id.
 export interface AuthedRequest extends Request {
@@ -48,5 +49,6 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
     return res.status(401).json({ error: 'invalid or expired token' });
   }
   req.userId = read.payload.sub;
+  touchLastSeen(read.payload.sub); // «آخر نشاط» in the Watcher
   next();
 }

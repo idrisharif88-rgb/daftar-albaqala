@@ -101,7 +101,10 @@ router.get(
               GREATEST(
                 COALESCE((SELECT MAX(c.server_updated_at) FROM customers c WHERE c.user_id = u.id), u.created_at),
                 COALESCE((SELECT MAX(t.server_updated_at) FROM transactions t WHERE t.user_id = u.id), u.created_at)
-              ) AS last_activity_at
+              ) AS last_activity_at,
+              u.last_seen_at,
+              (SELECT MAX(t.occurred_at) FROM transactions t
+                 WHERE t.user_id = u.id AND t.deleted_at IS NULL) AS last_transaction_at
          FROM users u
         ORDER BY u.created_at DESC`
     );
@@ -775,7 +778,7 @@ router.get(
     const contact = await findContact(req.params.id, req.params.cid, { deletedMember: true });
     if (!contact) return res.status(404).json({ error: 'customer not found' });
     const [rows] = await pool.query(
-      `SELECT id, type, amount, currency, note, recorded_by, occurred_at, created_at
+      `SELECT id, type, amount, currency, note, recorded_by, occurred_at, created_at, server_updated_at
          FROM transactions
         WHERE user_id = ? AND customer_id = ? AND deleted_at IS NULL
         ORDER BY occurred_at DESC, created_at DESC`,

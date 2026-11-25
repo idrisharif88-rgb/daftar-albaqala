@@ -17,6 +17,7 @@ import FeatureIcons from '../components/FeatureIcons';
 import { openLive } from '../lib/live';
 import { useAuth } from '../lib/auth';
 import { digitsOnly } from '../lib/digits';
+import { dateTime } from '../lib/format';
 import { useAdminCode } from '../lib/useAdminCode';
 
 type Filter = 'all' | 'active' | 'inactive' | 'suspended';
@@ -44,15 +45,6 @@ function effectiveStatus(a: Account): Status {
     return 'expired';
   }
   return a.subscription_status;
-}
-
-// Fixed YYYY-MM-DD with Latin digits, like the shopkeeper app's exports.
-function day(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '—';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 /** The server's refusals the owner can act on, in Arabic. */
@@ -1002,8 +994,11 @@ const Accounts: React.FC = () => {
               <div className="acct__meta">
                 جهات: {a.customers_count} · حركات: {a.transactions_count}
                 <br />
-                التسجيل: <span className="ltr">{day(a.created_at)}</span> · آخر نشاط:{' '}
-                <span className="ltr">{day(a.last_activity_at)}</span>
+                التسجيل: <span className="ltr">{dateTime(a.created_at)}</span>
+                <br />
+                آخر حركة: <span className="ltr">{dateTime(a.last_transaction_at ?? null)}</span>
+                <br />
+                آخر نشاط: <span className="ltr">{dateTime(a.last_seen_at ?? null)}</span>
               </div>
               <div className="acct__actions">
                 <IonButton size="small" fill="outline" onClick={() => router.push(`/accounts/${a.id}`)}>

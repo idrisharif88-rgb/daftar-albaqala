@@ -7,6 +7,7 @@ import app from '../app';
 import { pool } from '../db';
 import { cleanDb, seedUser, tokenFor, mysqlDate, getCustomer } from './helpers';
 import { resetAdminLoginState } from '../routes/admin';
+import { resetLastSeenThrottle } from '../account/lastSeen';
 import { base32Encode, base32Decode, currentStep, totpAt } from '../admin/totp';
 
 // Watcher: erase a whole account, and rename a store.
@@ -240,5 +241,25 @@ describe('/admin — delete account + rename store', () => {
     // Too short: refused (the shopkeeper token above never reached the code gate).
     assert.equal((await request(app).post(`/admin/users/${a}/password`).set(auth())
       .send({ code: codeNow(1), password: '123' })).status, 400);
+  });
+  test('list: last seen (any signed-in request) + newest transaction time', async () => {
+    resetLastSeenThrottle();
+    const a = await seedUser();
+    const c = await seedContact(a);
+    await seedTxn(a, c, 'debt', 100);
+    let row = (await request(app).get('/admin/users').set(auth())).body.users.find((u: { id: string }) => u.id === a);
+    assert.equal(row.last_seen_at, null);
+    assert.ok(row.last_transaction_at, 'newest transaction time is listed');
+    // a deleted transaction is not «آخر حركة»
+    await pool.query('UPDATE transactions SET deleted_at = UTC_TIMESTAMP() WHERE user_id = ?', [a]);
+    row = (await request(app).get('/admin/users').set(auth())).body.users.find((u: { id: string }) => u.id === a);
+    assert.equal(row.last_transaction_at, null);
+    // any signed-in request stamps last_seen_at (written in the background)
+    await request(app).get('/me').set({ Authorization: `Bearer ${tokenFor(a)}` });
+    for (let i = 0; i < 50 && !row.last_seen_at; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+      row = (await request(app).get('/admin/users').set(auth())).body.users.find((u: { id: string }) => u.id === a);
+    }
+    assert.ok(row.last_seen_at, 'last_seen_at set after a signed-in request');
   });
 });
