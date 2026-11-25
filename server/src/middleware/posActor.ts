@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { pool } from '../db';
 import { AuthedRequest, readBearer } from './auth';
 import { can, parsePermissions, type Permission, type StaffRole } from '../pos/permissions';
+import { touchLastSeen } from '../account/lastSeen';
 
 // Who is at the point of sale: the OWNER (his ordinary token), or one of his
 // STAFF (a staff token). Either way req.userId ends up as the OWNER's id, so
@@ -40,6 +41,7 @@ export async function requirePosActor(req: PosRequest, res: Response, next: Next
 
   if (payload.typ === undefined) {
     req.userId = payload.sub; // the owner himself
+    touchLastSeen(payload.sub); // «آخر نشاط» in the Watcher
     return next();
   }
   if (payload.typ !== 'staff') return res.status(401).json({ error: 'invalid or expired token' });

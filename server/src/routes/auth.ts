@@ -6,6 +6,7 @@ import { pool } from '../db';
 import { asyncHandler } from '../asyncHandler';
 import { normalizePhone } from '../auth/phone';
 import { publish } from '../live/hub';
+import { touchLastSeen } from '../account/lastSeen';
 
 const router = Router();
 
@@ -87,6 +88,7 @@ router.post(
       return res.status(403).json({ error: 'account suspended' });
     }
 
+    touchLastSeen(user.id); // «آخر نشاط» in the Watcher
     const token = signToken(user.id);
     return res.json({
       token,

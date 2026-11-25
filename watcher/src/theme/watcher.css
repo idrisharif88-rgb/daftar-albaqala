@@ -110,6 +110,7 @@ ion-input input.native-input::placeholder {
 .entry__amt--debt { color: #c62828; }
 .entry__amt--pay { color: #1b5e20; }
 .entry__date { color: #44524a; font-size: 0.85rem; }
+.entry__server { margin-top: 2px; color: #5c685c; font-size: 0.75rem; }
 .entry__note { margin-top: 4px; color: #333; }
 /* The id is what the owner deletes by — small, but selectable and whole. */
 .entry__id { margin-top: 4px; font-family: monospace; font-size: 0.72rem; color: #5c685c;

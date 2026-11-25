@@ -108,6 +108,10 @@ export interface Account {
   customers_count: number;
   transactions_count: number;
   last_activity_at: string | null;
+  /** Last time the account used the app (signed-in request or login), 028. */
+  last_seen_at?: string | null;
+  /** When the newest live transaction happened (its occurred_at). */
+  last_transaction_at?: string | null;
 }
 
 export function adminLogin(phone: string, password: string, code: string): Promise<{ token: string }> {
@@ -316,6 +320,8 @@ export interface Entry {
   recorded_by?: string | null;
   occurred_at: string;
   created_at: string;
+  /** When it reached the server (server clock). */
+  server_updated_at?: string;
 }
 
 const u = (id: string) => `/admin/users/${encodeURIComponent(id)}`;

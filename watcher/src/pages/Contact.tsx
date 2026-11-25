@@ -184,6 +184,9 @@ const Contact: React.FC = () => {
               </span>
               <span className="ltr entry__date">{dateTime(t.occurred_at)}</span>
             </div>
+            {t.server_updated_at && (
+              <div className="entry__server">وصلت الخادم: <span className="ltr">{dateTime(t.server_updated_at)}</span></div>
+            )}
             {t.note && <div className="entry__note">{t.note}</div>}
             {t.recorded_by && <div className="entry__note">👤 {t.recorded_by}</div>}
             <div className="entry__id ltr">{t.id}</div>
